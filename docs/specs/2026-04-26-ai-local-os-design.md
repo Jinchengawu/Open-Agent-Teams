@@ -86,6 +86,7 @@
 | 本规格 | `docs/specs/2026-04-26-ai-local-os-design.md` |
 | 实现计划 | `docs/plans/2026-04-26-ai-local-os.md` |
 | 集成模板 | `docs/ai-local-os/*` |
+| 里程碑路线图 | `docs/ai-local-os/milestones-roadmap.md` |
 
 ---
 

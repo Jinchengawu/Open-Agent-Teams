@@ -10,6 +10,7 @@
 | 4 | [.env.example](./.env.example) | 环境变量占位（勿提交含真实密钥的 `.env`） |
 | 5 | [../plans/2026-04-26-ai-local-os.md](../plans/2026-04-26-ai-local-os.md) | 分步实现与验证清单 |
 | 6 | [integration-handoff.md](./integration-handoff.md) | **阶段 2**：集成移交、官方文档链接表、可运行检查项 |
+| 7 | [milestones-roadmap.md](./milestones-roadmap.md) | **里程碑**：A → A+ → B → C 按周建议节奏与验收 |
 
 **侧车（意图 SSOT）**：[debug/superpowers-intent/REQ-2026-0426-ai-local-os.md](../../debug/superpowers-intent/REQ-2026-0426-ai-local-os.md)
 

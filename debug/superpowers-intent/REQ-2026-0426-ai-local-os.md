@@ -10,7 +10,7 @@
 | **PR** | （待填） |
 | **负责人** | （待填） |
 | **创建时间** | 2026-04-26 |
-| **最后更新** | 2026-04-26（阶段 2：集成核对表与计划已挂接） |
+| **最后更新** | 2026-04-28（新增 milestones-roadmap；与 handoff/README/规格回链） |
 
 ## 规格与计划（回链）
 
@@ -20,6 +20,7 @@
 | 实现计划 | [docs/plans/2026-04-26-ai-local-os.md](../../docs/plans/2026-04-26-ai-local-os.md) |
 | 集成模板索引 | [docs/ai-local-os/README.md](../../docs/ai-local-os/README.md) |
 | 阶段 2 移交清单 | [docs/ai-local-os/integration-handoff.md](../../docs/ai-local-os/integration-handoff.md) |
+| 里程碑路线图 | [docs/ai-local-os/milestones-roadmap.md](../../docs/ai-local-os/milestones-roadmap.md) |
 
 ## 产品与 API 文档链接（粘贴区）
 
