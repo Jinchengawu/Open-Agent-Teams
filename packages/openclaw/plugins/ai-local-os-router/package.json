@@ -1,0 +1,23 @@
+{
+  "name": "@ai-local-os/openclaw-plugin-router",
+  "version": "0.1.0",
+  "description": "AI-local-OS 垂类心智调度器 OpenClaw 插件",
+  "type": "module",
+  "main": "handler.ts",
+  "files": [
+    "handler.ts",
+    "HOOK.md"
+  ],
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "ai-local-os",
+    "hermes",
+    "routing"
+  ],
+  "author": "AI-local-OS",
+  "license": "MIT",
+  "peerDependencies": {
+    "openclaw": ">=2026.3.0"
+  }
+}
