@@ -1,0 +1,158 @@
+# AI-local-OS Docker Compose 配置
+# 使用方法: docker compose up -d
+# 停止: docker compose down
+
+services:
+  # =========================================================================
+  # Hermes 实例
+  # =========================================================================
+  
+  hermes-dev:
+    image: python:3.11-slim
+    container_name: hermes-dev
+    working_dir: /app
+    volumes:
+      - hermes-dev-data:/root/.hermes
+      - ./hermes-dev-config:/root/.hermes-config
+    environment:
+      - HERMES_HOME=/root/.hermes-config
+      - API_SERVER_PORT=8002
+      - API_SERVER_HOST=0.0.0.0
+    ports:
+      - "8002:8002"
+    command: >
+      bash -c "pip install hermes-agent &&
+               hermes gateway run"
+    networks:
+      - hermes-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  hermes-life:
+    image: python:3.11-slim
+    container_name: hermes-life
+    working_dir: /app
+    volumes:
+      - hermes-life-data:/root/.hermes
+      - ./hermes-life-config:/root/.hermes-config
+    environment:
+      - HERMES_HOME=/root/.hermes-config
+      - API_SERVER_PORT=8003
+      - API_SERVER_HOST=0.0.0.0
+    ports:
+      - "8003:8003"
+    command: >
+      bash -c "pip install hermes-agent &&
+               hermes gateway run"
+    networks:
+      - hermes-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  hermes-research:
+    image: python:3.11-slim
+    container_name: hermes-research
+    working_dir: /app
+    volumes:
+      - hermes-research-data:/root/.hermes
+      - ./hermes-research-config:/root/.hermes-config
+    environment:
+      - HERMES_HOME=/root/.hermes-config
+      - API_SERVER_PORT=8004
+      - API_SERVER_HOST=0.0.0.0
+    ports:
+      - "8004:8004"
+    command: >
+      bash -c "pip install hermes-agent &&
+               hermes gateway run"
+    networks:
+      - hermes-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  # =========================================================================
+  # AI-local-OS Gateway
+  # =========================================================================
+  
+  gateway:
+    build:
+      context: ./packages/gateway
+      dockerfile: Dockerfile
+    container_name: ai-local-os-gateway
+    working_dir: /app
+    volumes:
+      - gateway-logs:/root/.hermes-gateway/logs
+      - ./gateway-config:/root/.hermes-gateway
+    environment:
+      - AI_LOCAL_OS_HOST=0.0.0.0
+      - AI_LOCAL_OS_PORT=8100
+      - AI_LOCAL_OS_AUTH_ENABLED=false
+    ports:
+      - "8100:8100"
+    depends_on:
+      hermes-dev:
+        condition: service_healthy
+      hermes-life:
+        condition: service_healthy
+      hermes-research:
+        condition: service_healthy
+    networks:
+      - hermes-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# =========================================================================
+# 网络配置
+# =========================================================================
+
+networks:
+  hermes-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =========================================================================
+# 卷配置
+# =========================================================================
+
+volumes:
+  hermes-dev-data:
+    driver: local
+  hermes-life-data:
+    driver: local
+  hermes-research-data:
+    driver: local
+  gateway-logs:
+    driver: local

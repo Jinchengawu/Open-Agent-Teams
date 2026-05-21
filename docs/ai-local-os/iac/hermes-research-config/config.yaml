@@ -1,0 +1,20 @@
+# Hermes Research 实例配置
+model:
+  default: mimo-v2.5
+  provider: xiaomi
+  base_url: https://token-plan-sgp.xiaomimimo.com/v1
+
+platforms:
+  api_server:
+    enabled: true
+    extra:
+      host: "0.0.0.0"
+      port: 8004
+      model_name: "hermes-agent"
+
+agent:
+  max_turns: 90
+  gateway_timeout: 1800
+
+toolsets:
+  - hermes-cli

@@ -1,0 +1,41 @@
+# AI-local-OS Gateway 配置
+server:
+  host: "0.0.0.0"
+  port: 8100
+
+auth:
+  enabled: false
+  api_key: ""
+
+instances:
+  - id: hermes-dev
+    url: "http://hermes-dev:8002"
+    tags: ["dev", "code", "debug", "test"]
+    timeout_ms: 120000
+  - id: hermes-life
+    url: "http://hermes-life:8003"
+    tags: ["life", "health", "habit"]
+    timeout_ms: 60000
+  - id: hermes-research
+    url: "http://hermes-research:8004"
+    tags: ["research", "market", "trend"]
+    timeout_ms: 120000
+
+routing:
+  default_instance: "hermes-dev"
+
+rate_limit:
+  enabled: true
+  requests_per_minute: 60
+  burst_size: 10
+
+circuit_breaker:
+  enabled: true
+  failure_threshold: 3
+  cool_down_seconds: 120
+
+logging:
+  level: "INFO"
+  audit_file: "/root/.hermes-gateway/logs/audit.log"
+  max_size_mb: 100
+  backup_count: 5
