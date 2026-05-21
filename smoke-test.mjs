@@ -9,7 +9,7 @@
  *   node smoke-test.mjs
  * 
  * 前置条件：
- *   1. Hermes 实例已启动（端口 8002）
+ *   1. Hermes API Server 已启动（端口 8002）
  *   2. .env 文件已配置
  */
 
@@ -70,9 +70,9 @@ function analyzeIntent(message) {
 }
 
 /**
- * 检查 Hermes 实例是否可用
+ * 检查 Hermes API Server 是否可用
  */
-async function checkHermesInstance(baseUrl) {
+async function checkHermesApiServer(baseUrl) {
   try {
     const response = await fetch(`${baseUrl}/health`, {
       method: 'GET',
@@ -109,17 +109,17 @@ async function runSmokeTest() {
   }
   console.log('  ✅ 实例配置文件存在');
   
-  // 检查 Hermes 实例
-  console.log('\n🔍 检查 Hermes 实例...');
-  const hermesAvailable = await checkHermesInstance('http://127.0.0.1:8002');
+  // 检查 Hermes API Server
+  console.log('\n🔍 检查 Hermes API Server...');
+  const apiServerAvailable = await checkHermesApiServer('http://127.0.0.1:8002');
   
-  if (!hermesAvailable) {
-    console.warn('  ⚠️  Hermes 实例 (端口 8002) 未运行');
-    console.log('     请先启动 Hermes 实例：');
-    console.log('     hermes --port 8002 --home ~/.hermes-dev');
+  if (!apiServerAvailable) {
+    console.warn('  ⚠️  Hermes API Server (端口 8002) 未运行');
+    console.log('     请先启动 Hermes API Server：');
+    console.log('     ./start-hermes.sh');
     console.log('\n📝 继续测试路由逻辑（跳过 API 调用）...\n');
   } else {
-    console.log('  ✅ Hermes 实例运行正常');
+    console.log('  ✅ Hermes API Server 运行正常');
   }
   
   // 运行测试用例
@@ -147,8 +147,8 @@ async function runSmokeTest() {
     console.log('');
   }
   
-  // 如果 Hermes 可用，进行实际 API 调用测试
-  if (hermesAvailable) {
+  // 如果 Hermes API Server 可用，进行实际 API 调用测试
+  if (apiServerAvailable) {
     console.log('🔌 测试 Hermes API 调用...\n');
     
     try {
@@ -195,10 +195,9 @@ async function runSmokeTest() {
   if (failed === 0) {
     console.log('\n🎉 所有测试通过！Phase 1 最小闭环验证成功。');
     console.log('\n📋 下一步：');
-    console.log('   1. 启动 Hermes 实例: hermes --port 8002 --home ~/.hermes-dev');
-    console.log('   2. 安装 OpenClaw 插件: openclaw plugins install --link ./packages/openclaw/plugins/ai-local-os-router');
-    console.log('   3. 启用插件: openclaw plugins enable ai-local-os-router');
-    console.log('   4. 测试完整流程: openclaw agent "帮我分析项目结构"');
+    console.log('   1. 启动 Hermes API Server: ./start-hermes.sh');
+    console.log('   2. 安装 OpenClaw 插件: ./setup-plugin.sh');
+    console.log('   3. 测试完整流程: openclaw agent "帮我分析项目结构"');
   } else {
     console.log('\n❌ 部分测试失败，请检查路由规则配置。');
     process.exit(1);
