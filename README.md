@@ -1,13 +1,27 @@
 # AI-local-OS
 
+> OpenClaw × Hermes = 能力倍增（x * y = k）
+
 本仓库围绕 **OpenClaw + 多实例 Hermes** 的私有化本地智能操作系统方案，沉淀 **集成规格、分步计划、路由与实例模板**，并配套 **Superpowers 技能包**（Cursor / Claude / Agents 侧一致入口），便于 AI 编码代理按门禁协作。
 
-> 若你持有完整的 **ai-work-flow** monorepo（含 `packages/cli`、`packages/core` 等），根目录 [AGENTS.md](./AGENTS.md) 中仍描述该上游形态；**当前工作区以本 README 与 `docs/` 实际文件为准**。
+## 核心理念
+
+```
+OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍增）
+     x                              y                    k
+```
+
+- **OpenClaw**：多 Agent 协同、路由、调度、权限、日志
+- **Hermes**：深度记忆、技能、垂类推理、自进化
+- **AI-local-OS**：整合二者优势，实现 1+1 > 2 的效果
+
+> 📖 详细架构说明请参阅 [CORE-ARCHITECTURE.md](./docs/ai-local-os/CORE-ARCHITECTURE.md)
 
 ## 仓库里有什么
 
 | 路径 | 说明 |
 | --- | --- |
+| [docs/ai-local-os/CORE-ARCHITECTURE.md](./docs/ai-local-os/CORE-ARCHITECTURE.md) | **核心架构思想**（OpenClaw × Hermes） |
 | [docs/ai-local-os/README.md](./docs/ai-local-os/README.md) | **集成文档索引**（阅读顺序、模板列表） |
 | [docs/specs/2026-04-26-ai-local-os-design.md](./docs/specs/2026-04-26-ai-local-os-design.md) | 架构、数据域、路由原则、待补材料 |
 | [docs/plans/2026-04-26-ai-local-os.md](./docs/plans/2026-04-26-ai-local-os.md) | 分步实现与验证清单 |
@@ -22,9 +36,32 @@
 
 ## 快速开始（读文档）
 
-1. 打开 [docs/ai-local-os/README.md](./docs/ai-local-os/README.md)，按表格顺序阅读规格与模板。  
-2. 需要落到「可运行」勾选清单时，继续 [docs/ai-local-os/integration-handoff.md](./docs/ai-local-os/integration-handoff.md)。  
-3. 使用 AI 代理改本仓库时，先遵循 [AGENTS.md](./AGENTS.md)（含对 `.cursor/skills/using-skills` 的门禁说明）。
+1. 阅读 [CORE-ARCHITECTURE.md](./docs/ai-local-os/CORE-ARCHITECTURE.md) — 理解核心架构思想
+2. 打开 [docs/ai-local-os/README.md](./docs/ai-local-os/README.md)，按表格顺序阅读规格与模板  
+3. 需要落到「可运行」勾选清单时，继续 [docs/ai-local-os/integration-handoff.md](./docs/ai-local-os/integration-handoff.md)  
+4. 使用 AI 代理改本仓库时，先遵循 [AGENTS.md](./AGENTS.md)（含对 `.cursor/skills/using-skills` 的门禁说明）
+
+## 架构速览
+
+```
+用户请求 → OpenClaw 内核 → 意图分析 → Agent 路由
+                │
+    ┌───────────┼───────────┬───────────┐
+    │           │           │           │
+    ▼           ▼           ▼           ▼
+┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+│Agent 1 │ │Agent 2 │ │Agent 3 │ │Agent N │
+│Hermes  │ │Hermes  │ │Hermes  │ │Hermes  │
+│(垂类)  │ │(垂类)  │ │(垂类)  │ │(垂类)  │
+└────────┘ └────────┘ └────────┘ └────────┘
+```
+
+## 实现原则
+
+1. **复用 OpenClaw** — 不要重新实现路由、鉴权、日志
+2. **复用 Hermes** — 不要重新实现技能、记忆、推理
+3. **配置驱动** — 通过配置文件定义 Agent 实例
+4. **Hook 扩展** — 通过 Hook 实现自定义逻辑
 
 ## 机密与本地文件
 
