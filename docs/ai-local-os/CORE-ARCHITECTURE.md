@@ -1,4 +1,4 @@
-# AI-local-OS 核心架构思想
+# Open-Agent-Teams 核心架构思想
 
 > OpenClaw × Hermes = 能力倍增（x * y = k）
 
@@ -6,10 +6,10 @@
 
 ## 1. 核心理念
 
-AI-local-OS 的核心思想是**整合统一 OpenClaw 与 Hermes 的结合**，实现能力倍增：
+Open-Agent-Teams 的核心思想是**整合统一 OpenClaw 与 Hermes 的结合**，实现能力倍增：
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍增）
+OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
@@ -24,7 +24,7 @@ OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍
 ```
 OpenClaw = 项目经理（协调、调度、管理）
 Hermes   = 专家工程师（深度技能、专业知识）
-AI-local-OS = 高效团队（多个专家协同工作）
+Open-Agent-Teams = 高效团队（多个专家协同工作）
 ```
 
 ---
@@ -163,8 +163,8 @@ Hermes 单独：1 个 Agent × 10 能力 = 10 能力
 ### 5.3 正确做法
 
 ```
-✅ 复用 AI-local-OS 的 OpenClaw 配置
-✅ 复用 AI-local-OS 的 Hook 系统
+✅ 复用 Open-Agent-Teams 的 OpenClaw 配置
+✅ 复用 Open-Agent-Teams 的 Hook 系统
 ✅ 只添加新的 Agent 技能
 ✅ 只修改路由规则配置
 ```
@@ -199,7 +199,7 @@ OpenClaw 编排 + 4 个 Hermes 实例：
 ### 核心公式
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍增）
+OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
@@ -207,14 +207,14 @@ OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍
 
 1. **OpenClaw 是大脑** — 负责思考、决策、协调
 2. **Hermes 是双手** — 负责执行、创造、深度工作
-3. **AI-local-OS 是整体** — 1 + 1 > 2 的效果
+3. **Open-Agent-Teams 是整体** — 1 + 1 > 2 的效果
 
 ### 行动指南
 
 - 创建新工程时，**必须复用 OpenClaw**
 - 不要重新实现已有功能
 - 专注于垂类技能和配置
-- 遵循 AI-local-OS 的架构设计
+- 遵循 Open-Agent-Teams 的架构设计
 
 ---
 

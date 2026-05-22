@@ -1,4 +1,4 @@
-# AI-local-OS
+# Open-Agent-Teams
 
 > OpenClaw × Hermes = 能力倍增（x * y = k）
 
@@ -7,13 +7,13 @@
 ## 核心理念
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍增）
+OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
 - **OpenClaw**：多 Agent 协同、路由、调度、权限、日志
 - **Hermes**：深度记忆、技能、垂类推理、自进化
-- **AI-local-OS**：整合二者优势，实现 1+1 > 2 的效果
+- **Open-Agent-Teams**：整合二者优势，实现 1+1 > 2 的效果
 
 > 📖 详细架构说明请参阅 [CORE-ARCHITECTURE.md](./docs/ai-local-os/CORE-ARCHITECTURE.md)
 
@@ -69,7 +69,7 @@ OpenClaw（横向编排） × Hermes（垂类深度） = AI-local-OS（能力倍
 
 ## 与上游 ai-work-flow 的关系
 
-[AGENTS.md](./AGENTS.md) 将本仓库定位为 **ai-work-flow** 工作流 monorepo 的扩展文档锚点之一（AI-local-OS 与业务包无强耦合）。若你只在维护本目录的文档与技能资产，以本文档树与 AGENTS 为准即可；若需 CLI / core 包开发，请在上游完整 clone 中执行 `pnpm install`、`pnpm sync:superpowers` 等（详见 AGENTS.md「Build & Test」）。
+[AGENTS.md](./AGENTS.md) 将本仓库定位为 **ai-work-flow** 工作流 monorepo 的扩展文档锚点之一（Open-Agent-Teams 与业务包无强耦合）。若你只在维护本目录的文档与技能资产，以本文档树与 AGENTS 为准即可；若需 CLI / core 包开发，请在上游完整 clone 中执行 `pnpm install`、`pnpm sync:superpowers` 等（详见 AGENTS.md「Build & Test」）。
 
 ---
 

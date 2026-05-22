@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to AI-local-OS will be documented in this file.
+All notable changes to Open-Agent-Teams will be documented in this file.
 
 ## [0.4.0] - 2026-05-21
 

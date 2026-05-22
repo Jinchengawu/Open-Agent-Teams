@@ -1,4 +1,4 @@
-# AI-local-OS 集成移交与推进清单（方案 A → 可运行）
+# Open-Agent-Teams 集成移交与推进清单（方案 A → 可运行）
 
 > **当前落地范围：方案 A（纯集成编排）。** 仓库侧交付为规格、模板、移交清单与里程碑文档；**不包含**薄网关服务代码、**不包含** `iac/` 一键编排目录。切换 B/C 需用户另条消息明确选定方案。  
 > 前置阅读：[README](./README.md)、[设计规格 §5–6](../specs/2026-04-26-ai-local-os-design.md)。  
@@ -49,7 +49,7 @@
 
 与规格 [§5](../specs/2026-04-26-ai-local-os-design.md) 一致，建议顺序：
 
-1. 在 OpenClaw 中创建「AI-local-OS 垂类心智调度」类插件/函数（具体名称以你方规范为准）。
+1. 在 OpenClaw 中创建「Open-Agent-Teams 垂类心智调度」类插件/函数（具体名称以你方规范为准）。
 2. 加载实例清单：自 YAML 或环境变量解析 `baseUrl`、`timeoutMs`、标签路由。
 3. 实现对外调用：向 Hermes 发起 HTTP 请求；配置 **超时、错误捕获、熔断**；失败时 **内核兜底** 并明确告知用户。
 
@@ -61,7 +61,7 @@
 
 以下文件在仓库根目录，便于对照拓扑与接入流程（路径以你本机克隆为准）：
 
-- `AI-local-OS：OpenClaw+Hermes 私有化本地智能操作系统方案.pdf`
+- `Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案.pdf`
 - `OpenClaw + Hermes 双智能体融合架构（拓扑图+接入流程）.pdf`
 
 ---

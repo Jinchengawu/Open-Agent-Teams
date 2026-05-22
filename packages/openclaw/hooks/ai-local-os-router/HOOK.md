@@ -1,13 +1,13 @@
 ---
 name: ai-local-os-router
-description: "AI-local-OS 垂类心智调度器 - 根据路由规则将任务分发到 Hermes 实例"
+description: "Open-Agent-Teams 垂类心智调度器 - 根据路由规则将任务分发到 Hermes 实例"
 metadata:
   { "openclaw": { "emoji": "🧠", "events": ["message:received"], "requires": { "bins": ["node"] } } }
 ---
 
-# AI-local-OS Router Hook
+# Open-Agent-Teams Router Hook
 
-本 Hook 实现 AI-local-OS 的核心路由功能：
+本 Hook 实现 Open-Agent-Teams 的核心路由功能：
 
 1. 接收用户消息
 2. 分析意图，判断是否需要路由到 Hermes 实例

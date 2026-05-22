@@ -1,7 +1,7 @@
-# AI-local-OS 设计规格（OpenClaw + Hermes）
+# Open-Agent-Teams 设计规格（OpenClaw + Hermes）
 
 > **需求 ID**：REQ-2026-0426-ai-local-os  
-> **事实来源**：仓库根目录《AI-local-OS：OpenClaw+Hermes 私有化本地智能操作系统方案》PDF  
+> **事实来源**：仓库根目录《Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案》PDF  
 > **本轮落地路径**：**方案 A — 纯集成编排**（配置约定 + 文档 + 模板；无自研运行时）  
 > **用户确认（2026-04-28）**：按 **A** 方案落地；执行载体为 [integration-handoff.md](../ai-local-os/integration-handoff.md)（含 §0 速览）。  
 > **关联**：侧车 [debug/superpowers-intent/REQ-2026-0426-ai-local-os.md](../../debug/superpowers-intent/REQ-2026-0426-ai-local-os.md)；集成索引 [docs/ai-local-os/README.md](../ai-local-os/README.md)
@@ -12,7 +12,7 @@
 
 ### 1.1 目标
 
-- 定义 **AI-local-OS**：以 **OpenClaw** 为全局调度内核、以 **多实例 Hermes** 为垂类心智单元，数据与流程默认本地化。
+- 定义 **Open-Agent-Teams**：以 **OpenClaw** 为全局调度内核、以 **多实例 Hermes** 为垂类心智单元，数据与流程默认本地化。
 - 明确 **路由与数据域**，使「通用任务走内核、个性化/垂类任务下发 Hermes、结果回流」可实施、可审计。
 - 通过仓库内 **路由表、实例模板、环境变量占位** 支撑落地，不依赖虚构的产品 API。
 
@@ -64,7 +64,7 @@
 以下仅为**集成意图**描述；路径、Header、Body 以官方文档为准。
 
 1. **Hermes**：每垂类独立进程与端口；开启 API 网关；配置 API Key；示例基址占位 `http://127.0.0.1:8xxx`（见实例模板）。
-2. **OpenClaw**：通过自定义插件/函数（名称可如「AI-local-OS 垂类心智调度器」）读取实例注册表，按路由规则 HTTP 调用 Hermes。
+2. **OpenClaw**：通过自定义插件/函数（名称可如「Open-Agent-Teams 垂类心智调度器」）读取实例注册表，按路由规则 HTTP 调用 Hermes。
 3. **熔断与兜底**：调用超时、错误捕获；失败时由内核降级（简化回答或仅内核能力处理），保证主路径不静默挂死。
 
 ---

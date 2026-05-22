@@ -1,6 +1,6 @@
-# AI-local-OS 升级指南
+# Open-Agent-Teams 升级指南
 
-> 如何检查和升级 AI-local-OS 到最新版本
+> 如何检查和升级 Open-Agent-Teams 到最新版本
 
 ## 快速升级
 
@@ -90,7 +90,7 @@
 crontab -e
 
 # 每天检查一次更新
-0 9 * * * /path/to/AI-local-OS/packages/upgrade/upgrade.sh check >> ~/.ai-local-os-upgrade.log 2>&1
+0 9 * * * /path/to/Open-Agent-Teams/packages/upgrade/upgrade.sh check >> ~/.ai-local-os-upgrade.log 2>&1
 ```
 
 ### 升级通知

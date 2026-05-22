@@ -1,7 +1,7 @@
 {
   "name": "@ai-local-os/openclaw-hook-router",
   "version": "0.1.0",
-  "description": "AI-local-OS 垂类心智调度器 OpenClaw Hook",
+  "description": "Open-Agent-Teams 垂类心智调度器 OpenClaw Hook",
   "type": "module",
   "main": "handler.ts",
   "openclaw": {
@@ -18,6 +18,6 @@
     "hermes",
     "routing"
   ],
-  "author": "AI-local-OS",
+  "author": "Open-Agent-Teams",
   "license": "MIT"
 }

@@ -1,4 +1,4 @@
-# AI-local-OS 版本钉扎
+# Open-Agent-Teams 版本钉扎
 
 > 记录所有依赖的版本号，确保可复现部署
 
@@ -19,7 +19,7 @@
 | openclaw | 2026.3.7 | 多 Agent 编排框架 |
 | Node.js | >= 20 | 运行时 |
 
-### AI-local-OS Gateway
+### Open-Agent-Teams Gateway
 
 | 组件 | 版本 | 说明 |
 |------|------|------|

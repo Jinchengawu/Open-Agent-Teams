@@ -2,7 +2,7 @@
   "name": "@ai-local-os/openclaw",
   "version": "0.0.0",
   "private": true,
-  "description": "OpenClaw CLI 运行时（npm 分发），供 AI-local-OS 内核侧使用",
+  "description": "OpenClaw CLI 运行时（npm 分发），供 Open-Agent-Teams 内核侧使用",
   "type": "module",
   "scripts": {
     "openclaw": "openclaw",

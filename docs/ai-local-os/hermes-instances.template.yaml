@@ -1,4 +1,4 @@
-# AI-local-OS — Hermes 多实例注册表（模板）
+# Open-Agent-Teams — Hermes 多实例注册表（模板）
 # 使用说明：复制本文件为 hermes-instances.local.yaml（或你团队约定文件名），填写真实 baseUrl；
 # API Key 仅通过环境变量注入 OpenClaw 插件，勿将密钥写入 YAML 并提交仓库。
 

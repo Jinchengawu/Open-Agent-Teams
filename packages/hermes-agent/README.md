@@ -19,7 +19,7 @@ pnpm hermes:doctor
 - 安装（官方）：`curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`
 - 源码：<https://github.com/NousResearch/hermes-agent>
 
-## 与 AI-local-OS 方案 A 的关系
+## 与 Open-Agent-Teams 方案 A 的关系
 
 多实例 Hermes 的端口与注册表仍见仓库根 [docs/ai-local-os/hermes-instances.template.yaml](../../docs/ai-local-os/hermes-instances.template.yaml)；本包不负责替代 Hermes 自带配置目录（通常为 `~/.hermes`）。
 

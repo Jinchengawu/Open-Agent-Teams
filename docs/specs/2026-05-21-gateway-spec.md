@@ -1,4 +1,4 @@
-# AI-local-OS 薄网关规格（Phase 3）
+# Open-Agent-Teams 薄网关规格（Phase 3）
 
 > **需求 ID**：REQ-2026-0426-ai-local-os-phase3  
 > **当前状态**：设计中  
@@ -31,7 +31,7 @@
     │
     ▼
 ┌─────────────────────────────────┐
-│       AI-local-OS Gateway       │
+│       Open-Agent-Teams Gateway       │
 │  (端口: 8100)                   │
 ├─────────────────────────────────┤
 │  • 鉴权 (API Key)              │

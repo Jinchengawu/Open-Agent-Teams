@@ -1,4 +1,4 @@
-# AI-local-OS 实现计划
+# Open-Agent-Teams 实现计划
 
 > **给代理工作者：** 必须调用的子 skill：使用 subagent-driven-development（推荐）或 executing-plans 来逐任务实现此计划。步骤使用复选框（`- [ ]`）语法进行追踪。
 

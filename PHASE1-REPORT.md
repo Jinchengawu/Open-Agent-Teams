@@ -1,4 +1,4 @@
-# AI-local-OS Phase 1 完成报告
+# Open-Agent-Teams Phase 1 完成报告
 
 ## 📅 完成时间
 2026-05-20
@@ -47,7 +47,7 @@
 ## 📁 创建的文件
 
 ```
-AI-local-OS/
+Open-Agent-Teams/
 ├── .env                                    # 环境变量配置
 ├── smoke-test.mjs                         # 冒烟测试脚本
 ├── docs/ai-local-os/
@@ -71,7 +71,7 @@ hermes --port 8002 --home ~/.hermes-dev
 
 ### 安装和启用 OpenClaw 插件
 ```bash
-cd /path/to/AI-local-OS  # 替换为你的项目路径
+cd /path/to/Open-Agent-Teams  # 替换为你的项目路径
 
 # 安装插件（链接模式）
 openclaw plugins install --link ./packages/openclaw/plugins/ai-local-os-router

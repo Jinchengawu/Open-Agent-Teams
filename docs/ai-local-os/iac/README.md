@@ -1,6 +1,6 @@
-# AI-local-OS IaC (Infrastructure as Code)
+# Open-Agent-Teams IaC (Infrastructure as Code)
 
-> 使用 Docker Compose 一键部署 AI-local-OS 多实例环境
+> 使用 Docker Compose 一键部署 Open-Agent-Teams 多实例环境
 
 ## 前置条件
 
@@ -69,7 +69,7 @@ curl -X POST http://127.0.0.1:8100/v1/chat/completions \
 | hermes-dev | 8002 | 编程开发心智 |
 | hermes-life | 8003 | 个人生活心智 |
 | hermes-research | 8004 | 行业研究心智 |
-| gateway | 8100 | AI-local-OS 薄网关 |
+| gateway | 8100 | Open-Agent-Teams 薄网关 |
 
 ## 配置
 

@@ -1,4 +1,4 @@
-# AI-local-OS 集成模板（方案 A）
+# Open-Agent-Teams 集成模板（方案 A）
 
 本目录存放 **OpenClaw + 多实例 Hermes** 私有化集成的**文档与占位模板**，与下列文件一起阅读：
 
