@@ -10,6 +10,8 @@
   "scripts": {
     "openclaw": "pnpm --filter @ai-local-os/openclaw exec openclaw",
     "openclaw:version": "pnpm --filter @ai-local-os/openclaw exec openclaw --version",
+    "core:build": "pnpm --filter @ai-local-os/core run build",
+    "core:check": "pnpm --filter @ai-local-os/core run check",
     "hermes:bootstrap": "pnpm --filter @ai-local-os/hermes-agent run bootstrap",
     "hermes:doctor": "pnpm --filter @ai-local-os/hermes-agent run doctor",
     "hermes:install-help": "pnpm --filter @ai-local-os/hermes-agent run install-help"

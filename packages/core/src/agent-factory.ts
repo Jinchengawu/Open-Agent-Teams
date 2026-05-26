@@ -1,0 +1,352 @@
+import os from 'node:os';
+import path from 'node:path';
+import express from 'express';
+import Database from 'better-sqlite3';
+import { v4 as uuidv4 } from 'uuid';
+import { SessionManager } from './session/SessionManager';
+import { MemoryStore } from './memory/MemoryStore';
+import { ContextCompressor } from './context/ContextCompressor';
+import { RegistryClient } from './bus/RegistryClient';
+import { AgentBus } from './bus/AgentBus';
+import { MessageType } from './bus/types';
+import type { AgentRegistration, AgentMessageEnvelope } from './bus/types';
+
+export interface AgentFactoryConfig {
+  id: string;
+  label: string;
+  port: number;
+  hermesPort: number;
+  skills: string[];
+  tags: string[];
+  peers: { host: string; port: number; id: string }[];
+  buildSystemPrompt: () => string;
+  loadSkillContent: (skillName: string) => string;
+}
+
+export interface AgentApp {
+  app: express.Application;
+  sessionManager: SessionManager;
+  memoryStore: MemoryStore;
+  agentBus: AgentBus;
+  compressor: ContextCompressor;
+  config: AgentFactoryConfig;
+  handleInterAgentMessage: (
+    envelope: AgentMessageEnvelope,
+    sendResponse: (msg: AgentMessageEnvelope) => void
+  ) => Promise<void>;
+}
+
+import { mkdirSync } from 'node:fs';
+
+export function createAgentApp(config: AgentFactoryConfig): AgentApp {
+  const dataDir =
+    process.env.AGENT_DB_PATH || path.join(os.homedir(), '.dev-agent/data');
+  mkdirSync(dataDir, { recursive: true });
+  const dbPath = path.join(dataDir, `${config.id.replace('dev-', '')}.db`);
+
+  const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  const sessionManager = new SessionManager(dbPath);
+  const memoryStore = new MemoryStore(dbPath);
+  const compressor = new ContextCompressor();
+
+  const selfReg: AgentRegistration = {
+    id: config.id,
+    label: config.label,
+    host: '127.0.0.1',
+    port: config.port,
+    capabilities: config.tags,
+    healthEndpoint: `http://127.0.0.1:${config.port}/health`,
+    messageEndpoint: `http://127.0.0.1:${config.port}/agent/message`,
+  };
+
+  const registry = new RegistryClient(selfReg);
+  const agentBus = new AgentBus(registry);
+
+  const app = express();
+  app.use(express.json({ limit: '1mb' }));
+
+  // ── Health ──
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      agent: config.id,
+      label: config.label,
+      port: config.port,
+      hermesPort: config.hermesPort,
+      skills: config.skills.length,
+      capabilities: config.tags,
+      sessionCount: sessionManager.getSessionCount(),
+      messagesProcessed: sessionManager.getTotalMessageCount(),
+      uptime: process.uptime(),
+      peers: registry.getAllAgents().map((a) => ({ id: a.id, label: a.label })),
+    });
+  });
+
+  // Per-session concurrency lock
+  const sessionLocks = new Map<string, Promise<void>>();
+
+  async function withSessionLock(sessionId: string, fn: () => Promise<void>): Promise<void> {
+    const prev = sessionLocks.get(sessionId) || Promise.resolve();
+    const next = prev.then(fn, fn);
+    sessionLocks.set(sessionId, next.then(() => {}, () => {}));
+    await next;
+  }
+
+  // ── Chat Completions ──
+  app.post('/v1/chat/completions', async (req, res) => {
+    try {
+      const { messages, sessionId: clientSessionId } = req.body;
+
+      let sessionId = clientSessionId || '';
+      if (!sessionId || !sessionManager.getSession(sessionId)) {
+        sessionId = sessionManager.createSession();
+      }
+
+      const messagesArr: { role: string; content: string }[] =
+        messages || [];
+
+      await withSessionLock(sessionId, async () => {
+        // BUG 1 fix: only store the LAST user message (the new one), not entire history
+        const lastUserMsg = [...messagesArr].reverse().find((m) => m.role === 'user');
+        if (lastUserMsg) {
+          const existingMessages = sessionManager.getAllMessages(sessionId);
+          const lastStored = existingMessages
+            .filter((m) => m.role === 'user')
+            .pop();
+          if (!lastStored || lastStored.content !== lastUserMsg.content) {
+            sessionManager.addMessage(sessionId, 'user', lastUserMsg.content, 'user');
+          }
+        }
+      });
+
+      // Build context from DB + current request
+      const allMessages = sessionManager
+        .getAllMessages(sessionId)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const { systemMessages, chatMessages, compressedCount } =
+        compressor.buildContext(allMessages, config.buildSystemPrompt());
+
+      // DeepSeek V4 thinking 模式要求 assistant 消息必须包含 thinking 块，
+      // 但 DB 中只存储了纯文本 content，传回会触发 400 错误。
+      // 因此只保留 user 消息维持对话上下文，过滤掉 assistant 消息。
+      const hermesPayload = [
+        ...systemMessages.map((c) => ({ role: 'system', content: c })),
+        ...chatMessages
+          .filter((m) => m.role === 'user')
+          .map((m) => ({ role: 'user' as const, content: m.content })),
+      ];
+
+      const content = await callHermes(
+        config.hermesPort,
+        hermesPayload
+      );
+
+      await withSessionLock(sessionId, async () => {
+        sessionManager.addMessage(sessionId, 'assistant', content, config.id);
+
+        if (compressedCount > 0) {
+          sessionManager.updateSession(sessionId, {
+            title: sessionManager.getSession(sessionId)?.title || '',
+          });
+        }
+
+        // Set title from first user message
+        const totalUserMessages = sessionManager
+          .getMessages(sessionId)
+          .filter((m) => m.role === 'user').length;
+        if (totalUserMessages === 1 && messagesArr.length > 0) {
+          const firstUser = messagesArr.find((m) => m.role === 'user');
+          if (firstUser?.content) {
+            sessionManager.updateSession(sessionId, {
+              title: firstUser.content.substring(0, 100),
+            });
+          }
+        }
+      });
+
+      res.json({
+        id: `chatcmpl-${Date.now()}`,
+        sessionId,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: config.id,
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: hermesPayload.reduce(
+            (s, m) => s + compressor.estimateTokens(m.content),
+            0
+          ),
+          completion_tokens: compressor.estimateTokens(content),
+        },
+      });
+    } catch (error) {
+      console.error(`[${config.id}] Chat error:`, error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Inter-Agent Message ──
+  const handleInterAgentMessage = async (
+    envelope: AgentMessageEnvelope,
+    sendResponse: (msg: AgentMessageEnvelope) => void
+  ): Promise<void> => {
+    switch (envelope.type) {
+      case MessageType.TASK: {
+        const prompt = (envelope.payload as Record<string, unknown>)?.prompt as string || '';
+        const systemPrompt = config.buildSystemPrompt();
+        const hermesPayload = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ];
+        const output = await callHermes(config.hermesPort, hermesPayload);
+        sendResponse({
+          id: uuidv4(),
+          from: config.id,
+          to: envelope.from,
+          sessionId: envelope.sessionId,
+          type: MessageType.RESULT,
+          payload: { output },
+          timestamp: Date.now(),
+          correlationId: envelope.correlationId,
+        });
+        break;
+      }
+      case MessageType.STATUS: {
+        sendResponse({
+          id: uuidv4(),
+          from: config.id,
+          to: envelope.from,
+          sessionId: envelope.sessionId,
+          type: MessageType.RESPONSE,
+          payload: { status: 'ok', agent: config.id },
+          timestamp: Date.now(),
+          correlationId: envelope.correlationId,
+        });
+        break;
+      }
+      default: {
+        sendResponse({
+          id: uuidv4(),
+          from: config.id,
+          to: envelope.from,
+          sessionId: envelope.sessionId,
+          type: MessageType.RESPONSE,
+          payload: { received: true },
+          timestamp: Date.now(),
+          correlationId: envelope.correlationId,
+        });
+      }
+    }
+  };
+
+  app.post('/agent/message', async (req, res) => {
+    try {
+      const envelope = req.body as AgentMessageEnvelope;
+      await handleInterAgentMessage(envelope, (response) => {
+        res.json(response);
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Message processing failed' });
+    }
+  });
+
+  // ── Peer Registration ──
+  app.post('/agent/register', (req, res) => {
+    const peer = req.body as AgentRegistration;
+    if (peer?.id && peer?.messageEndpoint) {
+      registry.addPeer(peer);
+      res.json(selfReg);
+    } else {
+      res.status(400).json({ error: 'Invalid registration' });
+    }
+  });
+
+  // ── List Peers ──
+  app.get('/agent/peers', (_req, res) => {
+    res.json({ peers: registry.getAllAgents() });
+  });
+
+  // ── Session Info ──
+  app.get('/v1/sessions', (_req, res) => {
+    const sessions = sessionManager.listSessions();
+    res.json({ sessions });
+  });
+
+  app.get('/v1/sessions/:id', (req, res) => {
+    const session = sessionManager.getSession(req.params.id);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const messages = sessionManager.getAllMessages(req.params.id);
+    res.json({ session, messages });
+  });
+
+  return {
+    app,
+    sessionManager,
+    memoryStore,
+    agentBus,
+    compressor,
+    config,
+    handleInterAgentMessage,
+  };
+}
+
+async function callHermes(
+  hermesPort: number,
+  messages: { role: string; content: string }[],
+  retries = 5
+): Promise<string> {
+  let lastError = '';
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${hermesPort}/v1/chat/completions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'hermes-agent',
+            messages,
+            max_tokens: 8192,
+            thinking: { type: 'disabled' },
+          }),
+          signal: AbortSignal.timeout(180000),
+        }
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as {
+          choices?: { message?: { content?: string } }[];
+        };
+        const content = data.choices?.[0]?.message?.content;
+        if (content) return content;
+        lastError = '模型返回空内容';
+      } else if (response.status >= 500) {
+        lastError = `服务异常 (HTTP ${response.status})`;
+      } else {
+        return `请求参数错误 (HTTP ${response.status})`;
+      }
+    } catch (error) {
+      lastError = `连接失败: ${error instanceof Error ? error.message : '未知错误'}`;
+    }
+
+    if (attempt < retries) {
+      // 指数退避: 2s, 4s, 8s, 16s, 32s
+      await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt + 1)));
+    }
+  }
+
+  return `模型调用失败 (已重试 ${retries} 次): ${lastError}`;
+}
