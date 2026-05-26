@@ -1,0 +1,126 @@
+# DEV-Agent OpenClaw 配置
+# 基于 AI-local-OS 架构
+
+version: 1
+
+# OpenClaw 内核配置
+openclaw:
+  enabled: true
+  version: "2026.3.7"
+  
+# Agent 实例配置
+instances:
+  - id: dev-frontend
+    label: "前端开发 Agent"
+    port: 8201
+    hermes_port: 8201
+    tags: ["frontend", "react", "vue", "typescript", "css"]
+    skills:
+      - react-development
+      - vue-development
+      - nextjs-development
+      - css-tailwind
+      - typescript-best-practices
+      - performance-optimization
+    timeout_ms: 120000
+
+  - id: dev-backend
+    label: "后端开发 Agent"
+    port: 8202
+    hermes_port: 8202
+    tags: ["backend", "api", "database", "python", "node", "go"]
+    skills:
+      - python-development
+      - nodejs-development
+      - go-development
+      - api-design
+      - database-design
+      - grpc
+      - microservices
+    timeout_ms: 120000
+
+  - id: dev-testing
+    label: "测试开发 Agent"
+    port: 8203
+    hermes_port: 8203
+    tags: ["testing", "test", "qa", "coverage", "e2e"]
+    skills:
+      - pytest-development
+      - jest-development
+      - vitest
+      - playwright
+      - cypress
+      - e2e-testing
+      - tdd-practices
+    timeout_ms: 180000
+
+  - id: dev-devops
+    label: "DevOps Agent"
+    port: 8204
+    hermes_port: 8204
+    tags: ["devops", "docker", "k8s", "deploy", "ci/cd"]
+    skills:
+      - docker-management
+      - kubernetes-deployment
+      - ci-cd-pipeline
+      - monitoring-setup
+      - terraform-iac
+      - helm-charts
+      - ansible
+    timeout_ms: 300000
+
+  - id: dev-pm
+    label: "产品经理 Agent"
+    port: 8205
+    hermes_port: 8205
+    tags: ["pm", "product", "prd", "requirement", "strategy", "用户研究", "产品", "需求"]
+    skills:
+      - prd-writing
+      - user-story-mapping
+      - requirements-analysis
+      - competitor-analysis
+      - product-strategy
+      - user-research
+      - roadmap-planning
+      - data-analysis
+    timeout_ms: 120000
+
+# 路由规则
+routing:
+  # 基于标签的路由
+  rules:
+    - tags: ["react", "vue", "component", "ui", "css", "typescript", "前端"]
+      instance: "dev-frontend"
+    - tags: ["api", "database", "server", "python", "node", "go", "后端"]
+      instance: "dev-backend"
+    - tags: ["test", "unit", "e2e", "coverage", "jest", "pytest", "测试"]
+      instance: "dev-testing"
+    - tags: ["docker", "k8s", "deploy", "ci/cd", "devops", "运维"]
+      instance: "dev-devops"
+    - tags: ["prd", "requirement", "product", "strategy", "user-story", "pm", "产品", "需求"]
+      instance: "dev-pm"
+  
+  # 默认实例
+  default: "dev-backend"
+
+# 鉴权配置
+auth:
+  enabled: false
+  api_key: ""
+
+# 限流配置
+rate_limit:
+  enabled: true
+  requests_per_minute: 60
+  burst_size: 10
+
+# 熔断器配置
+circuit_breaker:
+  enabled: true
+  failure_threshold: 3
+  cool_down_seconds: 120
+
+# 日志配置
+logging:
+  level: "INFO"
+  audit_file: "~/.dev-agent/logs/audit.log"

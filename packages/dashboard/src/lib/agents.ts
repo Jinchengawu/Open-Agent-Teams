@@ -63,6 +63,10 @@ export function getAgentUrl(agentId: string): string {
   return `http://localhost:${ports[agentId] || 8201}`;
 }
 
+/**
+ * 客户端降级路由 — OpenClaw Gateway 不可用时使用
+ * 正常流程由 OpenClaw Gateway (:8400) 的 OpenClawAgentRegistry.analyzeIntent() 处理
+ */
 export function detectAgent(message: string): string {
   const lower = message.toLowerCase();
   for (const agent of AGENT_LIST) {
