@@ -1,13 +1,13 @@
 {
   "name": "@open-agent-teams/gateway",
   "version": "0.2.0",
-  "description": "OpenClaw Native Gateway — 中央编排层，Agent 路由、鉴权、限流、熔断",
+  "description": "API Gateway (OpenClaw 集成) — 中央编排层，Agent 路由、鉴权、限流、熔断",
   "type": "module",
-  "main": "src/openclaw-gateway.ts",
+  "main": "src/api-gateway.ts",
   "scripts": {
-    "dev": "tsx watch src/openclaw-gateway.ts",
+    "dev": "tsx watch src/api-gateway.ts",
     "build": "tsc",
-    "start": "node dist/openclaw-gateway.js",
+    "start": "node dist/api-gateway.js",
     "test": "vitest",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"

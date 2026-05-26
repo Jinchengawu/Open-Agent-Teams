@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
           },
           agent: data.instance || 'openclaw',
           sessionId: data.sessionId || sessionId,
-          routedBy: 'openclaw-gateway',
+          routedBy: 'api-gateway',
         });
       }
       // Gateway 返回错误（非 Agent 级别的 502），尝试降级

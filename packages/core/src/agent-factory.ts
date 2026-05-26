@@ -104,19 +104,21 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
         sessionId = sessionManager.createSession();
       }
 
-      const messagesArr: { role: string; content: string }[] =
-        messages || [];
+      const messagesArr = (messages || []) as { role: string; content: unknown }[];
 
       await withSessionLock(sessionId, async () => {
-        // BUG 1 fix: only store the LAST user message (the new one), not entire history
         const lastUserMsg = [...messagesArr].reverse().find((m) => m.role === 'user');
         if (lastUserMsg) {
+          // 兼容 OpenAI content 格式（string | array）
+          const contentStr = typeof lastUserMsg.content === 'string'
+            ? lastUserMsg.content
+            : JSON.stringify(lastUserMsg.content);
           const existingMessages = sessionManager.getAllMessages(sessionId);
           const lastStored = existingMessages
             .filter((m) => m.role === 'user')
             .pop();
-          if (!lastStored || lastStored.content !== lastUserMsg.content) {
-            sessionManager.addMessage(sessionId, 'user', lastUserMsg.content, 'user');
+          if (!lastStored || lastStored.content !== contentStr) {
+            sessionManager.addMessage(sessionId, 'user', contentStr, 'user');
           }
         }
       });
@@ -160,8 +162,11 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
         if (totalUserMessages === 1 && messagesArr.length > 0) {
           const firstUser = messagesArr.find((m) => m.role === 'user');
           if (firstUser?.content) {
+            const titleText = typeof firstUser.content === 'string'
+              ? firstUser.content
+              : JSON.stringify(firstUser.content);
             sessionManager.updateSession(sessionId, {
-              title: firstUser.content.substring(0, 100),
+              title: titleText.substring(0, 100),
             });
           }
         }

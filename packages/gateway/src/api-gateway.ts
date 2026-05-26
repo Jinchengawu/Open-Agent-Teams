@@ -1,5 +1,5 @@
 /**
- * OpenClaw Native Gateway for DEV-Agent-Teams
+ * API Gateway (OpenClaw 集成) for DEV-Agent-Teams
  *
  * 核心职责：OpenClaw 作为中央编排层，负责：
  * 1. Agent 注册与发现
@@ -110,12 +110,12 @@ function loadConfig(): OpenClawGatewayConfig {
         const raw = parseYaml(content) as Record<string, unknown>;
         return normalizeConfig(raw);
       } catch (error) {
-        console.error(`[openclaw-gateway] 配置加载失败 ${configPath}:`, error);
+        console.error(`[api-gateway] 配置加载失败 ${configPath}:`, error);
       }
     }
   }
 
-  console.warn('[openclaw-gateway] 未找到配置文件，使用默认配置');
+  console.warn('[api-gateway] 未找到配置文件，使用默认配置');
   return getDefaultConfig();
 }
 
@@ -124,7 +124,7 @@ function normalizeConfig(raw: Record<string, unknown>): OpenClawGatewayConfig {
     gateway: {
       host: '127.0.0.1',
       port: (raw.openclaw as Record<string, unknown>)?.port as number || 8400,
-      name: 'openclaw-gateway',
+      name: 'api-gateway',
     },
     openclaw: {
       enabled: (raw.openclaw as Record<string, unknown>)?.enabled as boolean ?? true,
@@ -167,7 +167,7 @@ function normalizeConfig(raw: Record<string, unknown>): OpenClawGatewayConfig {
 
 function getDefaultConfig(): OpenClawGatewayConfig {
   return {
-    gateway: { host: '127.0.0.1', port: 8400, name: 'openclaw-gateway' },
+    gateway: { host: '127.0.0.1', port: 8400, name: 'api-gateway' },
     openclaw: { enabled: true, version: '2026.3.7' },
     instances: [
       { id: 'dev-frontend', label: '前端开发 Agent', port: 8201, hermesPort: 9201, tags: ['react','vue','component','ui','css','typescript','frontend','前端'], skills: [], timeoutMs: 120000 },
@@ -394,7 +394,7 @@ async function main(): Promise<void> {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
-        gateway: 'openclaw-gateway',
+        gateway: 'api-gateway',
         openclaw: config.openclaw,
         agents: agentHealth,
         uptime: process.uptime(),
@@ -517,7 +517,7 @@ async function main(): Promise<void> {
           res.end(JSON.stringify({
             ...data,
             instance: targetInstance.id,
-            routed_by: 'openclaw-gateway',
+            routed_by: 'api-gateway',
             latency_ms: latencyMs,
             intent_analysis_ms: intentAnalysisMs,
           }));
