@@ -12,6 +12,8 @@
     "openclaw:version": "pnpm --filter @open-agent-teams/openclaw exec openclaw --version",
     "core:build": "pnpm --filter @open-agent-teams/core run build",
     "core:check": "pnpm --filter @open-agent-teams/core run check",
+    "dashboard:dev": "pnpm --filter @open-agent-teams/dashboard run dev",
+    "dashboard:build": "pnpm --filter @open-agent-teams/dashboard run build",
     "hermes:bootstrap": "pnpm --filter @open-agent-teams/hermes-agent run bootstrap",
     "hermes:doctor": "pnpm --filter @open-agent-teams/hermes-agent run doctor",
     "hermes:install-help": "pnpm --filter @open-agent-teams/hermes-agent run install-help"
