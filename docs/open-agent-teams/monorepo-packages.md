@@ -6,9 +6,9 @@
 
 | 包名 | 路径 | 说明 |
 | --- | --- | --- |
-| `ai-local-os` | `/package.json` | 工作区根；聚合脚本 |
-| `@ai-local-os/openclaw` | `packages/openclaw/` | 依赖 npm **`openclaw`**（CLI 与 Gateway 能力以官方为准） |
-| `@ai-local-os/hermes-agent` | `packages/hermes-agent/` | **无** Hermes 核心 npm 依赖；提供 `bootstrap`（官方 curl 安装）与 `doctor` |
+| `open-agent-teams` | `/package.json` | 工作区根；聚合脚本 |
+| `@open-agent-teams/openclaw` | `packages/openclaw/` | 依赖 npm **`openclaw`**（CLI 与 Gateway 能力以官方为准） |
+| `@open-agent-teams/hermes-agent` | `packages/hermes-agent/` | **无** Hermes 核心 npm 依赖；提供 `bootstrap`（官方 curl 安装）与 `doctor` |
 
 ## 命令（在仓库根）
 
@@ -41,4 +41,4 @@ pnpm hermes:doctor         # 检测是否已安装 hermes CLI
 
 ## 与方案 A 文档的关系
 
-架构、路由、实例模板仍以 [README](./README.md) 与 [设计规格](../specs/2026-04-26-ai-local-os-design.md) 为准；本页仅描述 **Node 工程层** 纳管方式。
+架构、路由、实例模板仍以 [README](./README.md) 与 [设计规格](../specs/2026-04-26-open-agent-teams-design.md) 为准；本页仅描述 **Node 工程层** 纳管方式。

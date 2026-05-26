@@ -137,4 +137,4 @@ ai-work-flow/
 
 若本文件与具体子包 README 冲突，以**用户当前任务指向的包**及**用户明示指令**为准；**Superpowers 门禁与本文件 Agent Rules 不因此豁免**。
 
-**扩展文档（Open-Agent-Teams）**：[docs/ai-local-os/README.md](docs/ai-local-os/README.md) — OpenClaw + Hermes 私有化集成模板与规格索引（与 monorepo 业务包无强耦合）。**Node 工作区**：根目录 `pnpm-workspace.yaml`，包见 `packages/openclaw`、`packages/hermes-agent` 与 [monorepo-packages.md](docs/ai-local-os/monorepo-packages.md)。
+**扩展文档（Open-Agent-Teams）**：[docs/open-agent-teams/README.md](docs/open-agent-teams/README.md) — OpenClaw + Hermes 私有化集成模板与规格索引（与 monorepo 业务包无强耦合）。**Node 工作区**：根目录 `pnpm-workspace.yaml`，包见 `packages/openclaw`、`packages/hermes-agent` 与 [monorepo-packages.md](docs/open-agent-teams/monorepo-packages.md)。

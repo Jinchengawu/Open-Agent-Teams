@@ -1,5 +1,5 @@
 {
-  "name": "ai-local-os",
+  "name": "open-agent-teams",
   "private": true,
   "description": "Open-Agent-Teams：OpenClaw + Hermes 私有化本地智能操作系统（pnpm 多包工作区）",
   "license": "UNLICENSED",
@@ -8,12 +8,12 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "openclaw": "pnpm --filter @ai-local-os/openclaw exec openclaw",
-    "openclaw:version": "pnpm --filter @ai-local-os/openclaw exec openclaw --version",
-    "core:build": "pnpm --filter @ai-local-os/core run build",
-    "core:check": "pnpm --filter @ai-local-os/core run check",
-    "hermes:bootstrap": "pnpm --filter @ai-local-os/hermes-agent run bootstrap",
-    "hermes:doctor": "pnpm --filter @ai-local-os/hermes-agent run doctor",
-    "hermes:install-help": "pnpm --filter @ai-local-os/hermes-agent run install-help"
+    "openclaw": "pnpm --filter @open-agent-teams/openclaw exec openclaw",
+    "openclaw:version": "pnpm --filter @open-agent-teams/openclaw exec openclaw --version",
+    "core:build": "pnpm --filter @open-agent-teams/core run build",
+    "core:check": "pnpm --filter @open-agent-teams/core run check",
+    "hermes:bootstrap": "pnpm --filter @open-agent-teams/hermes-agent run bootstrap",
+    "hermes:doctor": "pnpm --filter @open-agent-teams/hermes-agent run doctor",
+    "hermes:install-help": "pnpm --filter @open-agent-teams/hermes-agent run install-help"
   }
 }

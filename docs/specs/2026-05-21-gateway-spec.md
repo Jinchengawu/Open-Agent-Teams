@@ -1,6 +1,6 @@
 # Open-Agent-Teams 薄网关规格（Phase 3）
 
-> **需求 ID**：REQ-2026-0426-ai-local-os-phase3  
+> **需求 ID**：REQ-2026-0426-open-agent-teams-phase3  
 > **当前状态**：设计中  
 > **目标**：在 OpenClaw 与 Hermes 实例之间增加本地轻量网关，统一鉴权、审计日志、熔断与限流
 

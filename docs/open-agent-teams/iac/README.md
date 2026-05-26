@@ -14,7 +14,7 @@
 ### 1. 启动所有服务
 
 ```bash
-cd docs/ai-local-os/iac
+cd docs/open-agent-teams/iac
 ./deploy.sh up
 ```
 
@@ -189,7 +189,7 @@ docker exec -it hermes-dev bash
 ## 相关文档
 
 - [Phase 3 网关规格](../../specs/2026-05-21-gateway-spec.md)
-- [设计规格](../../specs/2026-04-26-ai-local-os-design.md)
+- [设计规格](../../specs/2026-04-26-open-agent-teams-design.md)
 - [集成移交](../../integration-handoff.md)
 
 ---

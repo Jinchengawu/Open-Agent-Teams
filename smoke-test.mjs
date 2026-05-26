@@ -95,7 +95,7 @@ async function runSmokeTest() {
   
   const projectRoot = process.cwd();
   const envPath = join(projectRoot, '.env');
-  const instancesPath = join(projectRoot, 'docs/ai-local-os/hermes-instances.local.yaml');
+  const instancesPath = join(projectRoot, 'docs/open-agent-teams/hermes-instances.local.yaml');
   
   if (!existsSync(envPath)) {
     console.error('❌ .env 文件不存在');

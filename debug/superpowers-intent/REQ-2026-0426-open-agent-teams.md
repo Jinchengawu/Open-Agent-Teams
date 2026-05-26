@@ -4,7 +4,7 @@
 
 | 字段 | 值 |
 | --- | --- |
-| **requirementId** | REQ-2026-0426-ai-local-os |
+| **requirementId** | REQ-2026-0426-open-agent-teams |
 | **来源文档** | `Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案.pdf`（仓库根目录） |
 | **分支** | （待填） |
 | **PR** | （待填） |
@@ -16,16 +16,16 @@
 
 | 类型 | 路径 |
 | --- | --- |
-| 设计规格 | [docs/specs/2026-04-26-ai-local-os-design.md](../../docs/specs/2026-04-26-ai-local-os-design.md) |
-| 实现计划 | [docs/plans/2026-04-26-ai-local-os.md](../../docs/plans/2026-04-26-ai-local-os.md) |
-| 集成模板索引 | [docs/ai-local-os/README.md](../../docs/ai-local-os/README.md) |
-| 阶段 2 移交清单 | [docs/ai-local-os/integration-handoff.md](../../docs/ai-local-os/integration-handoff.md) |
-| 里程碑路线图 | [docs/ai-local-os/milestones-roadmap.md](../../docs/ai-local-os/milestones-roadmap.md) |
-| pnpm 多包（Node） | [docs/ai-local-os/monorepo-packages.md](../../docs/ai-local-os/monorepo-packages.md) |
+| 设计规格 | [docs/specs/2026-04-26-open-agent-teams-design.md](../../docs/specs/2026-04-26-open-agent-teams-design.md) |
+| 实现计划 | [docs/plans/2026-04-26-open-agent-teams.md](../../docs/plans/2026-04-26-open-agent-teams.md) |
+| 集成模板索引 | [docs/open-agent-teams/README.md](../../docs/open-agent-teams/README.md) |
+| 阶段 2 移交清单 | [docs/open-agent-teams/integration-handoff.md](../../docs/open-agent-teams/integration-handoff.md) |
+| 里程碑路线图 | [docs/open-agent-teams/milestones-roadmap.md](../../docs/open-agent-teams/milestones-roadmap.md) |
+| pnpm 多包（Node） | [docs/open-agent-teams/monorepo-packages.md](../../docs/open-agent-teams/monorepo-packages.md) |
 
 ## 产品与 API 文档链接（粘贴区）
 
-> 由负责人在完成 [integration-handoff.md §2](../../docs/ai-local-os/integration-handoff.md) 后填写**可公开**链接；敏感内网请写「见内网 wiki：xxx（不附 URL）」或脱敏说明。
+> 由负责人在完成 [integration-handoff.md §2](../../docs/open-agent-teams/integration-handoff.md) 后填写**可公开**链接；敏感内网请写「见内网 wiki：xxx（不附 URL）」或脱敏说明。
 
 | 组件 | 文档链接 |
 | --- | --- |
@@ -108,11 +108,11 @@
 
 ### 方案 B：薄编排网关
 
-- [ ] 未选定 — 在本地增加一轻量服务（如 Node/Go），统一鉴权、日志、熔断，再调 OpenClaw/Hermes；适合多客户端入口。设计占位见 [设计规格 §8.1](../../docs/specs/2026-04-26-ai-local-os-design.md)。
+- [ ] 未选定 — 在本地增加一轻量服务（如 Node/Go），统一鉴权、日志、熔断，再调 OpenClaw/Hermes；适合多客户端入口。设计占位见 [设计规格 §8.1](../../docs/specs/2026-04-26-open-agent-teams-design.md)。
 
 ### 方案 C：文档与 IaC 包
 
-- [ ] 未选定 — 用 compose/ansible 一键起多 Hermes + 网络策略；适合团队同构环境。设计占位见 [设计规格 §8.2](../../docs/specs/2026-04-26-ai-local-os-design.md)。
+- [ ] 未选定 — 用 compose/ansible 一键起多 Hermes + 网络策略；适合团队同构环境。设计占位见 [设计规格 §8.2](../../docs/specs/2026-04-26-open-agent-teams-design.md)。
 
 **选型参考（非已选）**：若从零起步，可先按 A 验证闭环，再按需引入 B 或 C；**以用户显式消息为准**。
 
@@ -121,7 +121,7 @@
 - [x] `using-skills`：已 Read（当次）。
 - [x] `brainstorming`：此前已 Read；本轮为计划执行落地。
 - [x] `superpowers-intent-trace`：本文件即侧车 SSOT。
-- [x] `writing-plans`：已产出 [实现计划](../../docs/plans/2026-04-26-ai-local-os.md)。
+- [x] `writing-plans`：已产出 [实现计划](../../docs/plans/2026-04-26-open-agent-teams.md)。
 - [x] `verification-before-completion`：本轮见下方验证记录。
 
 ## Pipeline 关系（可选）
@@ -142,4 +142,4 @@
 
 ### 阶段 2 增量（文档结构）
 
-- 阶段 2 **单一执行入口**：[integration-handoff.md](../../docs/ai-local-os/integration-handoff.md)；[实现计划](../../docs/plans/2026-04-26-ai-local-os.md) 含「阶段 2」复选框任务。REQ「产品与 API 文档链接」待人工填表后，可将跟踪清单「实际 OpenClaw / Hermes…」标为完成。
+- 阶段 2 **单一执行入口**：[integration-handoff.md](../../docs/open-agent-teams/integration-handoff.md)；[实现计划](../../docs/plans/2026-04-26-open-agent-teams.md) 含「阶段 2」复选框任务。REQ「产品与 API 文档链接」待人工填表后，可将跟踪清单「实际 OpenClaw / Hermes…」标为完成。

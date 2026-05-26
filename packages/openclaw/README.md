@@ -1,4 +1,4 @@
-# @ai-local-os/openclaw
+# @open-agent-teams/openclaw
 
 本包将 **OpenClaw** 作为 **npm 依赖** 固定在工作区内（版本见 `package.json`），便于与 Hermes 侧包统一用 **pnpm** 管理。
 
@@ -9,7 +9,7 @@
 ```bash
 pnpm install
 pnpm openclaw -- --version
-pnpm --filter @ai-local-os/openclaw exec openclaw onboard --help
+pnpm --filter @open-agent-teams/openclaw exec openclaw onboard --help
 ```
 
 完整能力与 Gateway 配置见官方文档：<https://docs.openclaw.ai/>（索引：<https://docs.openclaw.ai/llms.txt>）。

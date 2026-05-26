@@ -1,5 +1,5 @@
 {
-  "name": "@ai-local-os/hermes-agent",
+  "name": "@open-agent-teams/hermes-agent",
   "version": "0.0.0",
   "private": true,
   "description": "Hermes Agent 安装编排（官方以 Python/安装脚本为主；本包用 Node 脚本封装引导）",

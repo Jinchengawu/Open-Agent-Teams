@@ -145,7 +145,7 @@ curl http://127.0.0.1:8100/health
 docker compose down
 
 # 2. 恢复配置
-git checkout HEAD~1 -- docs/ai-local-os/iac/
+git checkout HEAD~1 -- docs/open-agent-teams/iac/
 
 # 3. 重新部署
 docker compose up -d

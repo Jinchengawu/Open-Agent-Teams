@@ -10,7 +10,7 @@ const INSTALL_URL =
   process.env.HERMES_INSTALL_URL ??
   "https://hermes-agent.nousresearch.com/install.sh";
 
-console.log("[@ai-local-os/hermes-agent] 即将执行官方安装脚本：");
+console.log("[@open-agent-teams/hermes-agent] 即将执行官方安装脚本：");
 console.log(`  curl -fsSL ${INSTALL_URL} | bash`);
 console.log("若需代理或镜像，请先设置环境变量 HERMES_INSTALL_URL。");
 console.log(

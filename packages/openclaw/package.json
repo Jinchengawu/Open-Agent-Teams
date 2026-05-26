@@ -1,5 +1,5 @@
 {
-  "name": "@ai-local-os/openclaw",
+  "name": "@open-agent-teams/openclaw",
   "version": "0.0.0",
   "private": true,
   "description": "OpenClaw CLI 运行时（npm 分发），供 Open-Agent-Teams 内核侧使用",

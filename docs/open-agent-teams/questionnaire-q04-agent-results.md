@@ -16,10 +16,10 @@
 
 ## 二、核心逻辑流程（问卷必写）
 
-1. **双智能体拓扑**：用户从统一入口进入 **OpenClaw（系统内核）** → 完成意图识别与任务拆解 → 按 [routing-rules.md](./routing-rules.md) 判定通用/系统类 **内核自执行**，或个性化、垂类、长期沉淀类任务 **HTTP 调用已注册的多 Hermes 实例** → Hermes 返回结果由内核整合后统一输出（与 [设计规格](../specs/2026-04-26-ai-local-os-design.md) 数据流一致）。  
+1. **双智能体拓扑**：用户从统一入口进入 **OpenClaw（系统内核）** → 完成意图识别与任务拆解 → 按 [routing-rules.md](./routing-rules.md) 判定通用/系统类 **内核自执行**，或个性化、垂类、长期沉淀类任务 **HTTP 调用已注册的多 Hermes 实例** → Hermes 返回结果由内核整合后统一输出（与 [设计规格](../specs/2026-04-26-open-agent-teams-design.md) 数据流一致）。  
 2. **多实例与隔离**：每台 Hermes **独立端口与持久化**，避免垂类记忆混杂；API 建议仅对本机内核与白名单开放。  
 3. **韧性**：插件/出站调用侧约定 **超时、错误捕获、熔断**；失败时 **内核兜底**，主路径不静默挂死。  
-4. **同仓工程化**：根目录 pnpm workspace 纳管 `@ai-local-os/openclaw`（npm `openclaw`）与 `@ai-local-os/hermes-agent`（官方安装引导 + `doctor`），与文档模板闭环，支撑从纸面到冒烟的检查项（见 [integration-handoff.md](./integration-handoff.md)）。  
+4. **同仓工程化**：根目录 pnpm workspace 纳管 `@open-agent-teams/openclaw`（npm `openclaw`）与 `@open-agent-teams/hermes-agent`（官方安装引导 + `doctor`），与文档模板闭环，支撑从纸面到冒烟的检查项（见 [integration-handoff.md](./integration-handoff.md)）。  
 5. **AI 驱动开发流（ai-work-flow 资产）**：`@ai-work-flow/cli` / `core` 与 **web3-fe-superpowers** 技能包（如 `using-skills`、`systematic-debugging`、`verification-before-completion`）形成**人机协同的长链工作流**，而非单次对话式「拍脑袋改代码」。
 
 ---
@@ -44,4 +44,4 @@
 
 ---
 
-大佬：以上文件路径为 `docs/ai-local-os/questionnaire-q04-agent-results.md`，第三节整段可直接贴问卷；记得把〔请填〕换成你方真实或诚实表述，避免与表单「请填写具体成果」要求冲突。
+大佬：以上文件路径为 `docs/open-agent-teams/questionnaire-q04-agent-results.md`，第三节整段可直接贴问卷；记得把〔请填〕换成你方真实或诚实表述，避免与表单「请填写具体成果」要求冲突。

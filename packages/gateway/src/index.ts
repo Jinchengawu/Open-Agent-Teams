@@ -333,7 +333,7 @@ async function handleRequest(
   // 健康检查（不需要鉴权）
   if (path === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', gateway: 'ai-local-os' }));
+    res.end(JSON.stringify({ status: 'ok', gateway: 'open-agent-teams' }));
     return;
   }
   

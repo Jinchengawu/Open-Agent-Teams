@@ -1,5 +1,5 @@
 ---
-name: ai-local-os-router
+name: open-agent-teams-router
 description: "Open-Agent-Teams 垂类心智调度器 - 根据路由规则将任务分发到 Hermes 实例"
 metadata:
   { "openclaw": { "emoji": "🧠", "events": ["message:received"], "requires": { "bins": ["node"] } } }

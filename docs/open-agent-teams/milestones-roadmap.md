@@ -2,7 +2,7 @@
 
 > **用途**：按周拆解推进顺序；周次为**建议节奏**，可按团队带宽压缩或拉长。  
 > **当前仓库默认**：方案 **A** 已文档化；**B/C** 为后续增强。  
-> **执行入口**：[integration-handoff.md](./integration-handoff.md) · [设计规格 §8](../specs/2026-04-26-ai-local-os-design.md)
+> **执行入口**：[integration-handoff.md](./integration-handoff.md) · [设计规格 §8](../specs/2026-04-26-open-agent-teams-design.md)
 
 ---
 
@@ -87,7 +87,7 @@ flowchart LR
 
 | 里程碑 | 交付物 / 动作 | 验收 |
 | --- | --- | --- |
-| M4.1 | `docs/ai-local-os/iac/README.md` + Compose 或 Ansible **最小可运行片段** | 干净环境按 README 起齐实例（或等价步骤） |
+| M4.1 | `docs/open-agent-teams/iac/README.md` + Compose 或 Ansible **最小可运行片段** | 干净环境按 README 起齐实例（或等价步骤） |
 | M4.2 | 网络策略：仅内核/网关可达 Hermes 的说明与配置片段 | 与规格 §4 隐私原则一致 |
 | M4.3 | 版本钉扎（镜像 tag / 包版本）与升级 Runbook | 可回答「如何安全升级一个 Hermes 实例」 |
 
@@ -108,7 +108,7 @@ flowchart LR
 | 路线图阶段 | 主要阅读 |
 | --- | --- |
 | 第 1–2 周 | [integration-handoff.md](./integration-handoff.md)、[routing-rules.md](./routing-rules.md) |
-| 第 3–4 周 | [设计规格](../specs/2026-04-26-ai-local-os-design.md) §3–§6、[../plans/2026-04-26-ai-local-os.md](../plans/2026-04-26-ai-local-os.md) 阶段 2 |
+| 第 3–4 周 | [设计规格](../specs/2026-04-26-open-agent-teams-design.md) §3–§6、[../plans/2026-04-26-open-agent-teams.md](../plans/2026-04-26-open-agent-teams.md) 阶段 2 |
 | 第 5–8 周 | 规格 §8、（待建）`iac/README`、网关 spec 增补 |
 
 修订本路线图时，建议在侧车 REQ 的「最后更新」或验证记录中记一行日期与变更摘要。

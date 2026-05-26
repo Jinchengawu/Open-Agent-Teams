@@ -1,10 +1,10 @@
 # Open-Agent-Teams 设计规格（OpenClaw + Hermes）
 
-> **需求 ID**：REQ-2026-0426-ai-local-os  
+> **需求 ID**：REQ-2026-0426-open-agent-teams  
 > **事实来源**：仓库根目录《Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案》PDF  
 > **本轮落地路径**：**方案 A — 纯集成编排**（配置约定 + 文档 + 模板；无自研运行时）  
-> **用户确认（2026-04-28）**：按 **A** 方案落地；执行载体为 [integration-handoff.md](../ai-local-os/integration-handoff.md)（含 §0 速览）。  
-> **关联**：侧车 [debug/superpowers-intent/REQ-2026-0426-ai-local-os.md](../../debug/superpowers-intent/REQ-2026-0426-ai-local-os.md)；集成索引 [docs/ai-local-os/README.md](../ai-local-os/README.md)
+> **用户确认（2026-04-28）**：按 **A** 方案落地；执行载体为 [integration-handoff.md](../open-agent-teams/integration-handoff.md)（含 §0 速览）。  
+> **关联**：侧车 [debug/superpowers-intent/REQ-2026-0426-open-agent-teams.md](../../debug/superpowers-intent/REQ-2026-0426-open-agent-teams.md)；集成索引 [docs/open-agent-teams/README.md](../open-agent-teams/README.md)
 
 ---
 
@@ -44,7 +44,7 @@
 
 ## 3. 路由原则（规范性）
 
-详细判定表见 [routing-rules.md](../ai-local-os/routing-rules.md)。摘要：
+详细判定表见 [routing-rules.md](../open-agent-teams/routing-rules.md)。摘要：
 
 - **内核自执行**：文件与目录操作、爬虫、办公自动化、通用运维、不涉及长期个人心智沉淀的问答等。
 - **下发 Hermes**：强依赖个人习惯/偏好、专属项目上下文、长期跟踪、垂类研究/创作风格、深度决策等（与具体实例标签绑定）。
@@ -71,7 +71,7 @@
 
 ## 6. 待补材料清单（落地前由负责人补齐）
 
-**执行载体**：逐项在 [integration-handoff.md](../ai-local-os/integration-handoff.md) 勾选并填写 **§2 官方文档链接表**，再同步到侧车 REQ「后续跟踪清单」。
+**执行载体**：逐项在 [integration-handoff.md](../open-agent-teams/integration-handoff.md) 勾选并填写 **§2 官方文档链接表**，再同步到侧车 REQ「后续跟踪清单」。
 
 - [ ] OpenClaw 实际产品名/版本与「自定义函数/插件」文档链接。  
 - [ ] Hermes 实际产品名/版本与 HTTP API 契约（鉴权、对话/任务接口）。  
@@ -84,10 +84,10 @@
 
 | 类型 | 路径 |
 | --- | --- |
-| 本规格 | `docs/specs/2026-04-26-ai-local-os-design.md` |
-| 实现计划 | `docs/plans/2026-04-26-ai-local-os.md` |
-| 集成模板 | `docs/ai-local-os/*` |
-| 里程碑路线图 | `docs/ai-local-os/milestones-roadmap.md` |
+| 本规格 | `docs/specs/2026-04-26-open-agent-teams-design.md` |
+| 实现计划 | `docs/plans/2026-04-26-open-agent-teams.md` |
+| 集成模板 | `docs/open-agent-teams/*` |
+| 里程碑路线图 | `docs/open-agent-teams/milestones-roadmap.md` |
 
 ---
 
@@ -103,7 +103,7 @@
 
 **意图**：使用 Docker Compose / Ansible 等同构拉起多 Hermes 实例与网络策略，便于团队复制环境。
 
-**本轮状态**：不新增 `docs/ai-local-os/iac/` 下文件；选定方案 C 后补 `iac/README` 与可运行片段。
+**本轮状态**：不新增 `docs/open-agent-teams/iac/` 下文件；选定方案 C 后补 `iac/README` 与可运行片段。
 
 ---
 

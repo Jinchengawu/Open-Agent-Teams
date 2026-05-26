@@ -1,5 +1,5 @@
 {
-  "name": "@ai-local-os/openclaw-hook-router",
+  "name": "@open-agent-teams/openclaw-hook-router",
   "version": "0.1.0",
   "description": "Open-Agent-Teams 垂类心智调度器 OpenClaw Hook",
   "type": "module",

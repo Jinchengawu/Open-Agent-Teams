@@ -124,7 +124,7 @@ Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 
 start-hermes.sh                    # 启动脚本
 setup-hook.sh                      # Hook 安装
 smoke-test.mjs                     # 冒烟测试
-packages/openclaw/hooks/ai-local-os-router/  # Hook 实现
+packages/openclaw/hooks/open-agent-teams-router/  # Hook 实现
 ```
 
 ### 3.2 Phase 2：多实例扩展 ✅
@@ -141,7 +141,7 @@ packages/openclaw/hooks/ai-local-os-router/  # Hook 实现
 ```
 start-all-instances.sh             # 多实例启动
 smoke-test-phase2.mjs              # 多实例测试
-docs/ai-local-os/hermes-instances.local.yaml  # 实例配置
+docs/open-agent-teams/hermes-instances.local.yaml  # 实例配置
 ```
 
 ### 3.3 Phase 3：薄网关 ✅
@@ -180,10 +180,10 @@ docs/specs/2026-05-21-gateway-spec.md  # 规格文档
 
 **关键文件**：
 ```
-docs/ai-local-os/iac/docker-compose.yml  # Compose 配置
-docs/ai-local-os/iac/deploy.sh          # 部署脚本
-docs/ai-local-os/iac/README.md          # 部署文档
-docs/ai-local-os/iac/VERSIONS.md        # 版本钉扎
+docs/open-agent-teams/iac/docker-compose.yml  # Compose 配置
+docs/open-agent-teams/iac/deploy.sh          # 部署脚本
+docs/open-agent-teams/iac/README.md          # 部署文档
+docs/open-agent-teams/iac/VERSIONS.md        # 版本钉扎
 packages/gateway/Dockerfile             # Gateway 镜像
 ```
 
@@ -207,11 +207,11 @@ Open-Agent-Teams/
 │
 ├── docs/
 │   ├── specs/
-│   │   ├── 2026-04-26-ai-local-os-design.md  # 设计规格
+│   │   ├── 2026-04-26-open-agent-teams-design.md  # 设计规格
 │   │   └── 2026-05-21-gateway-spec.md        # 网关规格
 │   ├── plans/
-│   │   └── 2026-04-26-ai-local-os.md         # 实现计划
-│   └── ai-local-os/
+│   │   └── 2026-04-26-open-agent-teams.md         # 实现计划
+│   └── open-agent-teams/
 │       ├── README.md                          # 集成文档索引
 │       ├── routing-rules.md                   # 路由规则
 │       ├── hermes-instances.template.yaml     # 实例模板
@@ -236,7 +236,7 @@ Open-Agent-Teams/
 │   │   └── Dockerfile
 │   └── openclaw/
 │       └── hooks/
-│           └── ai-local-os-router/           # OpenClaw Hook
+│           └── open-agent-teams-router/           # OpenClaw Hook
 │               ├── HOOK.md
 │               ├── handler.ts
 │               └── package.json
@@ -336,7 +336,7 @@ cd Open-Agent-Teams
 
 ```bash
 # 1. 进入 IaC 目录
-cd docs/ai-local-os/iac
+cd docs/open-agent-teams/iac
 
 # 2. 启动所有服务
 ./deploy.sh up

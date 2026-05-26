@@ -11,7 +11,7 @@
 - ✅ 验证端口 8001/8002/8003 可用
 
 ### 2. 本地实例配置
-- ✅ 创建 `docs/ai-local-os/hermes-instances.local.yaml`
+- ✅ 创建 `docs/open-agent-teams/hermes-instances.local.yaml`
   - 配置 hermes-dev 实例 (端口 8002)
   - 包含标签: dev, repo, ci, code_style, coding, debug, test
   - 设置超时时间: 120000ms
@@ -25,7 +25,7 @@
   - 开发环境变量配置
 
 ### 4. OpenClaw 插件开发
-- ✅ 创建 `packages/openclaw/plugins/ai-local-os-router/`
+- ✅ 创建 `packages/openclaw/plugins/open-agent-teams-router/`
   - `HOOK.md` - 插件元数据和文档
   - `handler.ts` - 核心路由逻辑实现
   - `package.json` - 插件依赖配置
@@ -50,9 +50,9 @@
 Open-Agent-Teams/
 ├── .env                                    # 环境变量配置
 ├── smoke-test.mjs                         # 冒烟测试脚本
-├── docs/ai-local-os/
+├── docs/open-agent-teams/
 │   └── hermes-instances.local.yaml        # 本地实例配置
-└── packages/openclaw/plugins/ai-local-os-router/
+└── packages/openclaw/plugins/open-agent-teams-router/
     ├── HOOK.md                            # 插件元数据
     ├── handler.ts                         # 路由处理器
     └── package.json                       # 插件依赖
@@ -74,13 +74,13 @@ hermes --port 8002 --home ~/.hermes-dev
 cd /path/to/Open-Agent-Teams  # 替换为你的项目路径
 
 # 安装插件（链接模式）
-openclaw plugins install --link ./packages/openclaw/plugins/ai-local-os-router
+openclaw plugins install --link ./packages/openclaw/plugins/open-agent-teams-router
 
 # 启用插件
-openclaw plugins enable ai-local-os-router
+openclaw plugins enable open-agent-teams-router
 
 # 验证插件安装
-openclaw plugins inspect ai-local-os-router --runtime
+openclaw plugins inspect open-agent-teams-router --runtime
 ```
 
 ### 测试完整流程

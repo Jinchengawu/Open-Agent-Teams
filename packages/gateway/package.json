@@ -1,5 +1,5 @@
 {
-  "name": "@ai-local-os/gateway",
+  "name": "@open-agent-teams/gateway",
   "version": "0.1.0",
   "description": "Open-Agent-Teams 薄网关 - 统一路由、鉴权、日志、限流",
   "type": "module",

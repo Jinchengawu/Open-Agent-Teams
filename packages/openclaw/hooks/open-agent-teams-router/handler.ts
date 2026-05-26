@@ -165,7 +165,7 @@ function updateCircuitBreaker(instanceId: string, success: boolean, failureThres
     // 达到阈值时打开熔断器
     if (breaker.failures >= failureThreshold) {
       breaker.isOpen = true;
-      console.warn(`[ai-local-os-router] 熔断器打开: ${instanceId} (连续失败 ${breaker.failures} 次)`);
+      console.warn(`[open-agent-teams-router] 熔断器打开: ${instanceId} (连续失败 ${breaker.failures} 次)`);
     }
   }
 }
@@ -184,31 +184,31 @@ const handler = async (event: any) => {
     return;
   }
   
-  console.log(`[ai-local-os-router] 收到消息: "${content.substring(0, 50)}..."`);
+  console.log(`[open-agent-teams-router] 收到消息: "${content.substring(0, 50)}..."`);
   
   const intent = analyzeIntent(content);
-  console.log(`[ai-local-os-router] 意图分析: ${intent.shouldRoute ? '路由到 Hermes' : '内核自执行'} (${intent.reason})`);
+  console.log(`[open-agent-teams-router] 意图分析: ${intent.shouldRoute ? '路由到 Hermes' : '内核自执行'} (${intent.reason})`);
   
   if (!intent.shouldRoute) {
     return;
   }
   
   const projectRoot = process.env.AI_LOCAL_OS_ROOT || process.cwd();
-  const configPath = join(projectRoot, 'docs/ai-local-os/hermes-instances.local.yaml');
+  const configPath = join(projectRoot, 'docs/open-agent-teams/hermes-instances.local.yaml');
   const instances = loadInstances(configPath);
   
   if (instances.length === 0) {
-    console.warn('[ai-local-os-router] 没有可用的 Hermes 实例');
+    console.warn('[open-agent-teams-router] 没有可用的 Hermes 实例');
     return;
   }
   
   const selectedInstance = selectInstance(content, instances);
   if (!selectedInstance) {
-    console.warn('[ai-local-os-router] 无法选择合适的实例（可能所有实例都在熔断状态）');
+    console.warn('[open-agent-teams-router] 无法选择合适的实例（可能所有实例都在熔断状态）');
     return;
   }
   
-  console.log(`[ai-local-os-router] 选择实例: ${selectedInstance.id} (${selectedInstance.label})`);
+  console.log(`[open-agent-teams-router] 选择实例: ${selectedInstance.id} (${selectedInstance.label})`);
   
   // 调用 Hermes API
   try {
@@ -237,12 +237,12 @@ const handler = async (event: any) => {
     } else {
       // 更新熔断器（失败）
       updateCircuitBreaker(selectedInstance.id, false);
-      console.error(`[ai-local-os-router] Hermes API 返回错误: ${response.status}`);
+      console.error(`[open-agent-teams-router] Hermes API 返回错误: ${response.status}`);
     }
   } catch (error) {
     // 更新熔断器（失败）
     updateCircuitBreaker(selectedInstance.id, false);
-    console.error(`[ai-local-os-router] Hermes 调用失败:`, error);
+    console.error(`[open-agent-teams-router] Hermes 调用失败:`, error);
   }
 };
 

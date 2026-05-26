@@ -182,7 +182,7 @@ async function runSmokeTest() {
   console.log('📋 检查环境...');
   
   const projectRoot = process.cwd();
-  const instancesPath = join(projectRoot, 'docs/ai-local-os/hermes-instances.local.yaml');
+  const instancesPath = join(projectRoot, 'docs/open-agent-teams/hermes-instances.local.yaml');
   
   if (!existsSync(instancesPath)) {
     console.error('❌ 实例配置文件不存在');

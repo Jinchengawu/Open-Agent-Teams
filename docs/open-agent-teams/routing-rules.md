@@ -1,6 +1,6 @@
 # Open-Agent-Teams 路由规则（OpenClaw 判型参考）
 
-> 规范性说明见 [设计规格 §3](../specs/2026-04-26-ai-local-os-design.md)。本表用于人工或插件侧路由配置，非可执行代码。
+> 规范性说明见 [设计规格 §3](../specs/2026-04-26-open-agent-teams-design.md)。本表用于人工或插件侧路由配置，非可执行代码。
 
 ## 1. 默认走 OpenClaw 内核（自执行）
 

@@ -1,5 +1,5 @@
 {
-  "name": "@ai-local-os/core",
+  "name": "@open-agent-teams/core",
   "version": "0.1.0",
   "description": "Open-Agent-Teams shared core library — Agent Factory, Session Manager, Context Compressor, Agent Bus, Workflow Orchestrator",
   "type": "module",

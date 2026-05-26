@@ -38,9 +38,9 @@
 升级脚本会自动备份以下内容：
 
 - `~/.hermes-gateway/` - Gateway 配置和日志
-- `~/.ai-local-os/config.yaml` - 本地配置
+- `~/.open-agent-teams/config.yaml` - 本地配置
 
-备份位置：`~/.ai-local-os-backup/YYYYMMDD_HHMMSS/`
+备份位置：`~/.open-agent-teams-backup/YYYYMMDD_HHMMSS/`
 
 ### 3. 执行升级
 
@@ -90,7 +90,7 @@
 crontab -e
 
 # 每天检查一次更新
-0 9 * * * /path/to/Open-Agent-Teams/packages/upgrade/upgrade.sh check >> ~/.ai-local-os-upgrade.log 2>&1
+0 9 * * * /path/to/Open-Agent-Teams/packages/upgrade/upgrade.sh check >> ~/.open-agent-teams-upgrade.log 2>&1
 ```
 
 ### 升级通知
@@ -107,10 +107,10 @@ crontab -e
 
 ```bash
 # 查看备份
-ls ~/.ai-local-os-backup/
+ls ~/.open-agent-teams-backup/
 
 # 恢复配置
-cp -r ~/.ai-local-os-backup/YYYYMMDD_HHMMSS/.hermes-gateway ~/.hermes-gateway
+cp -r ~/.open-agent-teams-backup/YYYYMMDD_HHMMSS/.hermes-gateway ~/.hermes-gateway
 
 # 重新部署
 ./deploy.sh restart
@@ -132,7 +132,7 @@ git remote -v
 
 ```bash
 # 查看升级日志
-cat ~/.ai-local-os-upgrade.log
+cat ~/.open-agent-teams-upgrade.log
 
 # 手动拉取
 git pull origin main
@@ -148,7 +148,7 @@ npm install
 cat migrate.log
 
 # 手动更新配置
-# 参考 docs/ai-local-os/ 目录下的配置模板
+# 参考 docs/open-agent-teams/ 目录下的配置模板
 ```
 
 ## 版本历史
