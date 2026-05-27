@@ -67,11 +67,26 @@ export default function ChatContent() {
   const { showToast } = useToast()
   const initialAgent = searchParams.get('agent') || ''
 
-  // 多 Tab 管理 — 可以同时打开多个 Agent
+  // 多 Tab 管理 — 持久化到 localStorage，路由切换不丢失
+  const TABS_STORAGE_KEY = 'dev-agent-chat-tabs-v1'
   const [tabs, setTabs] = useState<AgentTab[]>(() => {
-    return initialAgent ? [{ id: initialAgent, input: '' }] : []
+    if (typeof window === 'undefined') return initialAgent ? [{ id: initialAgent, input: '' }] : []
+    try {
+      const raw = localStorage.getItem(TABS_STORAGE_KEY)
+      const saved = raw ? JSON.parse(raw) as AgentTab[] : []
+      // URL 参数指定了 agent 但还没在 tabs 中，追加
+      if (initialAgent && !saved.find(t => t.id === initialAgent)) {
+        return [...saved, { id: initialAgent, input: '' }]
+      }
+      return saved.length > 0 ? saved : []
+    } catch { return initialAgent ? [{ id: initialAgent, input: '' }] : [] }
   })
-  const [activeTab, setActiveTab] = useState<number>(0)
+  const [activeTab, setActiveTab] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0
+    try {
+      return parseInt(localStorage.getItem('dev-agent-chat-active-v1') || '0', 10)
+    } catch { return 0 }
+  })
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [conversations, setConversations] = useState<Record<string, ChatMessage[]>>(() => loadConversations())
   const [sessions, setSessions] = useState<Record<string, string>>(() => {
@@ -119,6 +134,14 @@ export default function ChatContent() {
       localStorage.setItem('dev-agent-sessions-v1', JSON.stringify(sessions))
     }
   }, [sessions])
+
+  // 持久化 tabs 和 activeTab，路由切换不丢失
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(tabs))
+      localStorage.setItem('dev-agent-chat-active-v1', String(activeTab))
+    }
+  }, [tabs, activeTab])
 
   // 打开 Tab
   const openTab = useCallback((agentId: string) => {
@@ -268,36 +291,37 @@ export default function ChatContent() {
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
       {/* ── Agent Tabs ── */}
-      <div className="flex items-end gap-0.5 mb-2 overflow-x-auto border-b border-slate-200 pb-0">
-        {tabs.map((tab, i) => {
-          const agent = AGENTS[tab.id]
-          const isActive = i === activeTab
-          const isSending = !!sending[tab.id]
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(i)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm whitespace-nowrap transition-all ${
-                isActive
-                  ? 'bg-white border border-b-0 border-slate-200 text-gray-900 font-medium -mb-px'
-                  : 'bg-transparent text-gray-500 hover:text-gray-700 hover:bg-slate-50 border border-transparent'
-              }`}
-            >
-              <span>{agent?.icon || '🤖'}</span>
-              <span className="max-w-[100px] truncate">{agent?.name || agent?.label || 'Auto'}</span>
-              {isSending && (
-                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
-              )}
-              <span
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); closeTab(i) }}
-                className="ml-0.5 text-gray-400 hover:text-red-500 text-xs flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-red-50"
+      <div className="flex items-end gap-0.5 mb-2 border-b border-slate-200 pb-0">
+        <div className="flex items-end gap-0.5 overflow-x-auto flex-1 pb-0">
+          {tabs.map((tab, i) => {
+            const agent = AGENTS[tab.id]
+            const isActive = i === activeTab
+            const isSending = !!sending[tab.id]
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(i)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'bg-white border border-b-0 border-slate-200 text-gray-900 font-medium -mb-px'
+                    : 'bg-transparent text-gray-500 hover:text-gray-700 hover:bg-slate-50 border border-transparent'
+                }`}
               >
-                ×
-              </span>
-            </button>
-          )
-        })}
-        {/* "添加 Agent" — 点击触发下拉 */}
+                <span>{agent?.icon || '🤖'}</span>
+                <span className="max-w-[100px] truncate">{agent?.name || agent?.label || 'Auto'}</span>
+                {isSending && (
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
+                )}
+                <span
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); closeTab(i) }}
+                  className="ml-0.5 text-gray-400 hover:text-red-500 text-xs flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-red-50"
+                >
+                  ×
+                </span>
+              </button>
+            )
+          })}
+        </div>
         <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
