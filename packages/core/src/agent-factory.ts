@@ -312,24 +312,40 @@ async function callHermes(
   messages: { role: string; content: string }[],
   retries = 5
 ): Promise<string> {
+  // 优先使用直连 API（如果配置了 MODEL_BASE_URL 和 API_KEY）
+  const directUrl = process.env.MODEL_BASE_URL;
+  const directKey = process.env.API_KEY;
+  const directModel = process.env.MODEL_NAME || 'mimo-v2.5-pro';
+  const useDirect = !!(directUrl && directKey);
+
   let lastError = '';
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(
-        `http://127.0.0.1:${hermesPort}/v1/chat/completions`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'hermes-agent',
-            messages,
-            max_tokens: 8192,
-            thinking: { type: 'disabled' },
-          }),
-          signal: AbortSignal.timeout(180000),
-        }
-      );
+      const apiUrl = useDirect
+        ? `${directUrl}/chat/completions`
+        : `http://127.0.0.1:${hermesPort}/v1/chat/completions`;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (useDirect) {
+        headers['Authorization'] = `Bearer ${directKey}`;
+      }
+
+      const body: Record<string, unknown> = {
+        model: useDirect ? directModel : 'hermes-agent',
+        messages,
+        max_tokens: 8192,
+      };
+      if (!useDirect) {
+        body.thinking = { type: 'disabled' };
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(180000),
+      });
 
       if (response.ok) {
         const data = (await response.json()) as {
