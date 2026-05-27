@@ -13,3 +13,5 @@ export { BUILTIN_TEMPLATES } from './workflow/templates';
 export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types';
 export { createAgentApp } from './agent-factory';
 export type { AgentFactoryConfig } from './agent-factory';
+export { TeamOrchestrator, createTeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
+export type { TeamAgentConfig, TeamOrchestratorConfig } from './team/TeamOrchestrator';

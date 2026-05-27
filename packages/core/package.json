@@ -1,7 +1,7 @@
 {
-  "name": "@open-agent-teams/core",
+  "name": "@dev-agent/core",
   "version": "0.1.0",
-  "description": "Open-Agent-Teams shared core library — Agent Factory, Session Manager, Context Compressor, Agent Bus, Workflow Orchestrator",
+  "description": "DEV-Agent-Teams shared core library",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -13,6 +13,7 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "@open-multi-agent/core": "^1.4.2",
     "better-sqlite3": "^11.0.0",
     "express": "^4.18.0",
     "uuid": "^9.0.0"
