@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
@@ -17,7 +17,7 @@ function getWelcomeMessage(agentId: string): ChatMessage {
   if (!agentId) return {
     id: 'welcome',
     role: 'assistant',
-    content: "Hello! I'm DEV-Agent-Teams. I can help you with:\n\n• 🎨 Frontend development (React, Vue, TypeScript)\n• ⚙️ Backend development (Python, Node.js, Go)\n• 🧪 Testing (pytest, Jest, Playwright)\n• 🚀 DevOps (Docker, Kubernetes, CI/CD)\n• 📋 Product Management (PRD, user stories, requirements)\n\nWhat would you like to work on?",
+    content: "Hello! I'm DEV-Agent-Teams. Select an agent tab above to start a conversation.",
     agentId: 'system',
     timestamp: Date.now(),
   }
@@ -49,7 +49,6 @@ function loadConversations(): Record<string, ChatMessage[]> {
 function saveConversations(convs: Record<string, ChatMessage[]>) {
   if (typeof window === 'undefined') return
   try {
-    // Only persist recent messages (max 50 per agent)
     const trimmed: Record<string, ChatMessage[]> = {}
     for (const [key, msgs] of Object.entries(convs)) {
       trimmed[key] = msgs.slice(-50)
@@ -58,12 +57,21 @@ function saveConversations(convs: Record<string, ChatMessage[]>) {
   } catch { /* ignore quota errors */ }
 }
 
+interface AgentTab {
+  id: string
+  input: string
+}
+
 export default function ChatContent() {
   const searchParams = useSearchParams()
   const { showToast } = useToast()
   const initialAgent = searchParams.get('agent') || ''
 
-  const [selectedAgent, setSelectedAgent] = useState<string>(initialAgent)
+  // 多 Tab 管理 — 可以同时打开多个 Agent
+  const [tabs, setTabs] = useState<AgentTab[]>(() => {
+    return initialAgent ? [{ id: initialAgent, input: '' }] : []
+  })
+  const [activeTab, setActiveTab] = useState<number>(0)
   const [conversations, setConversations] = useState<Record<string, ChatMessage[]>>(() => loadConversations())
   const [sessions, setSessions] = useState<Record<string, string>>(() => {
     if (typeof window === 'undefined') return {}
@@ -72,15 +80,13 @@ export default function ChatContent() {
       return raw ? JSON.parse(raw) : {}
     } catch { return {} }
   })
-  const [input, setInput] = useState('')
-  const [isSending, setIsSending] = useState(false)
-  const isSendingRef = useRef(false)
+
+  // 每个 Agent 独立的发送状态（并发关键）
+  const [sending, setSending] = useState<Record<string, boolean>>({})
+  const sendingRef = useRef<Record<string, boolean>>({})
   const mountedRef = useRef(true)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesEndRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
-  const agentKey = selectedAgent || 'auto'
-
-  // BUG 3 fix: memoize welcome message
   const welcomeCache = useRef<Record<string, ChatMessage>>({})
   const getCachedWelcome = useCallback((key: string) => {
     if (!welcomeCache.current[key]) {
@@ -89,37 +95,63 @@ export default function ChatContent() {
     return welcomeCache.current[key]
   }, [])
 
-  const currentMessages = conversations[agentKey] || [getCachedWelcome(agentKey)]
-  const currentSessionId = sessions[agentKey] || ''
+  const activeAgentId = tabs[activeTab]?.id || ''
+  const activeKey = activeAgentId || 'auto'
+  const currentMessages = conversations[activeKey] || [getCachedWelcome(activeKey)]
+  const currentSessionId = sessions[activeKey] || ''
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
-
+  // 自动滚动
   useEffect(() => {
-    scrollToBottom()
-  }, [currentMessages, isSending, scrollToBottom])
+    const ref = messagesEndRefs.current[activeKey]
+    ref?.scrollIntoView({ behavior: 'smooth' })
+  }, [currentMessages, activeKey])
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
   }, [])
 
-  useEffect(() => {
-    if (initialAgent) {
-      setSelectedAgent(initialAgent)
-    }
-  }, [initialAgent])
-
-  useEffect(() => {
-    saveConversations(conversations)
-  }, [conversations])
+  useEffect(() => { saveConversations(conversations) }, [conversations])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('dev-agent-sessions-v1', JSON.stringify(sessions))
     }
   }, [sessions])
+
+  // 打开 Tab
+  const openTab = useCallback((agentId: string) => {
+    setTabs((prev) => {
+      const existing = prev.findIndex((t) => t.id === agentId)
+      if (existing >= 0) {
+        setActiveTab(existing)
+        return prev
+      }
+      const next = [...prev, { id: agentId, input: '' }]
+      setActiveTab(next.length - 1)
+      return next
+    })
+  }, [])
+
+  // 关闭 Tab
+  const closeTab = useCallback((index: number) => {
+    setTabs((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      if (next.length === 0) {
+        setActiveTab(0)
+        return next
+      }
+      if (activeTab >= next.length) {
+        setActiveTab(next.length - 1)
+      }
+      return next
+    })
+  }, [activeTab])
+
+  // 更新 Tab 输入
+  const setTabInput = useCallback((agentId: string, value: string) => {
+    setTabs((prev) => prev.map((t) => t.id === agentId ? { ...t, input: value } : t))
+  }, [])
 
   const addMessage = useCallback((key: string, msg: ChatMessage) => {
     if (!mountedRef.current) return
@@ -130,36 +162,36 @@ export default function ChatContent() {
     })
   }, [getCachedWelcome])
 
-  const clearConversation = useCallback(() => {
+  const clearConversation = useCallback((agentId: string) => {
     setConversations((prev) => {
       const next = { ...prev }
-      delete next[agentKey]
+      delete next[agentId]
       return next
     })
     setSessions((prev) => {
       const next = { ...prev }
-      delete next[agentKey]
+      delete next[agentId]
       return next
     })
-    showToast('Conversation cleared', 'info')
-  }, [agentKey, showToast])
+  }, [])
 
-  const handleSendWithText = async (text: string, targetAgent: string, clearInput = false) => {
-    if (isSendingRef.current) return
-    isSendingRef.current = true
-    setIsSending(true)
-    if (clearInput) setInput('')
+  // 并发安全的发送（per-agent lock）
+  const handleSendForAgent = useCallback(async (agentId: string, text: string) => {
+    if (!text.trim() || sendingRef.current[agentId]) return
 
-    const key = agentKey
+    sendingRef.current[agentId] = true
+    setSending((prev) => ({ ...prev, [agentId]: true }))
+    setTabInput(agentId, '')
+
+    const key = agentId
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${agentId}`,
       role: 'user',
       content: text,
-      agentId: targetAgent,
+      agentId,
       timestamp: Date.now(),
     }
 
-    // BUG 4 fix: build history BEFORE adding the message
     const existingHistory = (conversations[key] || [])
       .filter((m) => !m.id.startsWith('welcome'))
       .map((m) => ({ role: m.role, content: m.content }))
@@ -167,96 +199,63 @@ export default function ChatContent() {
 
     addMessage(key, userMessage)
 
+    const sessionId = sessions[key] || undefined
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: existingHistory,
-          agentId: targetAgent,
-          sessionId: currentSessionId || undefined,
-        }),
+        body: JSON.stringify({ messages: existingHistory, agentId, sessionId }),
       })
 
       let data: Record<string, unknown> = {}
       try {
         data = await res.json()
       } catch {
-        // BUG 6 fix: non-JSON response
-        const text = await res.clone().text().catch(() => '')
-        throw new Error(text.substring(0, 200) || `HTTP ${res.status}`)
+        const errText = await res.clone().text().catch(() => '')
+        throw new Error(errText.substring(0, 200) || `HTTP ${res.status}`)
       }
 
       if (!res.ok || data.error) {
         throw new Error((data.error as string) || `HTTP ${res.status}`)
       }
 
-      // BUG 2 fix: always update sessionId
       if (data.sessionId) {
         setSessions((prev) => ({ ...prev, [key]: data.sessionId as string }))
       }
 
       const agentMessage: ChatMessage = {
-        id: `agent-${Date.now()}`,
+        id: `agent-${Date.now()}-${agentId}`,
         role: 'assistant',
-        content: (data.message as Record<string, unknown>)?.content as string || 'No response from agent.',
-        agentId: targetAgent,
+        content: (data.message as Record<string, unknown>)?.content as string || 'No response.',
+        agentId,
         timestamp: Date.now(),
       }
       addMessage(key, agentMessage)
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Unknown error'
-      showToast(`Send failed: ${errorMsg}`, 'error')
+      showToast(`[${AGENTS[agentId]?.name || agentId}] ${errorMsg}`, 'error')
 
-      // BUG 11 fix: retry button
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
+      addMessage(key, {
+        id: `error-${Date.now()}-${agentId}`,
         role: 'assistant',
-        content: `⚠️ Failed to reach agent.\n\n${errorMsg}\n\nMake sure the agent services are running. You can click the Retry button below or start agents with:\n\`./scripts/start-all.sh\``,
+        content: `⚠️ ${errorMsg}`,
         agentId: 'system',
         timestamp: Date.now(),
-      }
-      addMessage(key, errorMessage)
+      })
     } finally {
       if (mountedRef.current) {
-        setIsSending(false)
+        setSending((prev) => ({ ...prev, [agentId]: false }))
       }
-      isSendingRef.current = false
+      sendingRef.current[agentId] = false
     }
-  }
+  }, [conversations, sessions, addMessage, showToast, setTabInput])
 
-  const handleSendWithTextRef = useRef(handleSendWithText)
-  handleSendWithTextRef.current = handleSendWithText
+  const handleSendWithTextRef = useRef(handleSendForAgent)
+  handleSendWithTextRef.current = handleSendForAgent
 
-  const handleRetry = useCallback((retryText: string, retryAgent: string) => {
-    setInput(retryText)
-    // Trigger send after a tick
-    setTimeout(() => {
-      handleSendWithTextRef.current(retryText, retryAgent)
-    }, 100)
-  }, [])
-
-  const handleSend = async () => {
-    if (!input.trim() || isSendingRef.current) return
-    await handleSendWithText(input.trim(), selectedAgent || detectAgent(input.trim()), true)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
-  // BUG 8 fix: clear input on agent switch
-  const handleSwitchAgent = (id: string) => {
-    if (id !== selectedAgent) {
-      setInput('')
-      setSelectedAgent(id)
-    } else {
-      setSelectedAgent('')
-    }
-  }
+  const currentInput = tabs.find((t) => t.id === activeAgentId)?.input || ''
+  const isCurrentSending = !!sending[activeAgentId]
 
   function getAgentDisplayInfo(agentId: string | undefined) {
     if (!agentId || agentId === 'system') return { icon: '🤖', name: 'System' }
@@ -267,168 +266,229 @@ export default function ChatContent() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
-      <Card className="flex-1 flex flex-col overflow-hidden">
-        <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <h2 className="text-lg font-bold text-gray-900">💬 Chat</h2>
+      {/* ── Agent Tabs ── */}
+      <div className="flex items-center gap-1 mb-2 overflow-x-auto">
+        {tabs.map((tab, i) => {
+          const agent = AGENTS[tab.id]
+          const isActive = i === activeTab
+          const isSending = !!sending[tab.id]
+          return (
+            <div
+              key={tab.id}
+              onClick={() => setActiveTab(i)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg cursor-pointer select-none text-sm whitespace-nowrap transition-colors ${
+                isActive
+                  ? 'bg-white border border-b-0 border-slate-200 text-gray-900 font-medium'
+                  : 'bg-slate-100 text-gray-500 hover:bg-slate-200'
+              }`}
+            >
+              <span>{agent?.icon || '🤖'}</span>
+              <span>{agent?.label || 'Auto'}</span>
+              {isSending && (
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); closeTab(i) }}
+                className="ml-1 text-gray-400 hover:text-gray-600 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          )
+        })}
+        {/* "添加 Agent" 下拉 */}
+        <div className="relative group">
+          <button className="px-2 py-1.5 text-gray-400 hover:text-blue-500 text-sm font-bold">
+            +
+          </button>
+          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1 hidden group-hover:block z-50 min-w-[160px]">
+            {AGENT_LIST.map((agent) => (
+              <button
+                key={agent.id}
+                onClick={() => openTab(agent.id)}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-slate-50 rounded"
+              >
+                <span>{agent.icon}</span>
+                <span>{agent.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 活动 Tab 的对话 ── */}
+      {tabs.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-400">
+            <p className="text-4xl mb-4">💬</p>
+            <p className="text-lg mb-2">Select an Agent to start</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {AGENT_LIST.map((agent) => (
+                <button
+                  key={agent.id}
+                  onClick={() => openTab(agent.id)}
+                  className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all"
+                >
+                  <span className="text-xl">{agent.icon}</span>
+                  <div className="text-left">
+                    <div className="font-medium text-gray-900">{agent.label}</div>
+                    <div className="text-xs text-gray-400">{agent.name}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <Card className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2 border-b bg-white">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">
+                {AGENTS[activeAgentId]?.icon || '🤖'}
+              </span>
+              <span className="font-medium text-gray-900">
+                {AGENTS[activeAgentId]?.name || 'Chat'}
+              </span>
+              {isCurrentSending && (
+                <span className="text-xs text-blue-500 animate-pulse">thinking...</span>
+              )}
+            </div>
+            <div className="flex gap-2">
               {currentMessages.length > 1 && (
-                <Button variant="ghost" size="sm" onClick={clearConversation}>
+                <Button variant="ghost" size="sm" onClick={() => clearConversation(activeKey)}>
                   🗑️ Clear
                 </Button>
               )}
             </div>
-            <div className="flex space-x-1.5">
-              <Badge
-                variant={selectedAgent === '' ? 'default' : 'outline'}
-                className="cursor-pointer select-none"
-                onClick={() => { setSelectedAgent(''); setInput('') }}
-              >
-                Auto
-              </Badge>
-              {AGENT_LIST.map((agent) => (
-                <Badge
-                  key={agent.id}
-                  variant={selectedAgent === agent.id ? 'default' : 'outline'}
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSwitchAgent(agent.id)}
+          </div>
+
+          {/* Messages */}
+          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+            {currentMessages.map((message) => {
+              const displayInfo = getAgentDisplayInfo(message.agentId)
+              const isError = message.id.startsWith('error-')
+              const lastUserMsg = [...currentMessages].reverse().find((m) => m.role === 'user')
+
+              return (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {agent.icon} {agent.label}
-                </Badge>
+                  <div
+                    className={`max-w-[75%] rounded-2xl p-4 ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                        : isError
+                        ? 'bg-red-50 border border-red-200 text-gray-900'
+                        : 'bg-white border border-slate-200 text-gray-900 shadow-sm'
+                    }`}
+                  >
+                    <div
+                      className={`text-xs font-medium mb-2 flex items-center space-x-2 ${
+                        message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                      }`}
+                    >
+                      <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs">
+                        {displayInfo.icon}
+                      </span>
+                      <span>{displayInfo.name}</span>
+                    </div>
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {message.content}
+                    </div>
+                    <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                      {message.timestamp > 1000000000000
+                        ? new Date(message.timestamp).toLocaleTimeString()
+                        : ''}
+                    </div>
+                    {isError && lastUserMsg && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-xs"
+                        onClick={() => {
+                          const retryAgent = (message.agentId && message.agentId !== 'system') ? message.agentId : activeAgentId
+                          handleSendWithTextRef.current(retryAgent || 'backend', lastUserMsg.content)
+                        }}
+                      >
+                        🔄 Retry
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {isCurrentSending && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    </div>
+                    <span className="text-sm text-gray-500">Agent thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={(el) => { messagesEndRefs.current[activeKey] = el }} />
+          </CardContent>
+
+          {/* Input */}
+          <div className="border-t p-4 bg-slate-50">
+            <div className="flex space-x-3">
+              <input
+                type="text"
+                value={currentInput}
+                onChange={(e) => setTabInput(activeAgentId, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (activeAgentId) {
+                      const input = tabs.find((t) => t.id === activeAgentId)?.input || ''
+                      handleSendForAgent(activeAgentId, input)
+                    }
+                  }
+                }}
+                placeholder={`Message ${AGENTS[activeAgentId]?.name || activeAgentId}...`}
+                disabled={isCurrentSending}
+                maxLength={MAX_INPUT_LENGTH}
+                className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm disabled:opacity-50"
+              />
+              <Button
+                onClick={() => handleSendForAgent(activeAgentId, currentInput)}
+                disabled={!currentInput.trim() || isCurrentSending}
+                size="lg"
+              >
+                Send →
+              </Button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                { label: 'React component', text: 'Create a React login component with TypeScript and Tailwind CSS' },
+                { label: 'Design API', text: 'Design a RESTful user API endpoint with Express' },
+                { label: 'Write tests', text: 'Write unit tests for an authentication module' },
+                { label: 'Create Dockerfile', text: 'Create a Dockerfile for a Node.js application' },
+              ].map((suggestion) => (
+                <Button
+                  key={suggestion.label}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTabInput(activeAgentId, suggestion.text)}
+                  className="text-xs"
+                  disabled={isCurrentSending}
+                >
+                  💡 {suggestion.label}
+                </Button>
               ))}
             </div>
           </div>
-          {selectedAgent ? (
-            <p className="text-xs text-blue-600 mt-1">
-              Routing all messages to: {AGENTS[selectedAgent]?.name || selectedAgent}
-            </p>
-          ) : (
-            <p className="text-xs text-gray-400 mt-1">
-              Auto-routing based on message content
-            </p>
-          )}
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-          {currentMessages.map((message) => {
-            const displayInfo = getAgentDisplayInfo(message.agentId)
-            const isError = message.id.startsWith('error-')
-            const lastUserMsg = [...currentMessages].reverse().find((m) => m.role === 'user')
-
-            return (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl p-4 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                      : isError
-                      ? 'bg-red-50 border border-red-200 text-gray-900'
-                      : 'bg-white border border-slate-200 text-gray-900 shadow-sm'
-                  }`}
-                >
-                  <div
-                    className={`text-xs font-medium mb-2 flex items-center space-x-2 ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                    }`}
-                  >
-                    <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs">
-                      {displayInfo.icon}
-                    </span>
-                    <span>{displayInfo.name}</span>
-                  </div>
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {message.content}
-                  </div>
-                  <div
-                    className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                    }`}
-                  >
-                    {message.timestamp > 1000000000000
-                      ? new Date(message.timestamp).toLocaleTimeString()
-                      : ''}
-                  </div>
-                  {isError && lastUserMsg && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 text-xs"
-                      onClick={() => handleRetry(lastUserMsg.content, selectedAgent || detectAgent(lastUserMsg.content))}
-                    >
-                      🔄 Retry
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {isSending && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <div className="flex items-center space-x-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                  <span className="text-sm text-gray-500">Agent thinking...</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </CardContent>
-
-        <div className="border-t p-4 bg-slate-50">
-          <div className="flex space-x-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                selectedAgent
-                  ? `Message ${AGENTS[selectedAgent]?.name || selectedAgent}...`
-                  : 'Type your message... (e.g., "Create a React login component")'
-              }
-              disabled={isSending}
-              maxLength={MAX_INPUT_LENGTH}
-              className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm disabled:opacity-50"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={!input.trim() || isSending}
-              size="lg"
-            >
-              Send →
-            </Button>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {[
-              { label: 'React component', text: 'Create a React login component with TypeScript and Tailwind CSS' },
-              { label: 'Design API', text: 'Design a RESTful user API endpoint with Express' },
-              { label: 'Write tests', text: 'Write unit tests for an authentication module' },
-              { label: 'Create Dockerfile', text: 'Create a Dockerfile for a Node.js application' },
-            ].map((suggestion) => (
-              <Button
-                key={suggestion.label}
-                variant="outline"
-                size="sm"
-                onClick={() => setInput(suggestion.text)}
-                className="text-xs"
-                disabled={isSending}
-              >
-                💡 {suggestion.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
     </div>
   )
 }
