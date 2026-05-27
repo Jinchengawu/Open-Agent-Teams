@@ -101,7 +101,7 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
 
       let sessionId = clientSessionId || '';
       if (!sessionId || !sessionManager.getSession(sessionId)) {
-        sessionId = sessionManager.createSession();
+        sessionId = sessionManager.createSession('', clientSessionId || '');
       }
 
       const messagesArr = (messages || []) as { role: string; content: unknown }[];
@@ -131,14 +131,13 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
       const { systemMessages, chatMessages, compressedCount } =
         compressor.buildContext(allMessages, config.buildSystemPrompt());
 
-      // DeepSeek V4 thinking 模式要求 assistant 消息必须包含 thinking 块，
-      // 但 DB 中只存储了纯文本 content，传回会触发 400 错误。
-      // 因此只保留 user 消息维持对话上下文，过滤掉 assistant 消息。
+      // MiMo-V2.5-Pro 使用标准 Anthropic/OAI 协议，不需要 thinking 过滤
       const hermesPayload = [
         ...systemMessages.map((c) => ({ role: 'system', content: c })),
-        ...chatMessages
-          .filter((m) => m.role === 'user')
-          .map((m) => ({ role: 'user' as const, content: m.content })),
+        ...chatMessages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
       ];
 
       const content = await callHermes(

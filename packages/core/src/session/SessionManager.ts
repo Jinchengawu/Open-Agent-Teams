@@ -30,8 +30,8 @@ export class SessionManager {
     initSchema(this.db);
   }
 
-  createSession(title = ''): string {
-    const id = uuidv4();
+  createSession(title = '', clientId = ''): string {
+    const id = clientId || uuidv4();
     this.db
       .prepare('INSERT INTO sessions (id, title) VALUES (?, ?)')
       .run(id, title);
