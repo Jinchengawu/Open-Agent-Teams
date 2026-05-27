@@ -268,54 +268,57 @@ export default function ChatContent() {
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
       {/* ── Agent Tabs ── */}
-      <div className="flex items-center gap-1 mb-2 overflow-x-auto">
+      <div className="flex items-end gap-0.5 mb-2 overflow-x-auto border-b border-slate-200 pb-0">
         {tabs.map((tab, i) => {
           const agent = AGENTS[tab.id]
           const isActive = i === activeTab
           const isSending = !!sending[tab.id]
           return (
-            <div
+            <button
               key={tab.id}
               onClick={() => setActiveTab(i)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg cursor-pointer select-none text-sm whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm whitespace-nowrap transition-all ${
                 isActive
-                  ? 'bg-white border border-b-0 border-slate-200 text-gray-900 font-medium'
-                  : 'bg-slate-100 text-gray-500 hover:bg-slate-200'
+                  ? 'bg-white border border-b-0 border-slate-200 text-gray-900 font-medium -mb-px'
+                  : 'bg-transparent text-gray-500 hover:text-gray-700 hover:bg-slate-50 border border-transparent'
               }`}
             >
               <span>{agent?.icon || '🤖'}</span>
-              <span>{agent?.label || 'Auto'}</span>
+              <span className="max-w-[100px] truncate">{agent?.name || agent?.label || 'Auto'}</span>
               {isSending && (
-                <span className="text-blue-400 animate-pulse text-xs ml-0.5">●</span>
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
               )}
-              <button
-                onClick={(e) => { e.stopPropagation(); closeTab(i) }}
-                className="ml-1 text-gray-400 hover:text-gray-600 text-xs"
+              <span
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); closeTab(i) }}
+                className="ml-0.5 text-gray-400 hover:text-red-500 text-xs flex-shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-red-50"
               >
-                ✕
-              </button>
-            </div>
+                ×
+              </span>
+            </button>
           )
         })}
-        {/* "添加 Agent" 下拉 — 点击触发 */}
-        <div className="relative">
+        {/* "添加 Agent" — 点击触发下拉 */}
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            onBlur={() => setTimeout(() => setShowAddMenu(false), 150)}
-            className="px-2 py-1.5 text-gray-400 hover:text-blue-500 text-sm font-bold"
+            className="flex items-center justify-center w-7 h-7 mb-1 rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all text-base font-medium"
           >
             +
           </button>
           {showAddMenu && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[160px]">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[180px] overflow-hidden">
+              <div className="px-3 py-2 text-xs text-gray-400 border-b border-slate-100">Add Agent</div>
               {AGENT_LIST.map((agent) => (
                 <button
                   key={agent.id}
                   onMouseDown={(e) => { e.preventDefault(); openTab(agent.id); setShowAddMenu(false) }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-slate-50 rounded"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left hover:bg-blue-50 transition-colors"
                 >
-                  <span>{agent.icon}</span>
-                  <span>{agent.label}</span>
+                  <span className="text-lg">{agent.icon}</span>
+                  <div>
+                    <div className="font-medium text-gray-900">{agent.name}</div>
+                    <div className="text-xs text-gray-400">{agent.label}</div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -326,20 +329,21 @@ export default function ChatContent() {
       {/* ── 活动 Tab 的对话 ── */}
       {tabs.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-400">
-            <p className="text-4xl mb-4">💬</p>
-            <p className="text-lg mb-2">Select an Agent to start</p>
-            <div className="flex flex-wrap justify-center gap-2">
+          <div className="text-center max-w-2xl">
+            <div className="text-5xl mb-6">🧠</div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">DEV-Agent-Teams</h2>
+            <p className="text-gray-500 mb-8">选择一个 Agent 开始对话，支持同时打开多个标签页并发对话</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {AGENT_LIST.map((agent) => (
                 <button
                   key={agent.id}
                   onClick={() => openTab(agent.id)}
-                  className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all"
+                  className="flex items-center gap-3 px-5 py-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all text-left group"
                 >
-                  <span className="text-xl">{agent.icon}</span>
-                  <div className="text-left">
-                    <div className="font-medium text-gray-900">{agent.label}</div>
-                    <div className="text-xs text-gray-400">{agent.name}</div>
+                  <span className="text-2xl group-hover:scale-110 transition-transform">{agent.icon}</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">{agent.name}</div>
+                    <div className="text-xs text-gray-400">{agent.label}</div>
                   </div>
                 </button>
               ))}
