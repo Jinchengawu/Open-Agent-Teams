@@ -255,6 +255,26 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
   app.post('/agent/message', async (req, res) => {
     try {
       const envelope = req.body as AgentMessageEnvelope;
+
+      // 跨 Agent 转发（to 不是自己）
+      if (envelope.to && envelope.to !== config.id && registry.getAgent(envelope.to)) {
+        try {
+          const result = await agentBus.sendAndWait(envelope.to, {
+            from: config.id,
+            to: envelope.to,
+            sessionId: envelope.sessionId,
+            type: envelope.type,
+            payload: envelope.payload,
+          });
+          res.json(result);
+          return;
+        } catch (err) {
+          res.status(502).json({ error: `Agent "${envelope.to}" unreachable: ${err instanceof Error ? err.message : 'unknown'}` });
+          return;
+        }
+      }
+
+      // 本地处理（发给自己的消息）
       await handleInterAgentMessage(envelope, (response) => {
         res.json(response);
       });
