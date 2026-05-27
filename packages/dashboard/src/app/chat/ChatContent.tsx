@@ -395,6 +395,50 @@ export default function ChatContent() {
                   🗑️ Clear
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isCurrentSending || !currentInput.trim()}
+                onClick={async () => {
+                  const msg = currentInput.trim()
+                  if (!msg) return
+                  // 广播到所有已打开的标签
+                  const targets = tabs.map(t => t.id)
+                  if (targets.length === 0) return
+                  setTabInput(activeAgentId, '')
+                  // 在当前对话中显示广播消息
+                  addMessage(activeKey, {
+                    id: `user-${Date.now()}-broadcast`,
+                    role: 'user',
+                    content: `📢 Broadcast to ${targets.length} agents: ${msg}`,
+                    agentId: activeAgentId,
+                    timestamp: Date.now(),
+                  })
+                  // 并发发送
+                  try {
+                    const res = await fetch('/api/collab', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ message: msg, agents: targets }),
+                    })
+                    const data = await res.json()
+                    for (const r of (data.responses || [])) {
+                      const agentInfo = AGENTS[r.agent] || { icon: '🤖', name: r.agent }
+                      addMessage(activeKey, {
+                        id: `agent-${Date.now()}-${r.agent}`,
+                        role: 'assistant',
+                        content: r.content,
+                        agentId: r.agent,
+                        timestamp: Date.now(),
+                      })
+                    }
+                  } catch (e) {
+                    showToast(`Broadcast failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error')
+                  }
+                }}
+              >
+                📢 Broadcast
+              </Button>
             </div>
           </div>
 
