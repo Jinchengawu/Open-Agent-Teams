@@ -72,6 +72,7 @@ export default function ChatContent() {
     return initialAgent ? [{ id: initialAgent, input: '' }] : []
   })
   const [activeTab, setActiveTab] = useState<number>(0)
+  const [showAddMenu, setShowAddMenu] = useState(false)
   const [conversations, setConversations] = useState<Record<string, ChatMessage[]>>(() => loadConversations())
   const [sessions, setSessions] = useState<Record<string, string>>(() => {
     if (typeof window === 'undefined') return {}
@@ -285,7 +286,7 @@ export default function ChatContent() {
               <span>{agent?.icon || '🤖'}</span>
               <span>{agent?.label || 'Auto'}</span>
               {isSending && (
-                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                <span className="text-blue-400 animate-pulse text-xs ml-0.5">●</span>
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(i) }}
@@ -296,23 +297,29 @@ export default function ChatContent() {
             </div>
           )
         })}
-        {/* "添加 Agent" 下拉 */}
-        <div className="relative group">
-          <button className="px-2 py-1.5 text-gray-400 hover:text-blue-500 text-sm font-bold">
+        {/* "添加 Agent" 下拉 — 点击触发 */}
+        <div className="relative">
+          <button
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            onBlur={() => setTimeout(() => setShowAddMenu(false), 150)}
+            className="px-2 py-1.5 text-gray-400 hover:text-blue-500 text-sm font-bold"
+          >
             +
           </button>
-          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1 hidden group-hover:block z-50 min-w-[160px]">
-            {AGENT_LIST.map((agent) => (
-              <button
-                key={agent.id}
-                onClick={() => openTab(agent.id)}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-slate-50 rounded"
-              >
-                <span>{agent.icon}</span>
-                <span>{agent.label}</span>
-              </button>
-            ))}
-          </div>
+          {showAddMenu && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[160px]">
+              {AGENT_LIST.map((agent) => (
+                <button
+                  key={agent.id}
+                  onMouseDown={(e) => { e.preventDefault(); openTab(agent.id); setShowAddMenu(false) }}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-slate-50 rounded"
+                >
+                  <span>{agent.icon}</span>
+                  <span>{agent.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
