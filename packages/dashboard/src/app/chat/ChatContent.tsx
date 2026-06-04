@@ -439,6 +439,48 @@ export default function ChatContent() {
               >
                 📢 Broadcast
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isCurrentSending || !currentInput.trim()}
+                className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                onClick={async () => {
+                  const msg = currentInput.trim()
+                  if (!msg) return
+                  const targets = tabs.map(t => t.id)
+                  if (targets.length === 0) return
+                  setTabInput(activeAgentId, '')
+                  addMessage(activeKey, {
+                    id: `user-${Date.now()}-meeting`,
+                    role: 'user',
+                    content: `🎙️ Meeting (${targets.length} agents): ${msg}`,
+                    agentId: activeAgentId,
+                    timestamp: Date.now(),
+                  })
+                  try {
+                    const res = await fetch('/api/collab', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ message: msg, agents: targets, mode: 'meeting' }),
+                    })
+                    const data = await res.json()
+                    for (const r of (data.responses || [])) {
+                      const agentInfo = AGENTS[r.agent] || { icon: '🤖', name: r.agent }
+                      addMessage(activeKey, {
+                        id: `agent-${Date.now()}-${r.agent}`,
+                        role: 'assistant',
+                        content: r.content,
+                        agentId: r.agent,
+                        timestamp: Date.now(),
+                      })
+                    }
+                  } catch (e) {
+                    showToast(`Meeting failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error')
+                  }
+                }}
+              >
+                🎙️ Meeting
+              </Button>
             </div>
           </div>
 

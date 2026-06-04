@@ -16,6 +16,7 @@ import {
   type TeamRunResult,
   type AgentConfig,
   type AgentRunResult,
+  type TokenUsage,
 } from '@open-multi-agent/core';
 import { createSendMessageTool } from '../tools/send-message.js';
 import { registerTeam } from '../tools/team-registry.js';
@@ -129,6 +130,57 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
       },
       goal
     );
+  }
+
+  /**
+   * runMeeting — 圆桌会议模式
+   * 所有 Agent 顺序执行，共享上下文，每人从自己的专业角度发表意见
+   */
+  async runMeeting(goal: string): Promise<TeamRunResult> {
+    console.log(`[TeamOrchestrator] runMeeting: "${goal.substring(0, 60)}..."`);
+
+    const agents = this.team.getAgents();
+    const agentResults = new Map<string, AgentRunResult>();
+    const discussion: string[] = [];
+    const totalTokenUsage = { input_tokens: 0, output_tokens: 0 };
+
+    for (const agent of agents) {
+      const config = this.agentConfigs.get(agent.name);
+      if (!config) continue;
+
+      // 构建带上下文的 prompt：原始目标 + 之前所有 Agent 的发言
+      const contextSection = discussion.length > 0
+        ? `\n\n## 会议讨论记录（之前的发言）\n${discussion.join('\n\n')}`
+        : '';
+      const prompt = `## 会议议题\n${goal}${contextSection}\n\n请从你的专业角度（${config.role}）发表意见。简洁有力，突出重点。`;
+
+      const result = await this.omAgent.runAgent(
+        {
+          name: config.id,
+          model: config.model,
+          systemPrompt: config.systemPrompt,
+          tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep', 'glob', 'send_message'],
+          customTools: [createSendMessageTool('dev-agent-team')],
+        },
+        prompt,
+      );
+
+      agentResults.set(agent.name, result);
+
+      // 累积上下文和 token 用量
+      discussion.push(`### ${config.name}（${config.role}）\n${result.output}`);
+      totalTokenUsage.input_tokens += result.tokenUsage.input_tokens;
+      totalTokenUsage.output_tokens += result.tokenUsage.output_tokens;
+
+      console.log(`[TeamOrchestrator] meeting: ${config.id} 已发言`);
+    }
+
+    return {
+      success: true,
+      goal,
+      agentResults,
+      totalTokenUsage: totalTokenUsage as TokenUsage,
+    };
   }
 
   /**

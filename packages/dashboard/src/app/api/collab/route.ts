@@ -12,7 +12,7 @@ const AGENT_PORTS: Record<string, number> = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, agents } = body;
+    const { message, agents, mode } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
@@ -26,7 +26,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid agents specified' }, { status: 400 });
     }
 
-    // 并发发送到多个 Agent
+    if (mode === 'meeting') {
+      // 🎙️ 会议模式 — 所有 Agent 顺序发言，共享上下文
+      const discussion: string[] = [];
+      const responses: { agent: string; role: 'assistant'; content: string }[] = [];
+
+      for (const agentId of validTargets) {
+        const port = AGENT_PORTS[agentId];
+        const contextSection = discussion.length > 0
+          ? `\n\n## 会议讨论记录（之前的发言）\n${discussion.join('\n\n')}`
+          : '';
+        const prompt = `## 会议议题\n${message}${contextSection}\n\n请从你的专业角度发表意见。简洁有力，突出重点。`;
+
+        try {
+          const res = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: prompt }],
+              sessionId: `meeting-${Date.now()}-${agentId}`,
+            }),
+            signal: AbortSignal.timeout(300000),
+          });
+
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content || 'No response';
+          responses.push({ agent: agentId, role: 'assistant', content });
+          discussion.push(`### ${agentId}\n${content}`);
+        } catch (e) {
+          const content = `Error: ${e instanceof Error ? e.message : 'unknown'}`;
+          responses.push({ agent: agentId, role: 'assistant', content });
+        }
+      }
+
+      return NextResponse.json({ message, mode: 'meeting', responses, timestamp: Date.now() });
+    }
+
+    // 📢 Broadcast 模式 — 并发发送到多个 Agent
     const results = await Promise.allSettled(
       validTargets.map(async (agentId) => {
         const port = AGENT_PORTS[agentId];
