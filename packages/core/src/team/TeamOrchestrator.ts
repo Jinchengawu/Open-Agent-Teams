@@ -17,6 +17,8 @@ import {
   type AgentConfig,
   type AgentRunResult,
 } from '@open-multi-agent/core';
+import { createSendMessageTool } from '../tools/send-message.js';
+import { registerTeam } from '../tools/team-registry.js';
 
 // ============================================================================
 // Config
@@ -61,15 +63,21 @@ export class TeamOrchestrator {
       baseURL: config.baseUrl,
     });
 
+    // 创建 send_message 自定义工具（通过 teamId 引用，execute 时才查找 Team 实例）
+    const teamId = 'dev-agent-team';
+    const sendMessageTool = createSendMessageTool(teamId);
+
     // 创建团队 — 每个 DEV Agent 映射为一个 open-multi-agent Agent
-    const teamAgents: Agent[] = config.agents.map((a) => ({
+    const teamAgents: AgentConfig[] = config.agents.map((a) => ({
       name: a.id,
       model: config.defaultModel,
       systemPrompt: a.systemPrompt,
+      tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep', 'glob', 'send_message'],
+      customTools: [sendMessageTool],
     }));
 
     // 添加协调员 Agent
-    const coordinator: Agent = {
+    const coordinator: AgentConfig = {
       name: 'coordinator',
       model: config.defaultModel,
       systemPrompt: `你是一个多 Agent 团队的协调员。根据用户目标：
@@ -79,13 +87,18 @@ export class TeamOrchestrator {
 
 可用 Agent 成员：
 ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
+      tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep', 'glob', 'send_message'],
+      customTools: [sendMessageTool],
     };
 
-    this.team = this.omAgent.createTeam('dev-agent-team', {
+    this.team = this.omAgent.createTeam(teamId, {
       name: 'DEV-Agent-Team',
       agents: [coordinator, ...teamAgents],
       sharedMemory: true,
     });
+
+    // 注册 Team 到全局注册表，供 send_message 工具在 execute 时查找
+    registerTeam(teamId, this.team);
 
     console.log(`[TeamOrchestrator] 团队已创建: ${this.team.agents.length} 成员`);
   }
@@ -109,8 +122,10 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
     return this.omAgent.runAgent(
       {
         name: config.id,
-        model: this.team.config?.defaultModel || config.model,
+        model: config.model,
         systemPrompt: config.systemPrompt,
+        tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep', 'glob', 'send_message'],
+        customTools: [createSendMessageTool('dev-agent-team')],
       },
       goal
     );
@@ -158,40 +173,42 @@ export function createDevTeamOrchestrator(): TeamOrchestrator {
   const apiKey = process.env.API_KEY || '';
   const baseUrl = process.env.MODEL_BASE_URL || 'https://token-plan-cn.xiaomimimo.com/v1';
 
+  const commGuide = '\n\n团队通信：你可以使用 send_message 工具与其他 Agent 对话。\n- send_message({ to: "dev-backend", content: "..." }) — 发送给指定 Agent\n- send_message({ to: "*", content: "..." }) — 广播给所有 Agent\n可用的团队成员: dev-frontend, dev-backend, dev-testing, dev-devops, dev-pm\n收到其他 Agent 的消息时，直接用 send_message 回复，不需要搜索文件系统。';
+
   const agents: TeamAgentConfig[] = [
     {
       id: 'dev-frontend',
       name: 'Frontend Agent',
       role: '前端开发专家 — React/Vue/TypeScript/CSS/Tailwind',
-      systemPrompt: '你是前端开发专家，专注于 React、Vue、TypeScript、CSS、Tailwind。收到任务后给出具体可运行的代码方案。',
+      systemPrompt: '你是前端开发专家，专注于 React、Vue、TypeScript、CSS、Tailwind。收到任务后给出具体可运行的代码方案。' + commGuide,
       model, apiKey, baseUrl,
     },
     {
       id: 'dev-backend',
       name: 'Backend Agent',
       role: '后端开发专家 — Python/Node.js/Go/API/数据库',
-      systemPrompt: '你是后端开发专家，专注于 Python、Node.js、Go、API 设计、数据库。收到任务后给出具体可运行的代码方案。',
+      systemPrompt: '你是后端开发专家，专注于 Python、Node.js、Go、API 设计、数据库。收到任务后给出具体可运行的代码方案。' + commGuide,
       model, apiKey, baseUrl,
     },
     {
       id: 'dev-testing',
       name: 'Testing Agent',
       role: '测试专家 — pytest/Jest/Playwright/覆盖率',
-      systemPrompt: '你是测试专家，专注于 pytest、Jest、Playwright、覆盖率。收到任务后给出具体的测试方案和用例。',
+      systemPrompt: '你是测试专家，专注于 pytest、Jest、Playwright、覆盖率。收到任务后给出具体的测试方案和用例。' + commGuide,
       model, apiKey, baseUrl,
     },
     {
       id: 'dev-devops',
       name: 'DevOps Agent',
       role: '运维专家 — Docker/K8s/CI-CD/部署',
-      systemPrompt: '你是 DevOps 专家，专注于 Docker、K8s、CI/CD、部署。收到任务后给出具体的部署方案。',
+      systemPrompt: '你是 DevOps 专家，专注于 Docker、K8s、CI/CD、部署。收到任务后给出具体的部署方案。' + commGuide,
       model, apiKey, baseUrl,
     },
     {
       id: 'dev-pm',
       name: 'PM Agent',
       role: '产品经理 — PRD/需求分析/用户故事/产品策略',
-      systemPrompt: '你是产品经理，专注于 PRD、需求分析、用户故事、产品策略。收到任务后给出结构化的产品文档。',
+      systemPrompt: '你是产品经理，专注于 PRD、需求分析、用户故事、产品策略。收到任务后给出结构化的产品文档。' + commGuide,
       model, apiKey, baseUrl,
     },
   ];

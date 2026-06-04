@@ -22,6 +22,9 @@ importers:
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.0
@@ -5224,8 +5227,8 @@ snapshots:
   '@mistralai/mistralai@2.2.1':
     dependencies:
       ws: 8.20.0
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -9352,7 +9355,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
-    optional: true
 
   zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
