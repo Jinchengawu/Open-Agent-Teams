@@ -1,0 +1,23 @@
+{
+  "name": "@open-agent-teams/glue-service",
+  "version": "1.0.0",
+  "description": "Glue Service - TeamOrchestrator 与 Hermes Profile 之间的桥梁",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

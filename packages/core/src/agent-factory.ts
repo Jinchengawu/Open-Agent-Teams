@@ -128,8 +128,12 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
         .getAllMessages(sessionId)
         .map((m) => ({ role: m.role, content: m.content }));
 
+      const baseSystemPrompt = config.buildSystemPrompt();
+      const peerInfo = buildPeerAwarenessPrompt(config);
+      const fullSystemPrompt = peerInfo ? `${baseSystemPrompt}\n\n${peerInfo}` : baseSystemPrompt;
+
       const { systemMessages, chatMessages, compressedCount } =
-        compressor.buildContext(allMessages, config.buildSystemPrompt());
+        compressor.buildContext(allMessages, fullSystemPrompt);
 
       // MiMo-V2.5-Pro 使用标准 Anthropic/OAI 协议，不需要 thinking 过滤
       const hermesPayload = [
@@ -206,10 +210,12 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
     switch (envelope.type) {
       case MessageType.TASK: {
         const prompt = (envelope.payload as Record<string, unknown>)?.prompt as string || '';
-        const systemPrompt = config.buildSystemPrompt();
+        const basePrompt = config.buildSystemPrompt();
+        const peerInfo = buildPeerAwarenessPrompt(config);
+        const systemPrompt = peerInfo ? `${basePrompt}\n\n${peerInfo}` : basePrompt;
         const hermesPayload = [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
+          { role: 'user', content: `以下任务来自 Agent "${envelope.from}" 的委托：\n\n${prompt}` },
         ];
         const output = await callHermes(config.hermesPort, hermesPayload);
         sendResponse({
@@ -324,6 +330,51 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
     config,
     handleInterAgentMessage,
   };
+}
+
+const PEER_ROLES: Record<string, string> = {
+  'dev-frontend': '前端开发专家 (React/Vue/TypeScript/CSS)',
+  'dev-backend': '后端开发专家 (Python/Node.js/Go/API/数据库)',
+  'dev-testing': '测试专家 (pytest/Jest/Playwright/E2E)',
+  'dev-devops': 'DevOps 专家 (Docker/K8s/CI-CD/部署)',
+  'dev-pm': '产品经理 (PRD/需求分析/用户故事)',
+};
+
+function buildPeerAwarenessPrompt(config: AgentFactoryConfig): string {
+  const peers = config.peers;
+  if (!peers || peers.length === 0) return '';
+
+  const peerList = peers.map((p) => {
+    const role = PEER_ROLES[p.id] || p.id;
+    return `- **${p.id}** (${role}) — 端口 ${p.port}`;
+  }).join('\n');
+
+  return `## 团队协作 — 可用 Agent 成员
+
+你是多 Agent 开发团队的一员。系统内还有以下 Agent 可以协作：
+
+${peerList}
+
+### 如何委托任务给其他 Agent
+
+当你需要其他 Agent 的专业能力时，可以通过 HTTP API 委托任务：
+
+\`\`\`
+POST http://127.0.0.1:${config.port}/agent/message
+Content-Type: application/json
+
+{
+  "from": "${config.id}",
+  "to": "<目标agent-id>",
+  "sessionId": "<当前会话id>",
+  "type": "TASK",
+  "payload": { "prompt": "<你要委托的任务描述>" }
+}
+\`\`\`
+
+目标 Agent 的 id 可选值：${peers.map((p) => p.id).join('、')}
+
+收到委托结果后，将其整合到你的回答中。如果用户的问题涉及其他 Agent 的专业领域，**主动建议或委托**给对应的 Agent。`;
 }
 
 async function callHermes(
