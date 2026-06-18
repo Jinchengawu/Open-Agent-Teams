@@ -24,20 +24,20 @@ Open-Agent-Teams 工程中存在大量 `OpenClaw` 字眼，需要统一替换为
 
 | 文件 | 出现次数 | 状态 |
 |------|----------|------|
-| `packages/gateway/src/api-gateway.ts` | 31 | 待修复 |
-| `packages/dashboard/src/app/api/chat/route.ts` | 3 | 待修复 |
-| `packages/dashboard/src/lib/agents.ts` | 2 | 待修复 |
-| `packages/dashboard/src/app/layout.tsx` | 1 | 待修复 |
-| `packages/dashboard/src/components/NavBar.tsx` | 1 | 待修复 |
+| `packages/gateway/src/api-gateway.ts` | 31 | ✅ 已修复 |
+| `packages/dashboard/src/app/api/chat/route.ts` | 3 | ✅ 已修复 |
+| `packages/dashboard/src/lib/agents.ts` | 2 | ✅ 已修复 |
+| `packages/dashboard/src/app/layout.tsx` | 1 | ✅ 已修复 |
+| `packages/dashboard/src/components/NavBar.tsx` | 1 | ✅ 已修复 |
 
 ### P1 - 配置文件
 
 | 文件 | 出现次数 | 状态 |
 |------|----------|------|
-| `package.json` | 1 | 待修复 |
-| `packages/gateway/package.json` | 1 | 待修复 |
-| `packages/openclaw/package.json` | 1 | 待修复 |
-| `packages/openclaw/hooks/open-agent-teams-router/package.json` | 1 | 待修复 |
+| `package.json` | 1 | ✅ 已修复 |
+| `packages/gateway/package.json` | 1 | ✅ 已修复 |
+| `packages/openclaw/package.json` | 1 | ⏭️ 保留（外部依赖名） |
+| `packages/openclaw/hooks/open-agent-teams-router/package.json` | 1 | ⏭️ 保留（外部依赖名） |
 
 ### P2 - 文档文件
 
