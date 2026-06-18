@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const OPENCLAW_GATEWAY = 'http://127.0.0.1:8400';
+const OAT_GATEWAY = 'http://127.0.0.1:8400';
 
 // 直接 Agent 端口（Gateway 不可用时的降级路由）
 const AGENT_PORTS: Record<string, number> = {
@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 主路径：通过 OpenClaw Gateway 路由 ──
+    // ── 主路径：通过 Open-Agent-Teams Gateway 路由 ──
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 300000);
 
-      const res = await fetch(`${OPENCLAW_GATEWAY}/v1/chat/completions`, {
+      const res = await fetch(`${OAT_GATEWAY}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages, agentId, sessionId }),
@@ -44,15 +44,15 @@ export async function POST(request: NextRequest) {
             role: 'assistant' as const,
             content: data.choices?.[0]?.message?.content || 'No response',
           },
-          agent: data.instance || 'openclaw',
+          agent: data.instance || 'oat',
           sessionId: data.sessionId || sessionId,
           routedBy: 'api-gateway',
         });
       }
       // Gateway 返回错误（非 Agent 级别的 502），尝试降级
-      console.warn(`[api/chat] OpenClaw Gateway returned ${res.status}, falling back to direct`);
+      console.warn(`[api/chat] Open-Agent-Teams Gateway returned ${res.status}, falling back to direct`);
     } catch (gatewayError) {
-      console.warn(`[api/chat] OpenClaw Gateway unreachable: ${gatewayError instanceof Error ? gatewayError.message : 'unknown'}, falling back to direct`);
+      console.warn(`[api/chat] Open-Agent-Teams Gateway unreachable: ${gatewayError instanceof Error ? gatewayError.message : 'unknown'}, falling back to direct`);
     }
 
     // ── 降级路径：直接调用 Agent ──

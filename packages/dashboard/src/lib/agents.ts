@@ -64,8 +64,8 @@ export function getAgentUrl(agentId: string): string {
 }
 
 /**
- * 客户端降级路由 — OpenClaw Gateway 不可用时使用
- * 正常流程由 OpenClaw Gateway (:8400) 的 OpenClawAgentRegistry.analyzeIntent() 处理
+ * 客户端降级路由 — Open-Agent-Teams Gateway 不可用时使用
+ * 正常流程由 Open-Agent-Teams Gateway (:8400) 的 OATAgentRegistry.analyzeIntent() 处理
  */
 export function detectAgent(message: string): string {
   const lower = message.toLowerCase();

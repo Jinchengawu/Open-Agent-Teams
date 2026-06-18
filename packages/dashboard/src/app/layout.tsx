@@ -29,7 +29,7 @@ export default function RootLayout({
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 <div className="flex justify-between items-center text-sm text-gray-500">
                   <p>DEV-Agent-Teams v0.1.0</p>
-                  <p>Powered by OpenClaw + Hermes</p>
+                  <p>Powered by Open-Agent-Teams + Hermes</p>
                 </div>
               </div>
             </footer>

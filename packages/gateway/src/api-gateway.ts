@@ -1,14 +1,14 @@
 /**
- * API Gateway (OpenClaw 集成) for DEV-Agent-Teams
+ * API Gateway (Open-Agent-Teams) for DEV-Agent-Teams
  *
- * 核心职责：OpenClaw 作为中央编排层，负责：
+ * 核心职责：Open-Agent-Teams 作为中央编排层，负责：
  * 1. Agent 注册与发现
  * 2. 意图分析与智能路由
  * 3. 多 Agent 协同编排
  * 4. 统一鉴权、限流、熔断、审计
  *
  * 此 Gateway 替代之前 Dashboard → Agent 直接调用的自实现路由，
- * 改为 Dashboard → OpenClaw Gateway → Agent 的标准三层架构。
+ * 改为 Dashboard → Open-Agent-Teams Gateway → Agent 的标准三层架构。
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
@@ -22,20 +22,20 @@ import { join, dirname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 // ============================================================================
-// Types — 与 OpenClaw 原生 Agent 概念对齐
+// Types — 与 Open-Agent-Teams 原生 Agent 概念对齐
 // ============================================================================
 
-interface OpenClawGatewayConfig {
+interface OATGatewayConfig {
   gateway: {
     host: string;
     port: number;
     name: string;
   };
-  openclaw: {
+  oat: {
     enabled: boolean;
     version: string;
   };
-  instances: OpenClawAgentInstance[];
+  instances: OATAgentInstance[];
   routing: {
     rules: RoutingRule[];
     default: string;
@@ -60,7 +60,7 @@ interface OpenClawGatewayConfig {
   };
 }
 
-interface OpenClawAgentInstance {
+interface OATAgentInstance {
   id: string;
   label: string;
   port: number;
@@ -97,10 +97,10 @@ interface AuditLogEntry {
 // Configuration
 // ============================================================================
 
-function loadConfig(): OpenClawGatewayConfig {
+function loadConfig(): OATGatewayConfig {
   const configPaths = [
-    join(process.cwd(), 'config/openclaw/instances.yaml'),
-    join(process.env.HOME || '~', '.dev-agent/openclaw/instances.yaml'),
+    join(process.cwd(), 'config/oat/instances.yaml'),
+    join(process.env.HOME || '~', '.dev-agent/oat/instances.yaml'),
   ];
 
   for (const configPath of configPaths) {
@@ -119,16 +119,16 @@ function loadConfig(): OpenClawGatewayConfig {
   return getDefaultConfig();
 }
 
-function normalizeConfig(raw: Record<string, unknown>): OpenClawGatewayConfig {
+function normalizeConfig(raw: Record<string, unknown>): OATGatewayConfig {
   return {
     gateway: {
       host: '127.0.0.1',
-      port: (raw.openclaw as Record<string, unknown>)?.port as number || 8400,
+      port: (raw.oat as Record<string, unknown>)?.port as number || 8400,
       name: 'api-gateway',
     },
-    openclaw: {
-      enabled: (raw.openclaw as Record<string, unknown>)?.enabled as boolean ?? true,
-      version: (raw.openclaw as Record<string, unknown>)?.version as string || '2026.3.7',
+    oat: {
+      enabled: (raw.oat as Record<string, unknown>)?.enabled as boolean ?? true,
+      version: (raw.oat as Record<string, unknown>)?.version as string || '2026.3.7',
     },
     instances: ((raw.instances || []) as Record<string, unknown>[]).map((i) => ({
       id: i.id as string,
@@ -165,10 +165,10 @@ function normalizeConfig(raw: Record<string, unknown>): OpenClawGatewayConfig {
   };
 }
 
-function getDefaultConfig(): OpenClawGatewayConfig {
+function getDefaultConfig(): OATGatewayConfig {
   return {
     gateway: { host: '127.0.0.1', port: 8400, name: 'api-gateway' },
-    openclaw: { enabled: true, version: '2026.3.7' },
+    oat: { enabled: true, version: '2026.3.7' },
     instances: [
       { id: 'dev-frontend', label: '前端开发 Agent', port: 8201, hermesPort: 9201, tags: ['react','vue','component','ui','css','typescript','frontend','前端'], skills: [], timeoutMs: 120000 },
       { id: 'dev-backend', label: '后端开发 Agent', port: 8202, hermesPort: 9202, tags: ['api','database','server','python','node','go','backend','后端'], skills: [], timeoutMs: 120000 },
@@ -185,41 +185,41 @@ function getDefaultConfig(): OpenClawGatewayConfig {
 }
 
 // ============================================================================
-// OpenClaw Agent Registry — 原生 Agent 管理
+// Open-Agent-Teams Agent Registry — 原生 Agent 管理
 // ============================================================================
 
-class OpenClawAgentRegistry {
-  private instances: Map<string, OpenClawAgentInstance> = new Map();
+class OATAgentRegistry {
+  private instances: Map<string, OATAgentInstance> = new Map();
   private circuitBreakers: Map<string, CircuitBreakerState> = new Map();
-  private config: OpenClawGatewayConfig;
+  private config: OATGatewayConfig;
 
-  constructor(config: OpenClawGatewayConfig) {
+  constructor(config: OATGatewayConfig) {
     this.config = config;
     for (const instance of config.instances) {
       this.instances.set(instance.id, instance);
       this.circuitBreakers.set(instance.id, { failures: 0, lastFailure: 0, isOpen: false });
     }
-    console.log(`[openclaw-registry] 注册了 ${this.instances.size} 个 Agent 实例`);
+    console.log(`[oat-registry] 注册了 ${this.instances.size} 个 Agent 实例`);
     for (const [id, inst] of this.instances) {
       console.log(`  ${id} → Agent:${inst.port} Hermes:${inst.hermesPort} tags:[${inst.tags.join(',')}]`);
     }
   }
 
-  getInstance(id: string): OpenClawAgentInstance | undefined {
+  getInstance(id: string): OATAgentInstance | undefined {
     return this.instances.get(id);
   }
 
-  getAllInstances(): OpenClawAgentInstance[] {
+  getAllInstances(): OATAgentInstance[] {
     return [...this.instances.values()];
   }
 
   /**
-   * OpenClaw 原生意图分析 — 基于标签评分
+   * Open-Agent-Teams 原生意图分析 — 基于标签评分
    * 替代之前前端 detectAgent() 和 ai-router 的自实现逻辑
    */
-  analyzeIntent(message: string): { instance: OpenClawAgentInstance; score: number } | null {
+  analyzeIntent(message: string): { instance: OATAgentInstance; score: number } | null {
     const lower = message.toLowerCase();
-    const scores: { instance: OpenClawAgentInstance; score: number }[] = [];
+    const scores: { instance: OATAgentInstance; score: number }[] = [];
 
     for (const instance of this.instances.values()) {
       let score = 0;
@@ -264,7 +264,7 @@ class OpenClawAgentRegistry {
     return null;
   }
 
-  getDefaultInstance(): OpenClawAgentInstance {
+  getDefaultInstance(): OATAgentInstance {
     const defaultId = this.config.routing.default;
     return this.instances.get(defaultId) || [...this.instances.values()][0];
   }
@@ -362,20 +362,20 @@ function writeAuditLog(entry: AuditLogEntry, file: string): void {
 }
 
 // ============================================================================
-// OpenClaw Gateway — 主服务
+// Open-Agent-Teams Gateway — 主服务
 // ============================================================================
 
 async function main(): Promise<void> {
-  console.log('🧠 OpenClaw Gateway v0.1.0 — DEV-Agent-Teams');
+  console.log('🧠 Open-Agent-Teams Gateway v0.1.0 — DEV-Agent-Teams');
   console.log('===============================================');
 
   const config = loadConfig();
-  const registry = new OpenClawAgentRegistry(config);
+  const registry = new OATAgentRegistry(config);
   const rateLimiter = new RateLimiter();
 
   // Agent 注册摘要
   console.log('');
-  console.log(`📋 OpenClaw v${config.openclaw.version} | ${registry.getAllInstances().length} Agents registered`);
+  console.log(`📋 Open-Agent-Teams v${config.oat.version} | ${registry.getAllInstances().length} Agents registered`);
   console.log(`🔐 Auth: ${config.auth.enabled ? 'enabled' : 'disabled'}`);
   console.log(`⚡ Rate Limit: ${config.rateLimit.enabled ? `${config.rateLimit.requestsPerMinute}/min` : 'disabled'}`);
   console.log(`🛡️  Circuit Breaker: ${config.circuitBreaker.enabled ? `threshold=${config.circuitBreaker.failureThreshold}` : 'disabled'}`);
@@ -395,7 +395,7 @@ async function main(): Promise<void> {
       res.end(JSON.stringify({
         status: 'ok',
         gateway: 'api-gateway',
-        openclaw: config.openclaw,
+        oat: config.oat,
         agents: agentHealth,
         uptime: process.uptime(),
       }));
@@ -435,7 +435,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    // ── OpenClaw Chat Completions（核心路由端点）──
+    // ── Open-Agent-Teams Chat Completions（核心路由端点）──
     if (req.method === 'POST' && path === '/v1/chat/completions') {
       let body = '';
       for await (const chunk of req) body += chunk;
@@ -447,9 +447,9 @@ async function main(): Promise<void> {
         const messageText = lastUserMsg?.content || '';
         const explicitAgent = request.agentId || request.instance || '';
 
-        // OpenClaw 意图分析 & 路由选择
+        // Open-Agent-Teams 意图分析 & 路由选择
         const intentStart = Date.now();
-        let targetInstance: OpenClawAgentInstance | undefined;
+        let targetInstance: OATAgentInstance | undefined;
 
         if (explicitAgent) {
           targetInstance = registry.getInstance(explicitAgent);
@@ -463,13 +463,13 @@ async function main(): Promise<void> {
           const intent = registry.analyzeIntent(messageText);
           if (intent) {
             targetInstance = intent.instance;
-            console.log(`[openclaw-route] "${messageText.substring(0, 40)}" → ${targetInstance.id} (score: ${intent.score})`);
+            console.log(`[oat-route] "${messageText.substring(0, 40)}" → ${targetInstance.id} (score: ${intent.score})`);
           }
         }
 
         if (!targetInstance) {
           targetInstance = registry.getDefaultInstance();
-          console.log(`[openclaw-route] "${messageText.substring(0, 40)}" → default: ${targetInstance.id}`);
+          console.log(`[oat-route] "${messageText.substring(0, 40)}" → default: ${targetInstance.id}`);
         }
 
         const intentAnalysisMs = Date.now() - intentStart;
@@ -552,12 +552,12 @@ async function main(): Promise<void> {
   });
 
   server.listen(config.gateway.port, config.gateway.host, () => {
-    console.log(`✅ OpenClaw Gateway 就绪 → http://${config.gateway.host}:${config.gateway.port}`);
+    console.log(`✅ Open-Agent-Teams Gateway 就绪 → http://${config.gateway.host}:${config.gateway.port}`);
     console.log('');
     console.log('📡 端点:');
     console.log(`  GET  /health           — 健康检查（含 Agent 状态）`);
     console.log(`  GET  /agents            — 已注册 Agent 列表`);
-    console.log(`  POST /v1/chat/completions — OpenClaw 路由对话（OpenAI 兼容）`);
+    console.log(`  POST /v1/chat/completions — Open-Agent-Teams 路由对话（OpenAI 兼容）`);
     console.log('');
     console.log('🔀 路由规则:');
     for (const rule of config.routing.rules) {
@@ -568,6 +568,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error('❌ OpenClaw Gateway 启动失败:', error);
+  console.error('❌ Open-Agent-Teams Gateway 启动失败:', error);
   process.exit(1);
 });

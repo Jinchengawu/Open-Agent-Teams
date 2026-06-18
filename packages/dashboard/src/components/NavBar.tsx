@@ -24,7 +24,7 @@ export function NavBar() {
                 <h1 className="text-xl font-bold text-gray-900">
                   DEV-Agent-Teams
                 </h1>
-                <p className="text-xs text-gray-500">API Gateway + Hermes Agents (OpenClaw 集成)</p>
+                <p className="text-xs text-gray-500">API Gateway + Hermes Agents (Open-Agent-Teams 集成)</p>
               </div>
             </Link>
             <div className="flex items-center space-x-4">

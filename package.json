@@ -1,7 +1,7 @@
 {
   "name": "open-agent-teams",
   "private": true,
-  "description": "Open-Agent-Teams：OpenClaw + Hermes 私有化本地智能操作系统（pnpm 多包工作区）",
+  "description": "Open-Agent-Teams：多 Agent 协作开发系统 + Hermes 私有化本地智能操作系统（pnpm 多包工作区）",
   "license": "UNLICENSED",
   "packageManager": "pnpm@9.15.4",
   "engines": {
