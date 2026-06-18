@@ -1,0 +1,5 @@
+import type { WorkflowTemplate } from './types';
+export declare const BUILTIN_TEMPLATES: WorkflowTemplate[];
+declare const WORKFLOW_SCHEMA = "\nCREATE TABLE IF NOT EXISTS workflows (\n  id            TEXT PRIMARY KEY,\n  session_id    TEXT NOT NULL,\n  template      TEXT NOT NULL,\n  status        TEXT NOT NULL DEFAULT 'pending',\n  current_step  INTEGER NOT NULL DEFAULT 0,\n  context       TEXT DEFAULT '{}',\n  created_at    TEXT NOT NULL DEFAULT (datetime('now')),\n  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))\n);\n\nCREATE TABLE IF NOT EXISTS workflow_steps (\n  id            INTEGER PRIMARY KEY AUTOINCREMENT,\n  workflow_id   TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,\n  agent_id      TEXT NOT NULL,\n  step_order    INTEGER NOT NULL,\n  input         TEXT NOT NULL DEFAULT '',\n  output        TEXT DEFAULT '',\n  status        TEXT NOT NULL DEFAULT 'pending',\n  started_at    TEXT,\n  completed_at  TEXT\n);\nCREATE INDEX IF NOT EXISTS idx_workflow_steps_order ON workflow_steps(workflow_id, step_order);\n";
+export { WORKFLOW_SCHEMA };
+//# sourceMappingURL=templates.d.ts.map

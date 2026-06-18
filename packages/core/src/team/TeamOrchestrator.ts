@@ -60,8 +60,8 @@ export class TeamOrchestrator {
     // 初始化 OpenMultiAgent
     this.omAgent = new OpenMultiAgent({
       defaultModel: config.defaultModel,
-      apiKey: config.apiKey,
-      baseURL: config.baseUrl,
+      defaultApiKey: config.apiKey,
+      defaultBaseURL: config.baseUrl,
     });
 
     // 创建 send_message 自定义工具（通过 teamId 引用，execute 时才查找 Team 实例）
@@ -101,7 +101,7 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
     // 注册 Team 到全局注册表，供 send_message 工具在 execute 时查找
     registerTeam(teamId, this.team);
 
-    console.log(`[TeamOrchestrator] 团队已创建: ${this.team.agents.length} 成员`);
+    console.log(`[TeamOrchestrator] 团队已创建: ${this.team.getAgents().length} 成员`);
   }
 
   /**
@@ -186,8 +186,16 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
   /**
    * 获取 Agent 间消息历史
    */
-  getMessages() {
-    return this.team.messageBus?.getHistory() || [];
+  getMessages(agentName?: string) {
+    if (agentName) {
+      return this.team.getMessages(agentName);
+    }
+    // 返回所有 Agent 的消息
+    const allMessages: unknown[] = [];
+    for (const agent of this.team.getAgents()) {
+      allMessages.push(...this.team.getMessages(agent.name));
+    }
+    return allMessages;
   }
 
   /**
@@ -195,11 +203,11 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
    */
   getStatus() {
     return {
-      teamAgents: this.team.agents.map((a) => ({
+      teamAgents: this.team.getAgents().map((a: AgentConfig) => ({
         name: a.name,
         model: a.model || 'default',
       })),
-      coordinator: this.team.coordinator?.name || 'coordinator',
+      coordinator: 'coordinator',
       sharedMemory: !!this.team.config?.sharedMemory,
     };
   }

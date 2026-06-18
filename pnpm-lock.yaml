@@ -110,6 +110,15 @@ importers:
         specifier: ^1.2.0
         version: 1.6.1(@types/node@20.19.41)
 
+  packages/glue-service:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/hermes-agent: {}
 
   packages/openclaw:

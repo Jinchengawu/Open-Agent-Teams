@@ -6,7 +6,11 @@
  */
 
 import type Database from 'better-sqlite3';
-import type { ProfileManager } from '../../glue-service/src/lifecycle/profile-manager.js';
+
+/** 最小 ProfileManager 接口（避免跨包导入） */
+interface ProfileManager {
+  getProfile(agentId: string): { status: string; port: number } | undefined;
+}
 
 /** Profile 记忆条目 */
 export interface ProfileMemoryEntry {

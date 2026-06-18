@@ -1,0 +1,5 @@
+export declare const SCHEMA_SQL = "\nCREATE TABLE IF NOT EXISTS sessions (\n  id          TEXT PRIMARY KEY,\n  title       TEXT NOT NULL DEFAULT '',\n  status      TEXT NOT NULL DEFAULT 'active',\n  created_at  TEXT NOT NULL DEFAULT (datetime('now')),\n  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))\n);\n\nCREATE TABLE IF NOT EXISTS messages (\n  id          INTEGER PRIMARY KEY AUTOINCREMENT,\n  session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,\n  role        TEXT NOT NULL CHECK(role IN ('user','assistant','system')),\n  agent_id    TEXT NOT NULL DEFAULT '',\n  content     TEXT NOT NULL,\n  tokens      INTEGER NOT NULL DEFAULT 0,\n  created_at  TEXT NOT NULL DEFAULT (datetime('now'))\n);\nCREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);\n";
+export declare function initSchema(db: {
+    exec: (sql: string) => void;
+}): void;
+//# sourceMappingURL=schema.d.ts.map
