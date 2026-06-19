@@ -1,8 +1,8 @@
-# Open-Agent-Teams 路由规则（OpenClaw 判型参考）
+# Open-Agent-Teams 路由规则（`@open-multi-agent/core` 判型参考）
 
 > 规范性说明见 [设计规格 §3](../specs/2026-04-26-open-agent-teams-design.md)。本表用于人工或插件侧路由配置，非可执行代码。
 
-## 1. 默认走 OpenClaw 内核（自执行）
+## 1. 默认走 `@open-multi-agent/core` 编排内核（自执行）
 
 满足以下特征时，优先由内核直接调度工具链完成，**不**调用 Hermes：
 
@@ -30,9 +30,9 @@
 - **不确定**：默认走内核并明确告知用户「未命中垂类路由」；或反问需要绑定的 Hermes `label`/`tags`。  
 - **安全**：涉及敏感写操作前，由内核权限模型把关；Hermes 仅接收完成任务所需的最小上下文。
 
-## 4. 与 OpenClaw 配置的对应关系
+## 4. 与 `@open-multi-agent/core` 配置的对应关系
 
-在 OpenClaw 侧将上表落实为：
+在编排器侧将上表落实为：
 
 - 插件/函数中的 **标签匹配规则**（关键词、意图分类器或 LLM 判型输出 → `instance_id`）。  
 - **超时与重试**：建议每实例单独 `timeoutMs`；失败时内核兜底（见规格 §5）。

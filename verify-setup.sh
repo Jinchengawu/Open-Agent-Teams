@@ -34,9 +34,9 @@ else
     echo "   ⚠️  无法获取模型列表"
 fi
 
-# 检查 OpenClaw 插件状态
+# 检查 openclaw 插件状态
 echo ""
-echo "3️⃣ 检查 OpenClaw 插件状态..."
+echo "3️⃣ 检查 openclaw 插件状态..."
 if openclaw plugins list 2>/dev/null | grep -q "ai-local-os-router"; then
     echo "   ✅ ai-local-os-router 插件已安装"
 else

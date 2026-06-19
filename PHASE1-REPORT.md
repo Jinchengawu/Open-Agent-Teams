@@ -7,7 +7,7 @@
 
 ### 1. 环境准备
 - ✅ 检查并确认 Hermes 已安装 (v0.14.0)
-- ✅ 检查并确认 OpenClaw 已安装 (v2026.3.7)
+- ✅ 检查并确认 openclaw CLI 已安装 (v2026.3.7)
 - ✅ 验证端口 8001/8002/8003 可用
 
 ### 2. 本地实例配置
@@ -24,7 +24,7 @@
   - HERMES_DEV_HOME=~/.hermes-dev
   - 开发环境变量配置
 
-### 4. OpenClaw 插件开发
+### 4. Open Multi-Agent 插件开发
 - ✅ 创建 `packages/openclaw/plugins/open-agent-teams-router/`
   - `HOOK.md` - 插件元数据和文档
   - `handler.ts` - 核心路由逻辑实现
@@ -69,7 +69,7 @@ mkdir -p ~/.hermes-dev
 hermes --port 8002 --home ~/.hermes-dev
 ```
 
-### 安装和启用 OpenClaw 插件
+### 安装和启用插件
 ```bash
 cd /path/to/Open-Agent-Teams  # 替换为你的项目路径
 
@@ -85,7 +85,7 @@ openclaw plugins inspect open-agent-teams-router --runtime
 
 ### 测试完整流程
 ```bash
-# 使用 OpenClaw 测试路由
+# 使用 Gateway 测试路由
 openclaw agent "帮我分析这个项目的代码结构"
 
 # 预期结果：消息被路由到 hermes-dev 实例处理
@@ -93,7 +93,7 @@ openclaw agent "帮我分析这个项目的代码结构"
 
 ## 📊 Phase 1 成果
 
-- ✅ 最小闭环验证成功：用户 → OpenClaw → Hermes → 返回结果
+- ✅ 最小闭环验证成功：用户 → Gateway → Hermes → 返回结果
 - ✅ 路由规则正确实现
 - ✅ 错误处理和回退机制就绪
 - ✅ 为 Phase 2 多实例扩展奠定基础

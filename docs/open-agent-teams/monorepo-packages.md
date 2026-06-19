@@ -1,4 +1,4 @@
-# Node / pnpm 多包工作区（OpenClaw + Hermes 纳管）
+# Node / pnpm 多包工作区（Open Multi-Agent + Hermes 纳管）
 
 本仓库根目录已启用 **pnpm workspace**，以 **Node.js** 为工程基线，将两侧运行时纳入统一依赖与脚本入口。
 
@@ -15,7 +15,7 @@
 ```bash
 pnpm install
 
-# OpenClaw（来自子包依赖）
+# `openclaw`（来自子包依赖）
 pnpm openclaw:version
 pnpm openclaw -- --help
 
@@ -31,7 +31,7 @@ pnpm hermes:doctor         # 检测是否已安装 hermes CLI
 - **推荐**：Node **≥ 22.19** 或 **24 LTS**，以与 `openclaw` 上游子依赖声明完全一致。  
 - 根目录 `.npmrc` 中 `engine-strict=false` 可在未升级 Node 时完成安装，但可能收到 **WARN**。
 
-## OpenClaw postinstall 权限提示
+## openclaw postinstall 权限提示
 
 若安装日志出现 `EACCES` 读取 `~/.openclaw/openclaw.json`，按日志提示修正该文件属主（`chown`）后重启 Gateway；属本机配置问题，与仓库代码无关。
 

@@ -8,9 +8,9 @@
 
 ## 0. 方案 A 落地顺序（速览）
 
-**仅方案 A**：不实现薄网关（B）、不新增 `iac/`（C）；以 OpenClaw 插件/出站 HTTP + 多 Hermes 为主。
+**仅方案 A**：不实现薄网关（B）、不新增 `iac/`（C）；以 编排器插件/出站 HTTP + 多 Hermes 为主。
 
-0. **Node 工作区**：在仓库根执行 `pnpm install`，纳管 OpenClaw npm 包与 Hermes 安装脚本（见 [monorepo-packages.md](./monorepo-packages.md)）。  
+0. **Node 工作区**：在仓库根执行 `pnpm install`，纳管 openclaw npm 包与 Hermes 安装脚本（见 [monorepo-packages.md](./monorepo-packages.md)）。  
 1. **对齐**：读 [设计规格](../specs/2026-04-26-open-agent-teams-design.md) §2–§5 与 [routing-rules.md](./routing-rules.md)。  
 2. **文档入口**：完成下方 **§2** 官方链接表（可公开 URL 或脱敏说明）。  
 3. **机密与实例表**：按 **§3** 使用 `hermes-instances.local.yaml` 与 `.env`（勿提交仓库）。  
@@ -22,7 +22,7 @@
 
 ## 1. 本页用途
 
-仓库内规格与模板已齐；本页把 **从纸面到可跑** 拆成可勾选步骤，避免遗漏密钥、实例隔离与 OpenClaw 侧接入顺序。**不**替代各产品官方文档。
+仓库内规格与模板已齐；本页把 **从纸面到可跑** 拆成可勾选步骤，避免遗漏密钥、实例隔离与 编排器侧接入顺序。**不**替代各产品官方文档。
 
 ---
 
@@ -32,7 +32,7 @@
 
 | 系统 | 产品名称 / 版本 | 文档 URL | 备注（如：插件入口、鉴权章节） |
 | --- | --- | --- | --- |
-| OpenClaw | （待填） | （待填） | 自定义函数 / 插件、环境变量 |
+| Open Multi-Agent | （待填） | （待填） | 自定义函数 / 插件、环境变量 |
 | Hermes | （待填） | （待填） | HTTP API、API Key、CORS |
 
 ---
@@ -45,11 +45,11 @@
 
 ---
 
-## 4. OpenClaw 侧接入顺序（概念）
+## 4. 编排器侧接入顺序（概念）
 
 与规格 [§5](../specs/2026-04-26-open-agent-teams-design.md) 一致，建议顺序：
 
-1. 在 OpenClaw 中创建「Open-Agent-Teams 垂类心智调度」类插件/函数（具体名称以你方规范为准）。
+1. 在编排器中创建「Open-Agent-Teams 垂类心智调度」类插件/函数（具体名称以你方规范为准）。
 2. 加载实例清单：自 YAML 或环境变量解析 `baseUrl`、`timeoutMs`、标签路由。
 3. 实现对外调用：向 Hermes 发起 HTTP 请求；配置 **超时、错误捕获、熔断**；失败时 **内核兜底** 并明确告知用户。
 
@@ -61,13 +61,13 @@
 
 以下文件在仓库根目录，便于对照拓扑与接入流程（路径以你本机克隆为准）：
 
-- `Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案.pdf`
-- `OpenClaw + Hermes 双智能体融合架构（拓扑图+接入流程）.pdf`
+- `Open-Agent-Teams：Open Multi-Agent+Hermes 私有化本地智能操作系统方案.pdf`
+- `Open Multi-Agent + Hermes 双智能体融合架构（拓扑图+接入流程）.pdf`
 
 ---
 
 ## 6. 完成后
 
-1. 在 REQ「产品与 API 文档链接」粘贴表格摘要，并在「后续跟踪清单」勾选 **「实际 OpenClaw / Hermes 产品形态与 API 文档链接写入本节」**。  
+1. 在 REQ「产品与 API 文档链接」粘贴表格摘要，并在「后续跟踪清单」勾选 **「实际 Open Multi-Agent / Hermes 产品形态与 API 文档链接写入本节」**。  
 2. 填写分支 / PR / 负责人在 REQ 元信息表。  
 3. 若 REQ 或本页将含**不可公开**链接：按 REQ 清单在规格中声明，并考虑将 `debug/superpowers-intent/` 或含密链接的副本纳入 `.gitignore`。

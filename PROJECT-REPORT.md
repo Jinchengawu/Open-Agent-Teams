@@ -1,6 +1,6 @@
 # Open-Agent-Teams 项目总结报告
 
-> **项目名称**：Open-Agent-Teams（OpenClaw + Hermes 私有化本地智能操作系统）  
+> **项目名称**：Open-Agent-Teams（Open Multi-Agent + Hermes 私有化本地智能操作系统）  
 > **报告日期**：2026-05-21  
 > **项目状态**：Phase 1-4 全部完成 ✅  
 > **仓库地址**：https://github.com/Jinchengawu/Open-Agent-Teams
@@ -11,9 +11,9 @@
 
 ### 1.1 项目定位
 
-Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 OpenClaw（多 Agent 编排框架）与 Hermes Agent（垂类深度应用框架）深度融合，实现：
+Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 `@open-multi-agent/core`（多 Agent 编排框架）与 Hermes Agent（垂类深度应用框架）深度融合，实现：
 
-- **通用任务**由 OpenClaw 内核自执行
+- **通用任务**由 `@open-multi-agent/core` 内核自执行
 - **垂类任务**路由到专用 Hermes 实例
 - **数据隔离**，每个实例独立存储
 - **一键部署**，可复现的生产环境
@@ -22,7 +22,7 @@ Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 
 
 | 价值维度 | 说明 |
 |---------|------|
-| **深度 vs 广度** | OpenClaw 横向编排 + Hermes 垂类深度 |
+| **深度 vs 广度** | `@open-multi-agent/core` 横向编排 + Hermes 垂类深度 |
 | **隐私安全** | 本地化部署，数据不出本机 |
 | **可扩展** | 插件化架构，易于添加新实例 |
 | **可运维** | Docker 容器化，一键部署 |
@@ -31,7 +31,7 @@ Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 
 
 | 组件 | 技术 | 版本 |
 |------|------|------|
-| 编排内核 | OpenClaw | 2026.3.7 |
+| 编排内核 | Open Multi-Agent | 2026.3.7 |
 | 垂类 Agent | Hermes Agent | 0.14.0 |
 | 薄网关 | Node.js + TypeScript | Node 20, TS 5.3 |
 | 容器化 | Docker + Compose | Docker 20+, Compose 2.0+ |
@@ -110,11 +110,11 @@ Open-Agent-Teams 是一个**本地化多 Agent 协同操作系统**，旨在将 
 
 ### 3.1 Phase 1：最小闭环 ✅
 
-**目标**：单路径跑通「用户 → OpenClaw → Hermes → 用户」
+**目标**：单路径跑通「用户 → Gateway → Hermes → 用户」
 
 **实现内容**：
 - Hermes API Server（端口 8002）
-- OpenClaw Hook（消息路由）
+- Gateway Hook（消息路由）
 - 意图分析（关键词匹配）
 - 实例选择（评分机制）
 - 冒烟测试（3/3 通过）
@@ -200,7 +200,7 @@ Open-Agent-Teams/
 ├── start-hermes.sh                        # 启动单个 Hermes 实例
 ├── start-all-instances.sh                 # 启动所有 Hermes 实例
 ├── start-gateway.sh                       # 启动 Gateway
-├── setup-hook.sh                          # 安装 OpenClaw Hook
+├── setup-hook.sh                          # 安装 Gateway Hook
 ├── test-gateway.sh                        # 测试 Gateway
 ├── smoke-test.mjs                         # Phase 1 冒烟测试
 ├── smoke-test-phase2.mjs                  # Phase 2 冒烟测试
@@ -236,7 +236,7 @@ Open-Agent-Teams/
 │   │   └── Dockerfile
 │   └── openclaw/
 │       └── hooks/
-│           └── open-agent-teams-router/           # OpenClaw Hook
+│           └── open-agent-teams-router/           # Gateway Hook
 │               ├── HOOK.md
 │               ├── handler.ts
 │               └── package.json
@@ -490,7 +490,7 @@ MIT License
 ## 12. 致谢
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) - Nous Research
-- [OpenClaw](https://github.com/openclaw) - 多 Agent 编排框架
+- [Open Multi-Agent](https://github.com/open-multi-agent) - 多 Agent 编排内核
 
 ---
 

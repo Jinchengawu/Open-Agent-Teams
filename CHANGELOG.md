@@ -51,7 +51,7 @@ All notable changes to Open-Agent-Teams will be documented in this file.
 ### Added
 - Phase 1: Minimum viable loop
 - Hermes API Server integration (port 8002)
-- OpenClaw Hook for message routing
+- Gateway Hook for message routing
 - Intent analysis and instance selection
 - Smoke tests passed (3/3)
 

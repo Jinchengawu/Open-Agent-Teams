@@ -8,13 +8,13 @@ set -e
 echo "🔧 AI-local-OS 插件安装"
 echo "========================"
 
-# 检查 OpenClaw 是否已安装
+# 检查 openclaw CLI 是否已安装
 if ! command -v openclaw &> /dev/null; then
-    echo "❌ OpenClaw 未安装，请先安装 OpenClaw"
+    echo "❌ openclaw CLI 未安装，请先安装 openclaw"
     exit 1
 fi
 
-echo "✅ OpenClaw 已安装"
+echo "✅ openclaw CLI 已安装"
 
 # 检查插件目录是否存在
 PLUGIN_DIR="./packages/openclaw/plugins/ai-local-os-router"

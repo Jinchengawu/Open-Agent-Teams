@@ -2,9 +2,9 @@
 
 > **给代理工作者：** 必须调用的子 skill：使用 subagent-driven-development（推荐）或 executing-plans 来逐任务实现此计划。步骤使用复选框（`- [ ]`）语法进行追踪。
 
-**目标：** 在仓库内落地与 **方案 A（纯集成编排）** 一致的文档、路由表、Hermes 实例模板与环境占位，并同步侧车 REQ；不实现 OpenClaw/Hermes 本体。
+**目标：** 在仓库内落地与 **方案 A（纯集成编排）** 一致的文档、路由表、Hermes 实例模板与环境占位，并同步侧车 REQ；不实现 Open Multi-Agent/Hermes 本体。
 
-**架构：** OpenClaw 为调度内核，多 Hermes 为垂类 API；集成通过配置与 HTTP 调用约定完成；熔断与兜底在规格中约定，由产品侧配置实现。
+**架构：** `@open-multi-agent/core` 为调度内核，多 Hermes 为垂类 API；集成通过配置与 HTTP 调用约定完成；熔断与兜底在规格中约定，由产品侧配置实现。
 
 **技术栈：** Markdown、YAML、`.env` 占位；无新增应用代码（本轮）。
 
@@ -114,9 +114,9 @@
 
 **入口文档（单一 SSOT）：** [docs/open-agent-teams/integration-handoff.md](../open-agent-teams/integration-handoff.md)
 
-- [ ] **步骤 1：** 在移交清单 **§2 官方文档链接表** 填写 OpenClaw / Hermes 的**可公开**文档 URL（内网则 REQ 脱敏说明，勿提交密钥）。
+- [ ] **步骤 1：** 在移交清单 **§2 官方文档链接表** 填写 `@open-multi-agent/core` / Hermes 的**可公开**文档 URL（内网则 REQ 脱敏说明，勿提交密钥）。
 
-- [ ] **步骤 2：** 完成移交清单 **§3–§4**（本地实例、密钥、OpenClaw 侧接入顺序概念核对）。
+- [ ] **步骤 2：** 完成移交清单 **§3–§4**（本地实例、密钥、Gateway 侧接入顺序概念核对）。
 
 - [ ] **步骤 3：** 确认 `.env`、本地实例 YAML 已按 [.gitignore](../../.gitignore) 忽略（必要时补规则）。
 

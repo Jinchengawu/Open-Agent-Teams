@@ -40,13 +40,13 @@ flowchart LR
 
 ## 第 1–2 周：方案 A — 最小可运行闭环
 
-**目标**：单路径「用户 → OpenClaw →（可选）Hermes → 用户」跑通，不引入自研网关。
+**目标**：单路径「用户 → 编排器（`@open-multi-agent/core`）→（可选）Hermes → 用户」跑通，不引入自研网关。
 
 | 里程碑 | 交付物 / 动作 | 验收 |
 | --- | --- | --- |
 | M1.1 | 完成 [integration-handoff.md](./integration-handoff.md) §2 官方文档链接表（可公开 URL 或脱敏说明） | REQ「产品与 API 文档链接」有对应条目 |
 | M1.2 | 本地实例表：`hermes-instances.local.yaml` + `.env`（不入库） | `.gitignore` 已覆盖；仓库无密钥 |
-| M1.3 | OpenClaw 侧插件/函数能按 [routing-rules.md](./routing-rules.md) 调用 **至少 1** 个 Hermes | 有日志或截图类证据（团队自定） |
+| M1.3 | 编排器侧插件/函数能按 [routing-rules.md](./routing-rules.md) 调用 **至少 1** 个 Hermes | 有日志或截图类证据（团队自定） |
 | M1.4 | 熔断与内核兜底可感知（超时或 Hermes 宕机时用户得到明确提示） | 与规格 §5 一致 |
 
 **周末检查**：是否愿意把「误路由率」作为下一阶段的量化指标（是/否，记录到 REQ）。
@@ -69,12 +69,12 @@ flowchart LR
 
 ## 第 5–6 周：方案 B — 薄编排网关
 
-**目标**：在 OpenClaw 与（可选）多上游之间增加**本地网关**，统一治理。
+**目标**：在编排器与（可选）多上游之间增加**本地网关**，统一治理。
 
 | 里程碑 | 交付物 / 动作 | 验收 |
 | --- | --- | --- |
-| M3.1 | 网关规格补档（路由、鉴权、mTLS 是否采用、与 OpenClaw 调用方向） | 新小节进入 `docs/specs/` 或由团队另开 spec 文件并链回 README |
-| M3.2 | 网关 MVP：单进程监听本机端口，转发到 OpenClaw 或 Hermes | 健康检查端点可用；无密钥写死 |
+| M3.1 | 网关规格补档（路由、鉴权、mTLS 是否采用、与 Gateway 调用方向） | 新小节进入 `docs/specs/` 或由团队另开 spec 文件并链回 README |
+| M3.2 | 网关 MVP：单进程监听本机端口，转发到 Gateway 或 Hermes | 健康检查端点可用；无密钥写死 |
 | M3.3 | 结构化请求日志（脱敏）+ 基础限流 | 能定位一次完整请求的 trace id |
 
 **依赖**：语言栈与部署方式需与团队约定（本仓库不预设实现语言）。
@@ -97,7 +97,7 @@ flowchart LR
 
 | 风险 | 缓解 |
 | --- | --- |
-| OpenClaw / Hermes 官方接口变更 | 文档链接钉版本；升级纳入 M4.3 |
+| Open Multi-Agent / Hermes 官方接口变更 | 文档链接钉版本；升级纳入 M4.3 |
 | 密钥误提交 | 仅用手动 env / 秘密管理；定期 `git log` 抽查 |
 | B 与 C 同时开工导致范围膨胀 | **默认串行**：B 验证后再上 C；除非有专职 SRE |
 

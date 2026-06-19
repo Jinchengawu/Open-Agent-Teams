@@ -1,11 +1,11 @@
-# REQ-2026-0426：Open-Agent-Teams（OpenClaw + Hermes 私有化本地智能操作系统）
+# REQ-2026-0426：Open-Agent-Teams（Open Multi-Agent + Hermes 私有化本地智能操作系统）
 
 ## 元信息
 
 | 字段 | 值 |
 | --- | --- |
 | **requirementId** | REQ-2026-0426-open-agent-teams |
-| **来源文档** | `Open-Agent-Teams：OpenClaw+Hermes 私有化本地智能操作系统方案.pdf`（仓库根目录） |
+| **来源文档** | `Open-Agent-Teams：Open Multi-Agent+Hermes 私有化本地智能操作系统方案.pdf`（仓库根目录） |
 | **分支** | （待填） |
 | **PR** | （待填） |
 | **负责人** | （待填） |
@@ -29,7 +29,7 @@
 
 | 组件 | 文档链接 |
 | --- | --- |
-| OpenClaw | （待填） |
+| Open Multi-Agent | （待填） |
 | Hermes | （待填） |
 
 ## 方案门禁执行记录
@@ -46,13 +46,13 @@
 
 ### 目标
 
-- 基于 PDF 方案，将 **Open-Agent-Teams** 定义为：**OpenClaw（全局调度内核）+ 多实例 Hermes（垂类心智单元）** 的私有化、全本地智能操作系统。
+- 基于 PDF 方案，将 **Open-Agent-Teams** 定义为：**`@open-multi-agent/core`（全局调度内核）+ 多实例 Hermes（垂类心智单元）** 的私有化、全本地智能操作系统。
 - 实现「内核 + 应用集群」式双分层：**广度/工具/系统任务** 与 **深度记忆/垂类进化** 解耦又闭环。
 - **侧车本文件** 作为与对话解耦的 SSOT：意图、约束、证据、后续 PR/审计可检索。
 
 ### 非目标（本轮设计边界）
 
-- 不假定 OpenClaw / Hermes 的具体商业发行版与版本号；落地以实际产品 API 为准。
+- 不假定 `@open-multi-agent/core` / Hermes 的具体商业发行版与版本号；落地以实际产品 API 为准。
 - 不在此文件存放真实 API Key、内网 URL（仅示例占位）；密钥走环境变量或私密配置。
 
 ### 验收口径（用户原话摘要）
@@ -72,12 +72,12 @@
 
 | 层级 | 角色 | 职责 |
 | --- | --- | --- |
-| **OpenClaw** | 全局系统调度层（OS 内核） | 意图识别、任务拆解、权限、插件调度、系统操作、多工具、对外通道 |
+| **`@open-multi-agent/core`** | 全局系统调度层（OS 内核） | 意图识别、任务拆解、权限、插件调度、系统操作、多工具、对外通道 |
 | **Hermes（多实例）** | 垂类心智进化层 | 深度记忆、习惯沉淀、垂类学习、自主迭代；每垂类独立实例 |
 
 **路由原则（核心）**
 
-- 通用任务（文件、爬虫、办公自动化、运维等）→ **OpenClaw 内核自执行**。
+- 通用任务（文件、爬虫、办公自动化、运维等）→ **`@open-multi-agent/core` 内核自执行**。
 - 个性化 / 垂类 / 长期迭代 / 深度决策 → **下发对应 Hermes 心智单元**，结果回流内核统一润色与输出。
 
 ### 数据与闭环
@@ -87,8 +87,8 @@
 
 ### 推荐接入（API 互联）
 
-1. **Hermes**：每垂类独立部署与端口；开启 API 网关与 CORS；API Key；固定本机地址示例 `127.0.0.1:8001/8002/8003…`；白名单仅允许本地 OpenClaw 调用。
-2. **OpenClaw**：自定义插件「Open-Agent-Teams 垂类心智调度器」；注册各 Hermes 的 URL、Key、垂类标签；配置上述路由规则。
+1. **Hermes**：每垂类独立部署与端口；开启 API 网关与 CORS；API Key；固定本机地址示例 `127.0.0.1:8001/8002/8003…`；白名单仅允许本地 `@open-multi-agent/core` 调用。
+2. **`@open-multi-agent/core`**：自定义插件「Open-Agent-Teams 垂类心智调度器」；注册各 Hermes 的 URL、Key、垂类标签；配置上述路由规则。
 3. **任务闭环**：用户入口 → 内核判型 → 必要时 API 转发 Hermes → Hermes 用记忆与技能执行并复盘 → 回传内核 → 统一输出。
 4. **熔断**：超时与异常捕获；Hermes 故障时内核兜底，保证服务不断。
 
@@ -104,11 +104,11 @@
 
 ### 方案 A：纯集成编排
 
-- [x] **已选定（本轮）** — 不重复造「OS」运行时；以 OpenClaw + 多 Hermes 的 **配置 + 插件 + 路由表** 为主交付物；仓库内维护路由说明、实例模板、`.env.example`（无密钥）。
+- [x] **已选定（本轮）** — 不重复造「OS」运行时；以 Open Multi-Agent + 多 Hermes 的 **配置 + 插件 + 路由表** 为主交付物；仓库内维护路由说明、实例模板、`.env.example`（无密钥）。
 
 ### 方案 B：薄编排网关
 
-- [ ] 未选定 — 在本地增加一轻量服务（如 Node/Go），统一鉴权、日志、熔断，再调 OpenClaw/Hermes；适合多客户端入口。设计占位见 [设计规格 §8.1](../../docs/specs/2026-04-26-open-agent-teams-design.md)。
+- [ ] 未选定 — 在本地增加一轻量服务（如 Node/Go），统一鉴权、日志、熔断，再调 Gateway/Hermes；适合多客户端入口。设计占位见 [设计规格 §8.1](../../docs/specs/2026-04-26-open-agent-teams-design.md)。
 
 ### 方案 C：文档与 IaC 包
 
@@ -131,7 +131,7 @@
 ## 后续跟踪清单（代理/人类共用）
 
 - [x] 用户确认：本轮为 **方案 A**（见方案门禁执行记录；升级 B/C 需新指令）。
-- [ ] 实际 OpenClaw / Hermes 产品形态与 API 文档链接写入本节。
+- [ ] 实际 Open Multi-Agent / Hermes 产品形态与 API 文档链接写入本节。
 - [ ] 填写分支、PR、负责人。
 - [ ] 若含敏感链接：将 `debug/superpowers-intent/` 纳入 `.gitignore` 或改为脱敏副本策略。
 
@@ -142,4 +142,4 @@
 
 ### 阶段 2 增量（文档结构）
 
-- 阶段 2 **单一执行入口**：[integration-handoff.md](../../docs/open-agent-teams/integration-handoff.md)；[实现计划](../../docs/plans/2026-04-26-open-agent-teams.md) 含「阶段 2」复选框任务。REQ「产品与 API 文档链接」待人工填表后，可将跟踪清单「实际 OpenClaw / Hermes…」标为完成。
+- 阶段 2 **单一执行入口**：[integration-handoff.md](../../docs/open-agent-teams/integration-handoff.md)；[实现计划](../../docs/plans/2026-04-26-open-agent-teams.md) 含「阶段 2」复选框任务。REQ「产品与 API 文档链接」待人工填表后，可将跟踪清单「实际 Open Multi-Agent / Hermes…」标为完成。

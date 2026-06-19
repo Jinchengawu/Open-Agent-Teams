@@ -1,19 +1,23 @@
 # Open-Agent-Teams
 
-> OpenClaw × Hermes = 能力倍增（x * y = k）
+> Open Multi-Agent（`@open-multi-agent/core`） × Hermes = 能力倍增（x * y = k）
 
 本仓库是 **Open-Agent-Teams** 的抽象架构层，沉淀 **集成规格、分步计划、路由与实例模板**，配套 **Superpowers 技能包**（Cursor / Claude / Agents 侧一致入口），并作为下游具体实现（如 [DEV-Agent-Teams](https://github.com/Jinchengawu/DEV-Agent-Teams)）的共享基础设施。
+
+> **注意**：`OpenClaw`（`openclaw` npm 包）在本工程中的角色是 **CLI 工具包装器**，已作为历史依赖移除。本工程的**多 Agent 编排内核**是 **`@open-multi-agent/core`**（第三方框架）。下文所有"编排框架/调度内核"相关描述均指 `@open-multi-agent/core`，而非 `OpenClaw` CLI。
 
 ## 核心理念
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
+Open Multi-Agent（`@open-multi-agent/core` 横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
-- **OpenClaw**：多 Agent 协同、路由、调度、权限、日志
+- **Open Multi-Agent（`@open-multi-agent/core`）**：多 Agent 协同、路由、调度、权限、日志（编排内核）
 - **Hermes**：深度记忆、技能、垂类推理、自进化
 - **Open-Agent-Teams**：整合二者优势，实现 1+1 > 2 的效果
+
+> ⚠️ **术语澄清**：本工程早期文档使用"OpenClaw"指代编排框架，这是不准确的。实际编排框架为 `@open-multi-agent/core`（`TeamOrchestrator` 封装其 `OpenMultiAgent`）。`OpenClaw`（`openclaw` npm 包）已作为历史 CLI 依赖移除。
 
 > 📖 详细架构说明请参阅 [CORE-ARCHITECTURE.md](./docs/open-agent-teams/CORE-ARCHITECTURE.md)
 
@@ -32,8 +36,8 @@ Open-Agent-Teams/
 │   │       └── workflow/            # 工作流编排（内置模板）
 │   ├── gateway/                     # API 网关 (@open-agent-teams/gateway)
 │   │   └── src/index.ts            # 路由/鉴权/熔断/日志
-│   ├── openclaw/                    # OpenClaw 集成包 (@open-agent-teams/openclaw)
-│   │   └── hooks/                  # AI 路由 Hook
+│   ├── openclaw/                    # CLI 工具包装器（`openclaw` npm 包），非编排内核
+│   │   └── hooks/                  # CLI 路由 Hook（辅助入口，非核心调度）
 │   └── hermes-agent/               # Hermes 安装引导 (@open-agent-teams/hermes-agent)
 ├── docs/
 │   ├── open-agent-teams/            # 集成文档（架构/路由/实例模板/移交清单）
@@ -52,7 +56,7 @@ Open-Agent-Teams/
 | --- | --- |
 | [packages/core/](./packages/core/) | **共享核心库** — Agent 工厂、会话管理、上下文压缩、Agent 总线、工作流编排 |
 | [packages/gateway/](./packages/gateway/) | **API 网关** — 统一入口、鉴权、路由、熔断 |
-| [docs/open-agent-teams/CORE-ARCHITECTURE.md](./docs/open-agent-teams/CORE-ARCHITECTURE.md) | **核心架构思想**（OpenClaw × Hermes） |
+| [docs/open-agent-teams/CORE-ARCHITECTURE.md](./docs/open-agent-teams/CORE-ARCHITECTURE.md) | **核心架构思想**（Open Multi-Agent × Hermes） |
 | [docs/open-agent-teams/README.md](./docs/open-agent-teams/README.md) | **集成文档索引**（阅读顺序、模板列表） |
 | [docs/specs/2026-04-26-open-agent-teams-design.md](./docs/specs/2026-04-26-open-agent-teams-design.md) | 架构、数据域、路由原则、待补材料 |
 | [docs/plans/2026-04-26-open-agent-teams.md](./docs/plans/2026-04-26-open-agent-teams.md) | 分步实现与验证清单 |
@@ -89,7 +93,7 @@ pnpm hermes:doctor
 ## 架构速览
 
 ```
-用户请求 → Gateway (:8400) → OpenClaw 意图分析 → Agent 路由
+用户请求 → Gateway (:8400) → 编排器意图分析（`@open-multi-agent/core`） → Agent 路由
                 │
     ┌───────────┼───────────┬───────────┬───────────┐
     │           │           │           │           │
@@ -111,7 +115,7 @@ pnpm hermes:doctor
 
 ## 实现原则
 
-1. **复用 OpenClaw** — 不要重新实现路由、鉴权、日志
+1. **复用 Open Multi-Agent 框架** — 不要重新实现路由、鉴权、日志（`@open-multi-agent/core` 已提供）
 2. **复用 Hermes** — 不要重新实现技能、记忆、推理
 3. **配置驱动** — 通过配置文件定义 Agent 实例
 4. **Hook 扩展** — 通过 Hook 实现自定义逻辑

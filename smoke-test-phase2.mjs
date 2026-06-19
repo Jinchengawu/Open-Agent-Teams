@@ -3,7 +3,7 @@
 /**
  * AI-local-OS Phase 2 冒烟测试（多实例）
  * 
- * 验证多实例路由：用户消息 → OpenClaw → 最合适的 Hermes 实例
+ * 验证多实例路由：用户消息 → Gateway → 最合适的 Hermes 实例
  */
 
 import { readFileSync, existsSync } from 'node:fs';

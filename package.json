@@ -8,8 +8,6 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "openclaw": "pnpm --filter @open-agent-teams/openclaw exec openclaw",
-    "openclaw:version": "pnpm --filter @open-agent-teams/openclaw exec openclaw --version",
     "core:build": "pnpm --filter @open-agent-teams/core run build",
     "core:check": "pnpm --filter @open-agent-teams/core run check",
     "dashboard:dev": "pnpm --filter @open-agent-teams/dashboard run dev",

@@ -3,7 +3,7 @@
 /**
  * AI-local-OS Phase 1 冒烟测试
  * 
- * 验证最小闭环：用户消息 → OpenClaw → Hermes → 返回结果
+ * 验证最小闭环：用户消息 → Gateway → Hermes → 返回结果
  * 
  * 使用方法：
  *   node smoke-test.mjs
@@ -22,7 +22,7 @@ const TEST_CASES = [
     name: '测试 1: 通用操作（应由内核处理）',
     message: '查看当前目录文件',
     expectedRoute: false,
-    description: '应该由 OpenClaw 内核处理，不路由到 Hermes'
+    description: '应该由 Gateway 内核处理，不路由到 Hermes'
   },
   {
     name: '测试 2: 开发相关（应路由到 Hermes）',
@@ -196,7 +196,7 @@ async function runSmokeTest() {
     console.log('\n🎉 所有测试通过！Phase 1 最小闭环验证成功。');
     console.log('\n📋 下一步：');
     console.log('   1. 启动 Hermes API Server: ./start-hermes.sh');
-    console.log('   2. 安装 OpenClaw 插件: ./setup-plugin.sh');
+    console.log('   2. 安装插件: ./setup-plugin.sh');
     console.log('   3. 测试完整流程: openclaw agent "帮我分析项目结构"');
   } else {
     console.log('\n❌ 部分测试失败，请检查路由规则配置。');

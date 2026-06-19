@@ -12,11 +12,11 @@
 | Python | 3.11 | 运行时 |
 | OpenAI SDK | 2.24.0 | API 客户端 |
 
-### OpenClaw
+### openclaw CLI
 
 | 组件 | 版本 | 说明 |
 |------|------|------|
-| openclaw | 2026.3.7 | 多 Agent 编排框架 |
+| openclaw | 2026.3.7 | CLI 工具 |
 | Node.js | >= 20 | 运行时 |
 
 ### Open-Agent-Teams Gateway
@@ -93,7 +93,7 @@ docker compose up -d
 - 需要 Python 3.10+
 - 某些工具需要额外依赖
 
-### OpenClaw 2026.3.7
+### openclaw 2026.3.7
 
 - feishu 插件需要额外依赖
 - 部分配置项已弃用

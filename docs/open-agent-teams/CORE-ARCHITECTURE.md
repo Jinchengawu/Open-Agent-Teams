@@ -1,28 +1,28 @@
 # Open-Agent-Teams 核心架构思想
 
-> OpenClaw × Hermes = 能力倍增（x * y = k）
+> Open Multi-Agent（`@open-multi-agent/core`） × Hermes = 能力倍增（x * y = k）
 
 ---
 
 ## 1. 核心理念
 
-Open-Agent-Teams 的核心思想是**整合统一 OpenClaw 与 Hermes 的结合**，实现能力倍增：
+Open-Agent-Teams 的核心思想是**整合统一 Open Multi-Agent（`@open-multi-agent/core`）与 Hermes 的结合**，实现能力倍增：
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
+Open Multi-Agent（`@open-multi-agent/core` 横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
 ### 1.1 为什么是乘法而不是加法？
 
-- **OpenClaw 单独使用**：能编排多个 Agent，但每个 Agent 缺乏深度能力
+- **Open Multi-Agent 框架单独使用**：能编排多个 Agent，但每个 Agent 缺乏深度能力
 - **Hermes 单独使用**：有深度能力，但只能单线程工作
-- **两者结合**：OpenClaw 编排多个 Hermes 实例，每个实例都有深度能力，整体能力是乘法增长
+- **两者结合**：Open Multi-Agent 编排多个 Hermes 实例，每个实例都有深度能力，整体能力是乘法增长
 
 ### 1.2 类比
 
 ```
-OpenClaw = 项目经理（协调、调度、管理）
+Open Multi-Agent = 项目经理（协调、调度、管理）
 Hermes   = 专家工程师（深度技能、专业知识）
 Open-Agent-Teams = 高效团队（多个专家协同工作）
 ```
@@ -31,7 +31,7 @@ Open-Agent-Teams = 高效团队（多个专家协同工作）
 
 ## 2. 组件职责
 
-### 2.1 OpenClaw — 横向编排框架
+### 2.1 Open Multi-Agent — 横向编排框架（`@open-multi-agent/core`）
 
 **核心职责**：
 - 多 Agent 协同调度
@@ -41,10 +41,10 @@ Open-Agent-Teams = 高效团队（多个专家协同工作）
 - 插件扩展
 
 **技术特性**：
-- 基于事件驱动的 Hook 系统
-- 灵活的路由规则
-- 熔断器与限流
-- 多平台支持（Telegram, Discord, Slack 等）
+- 基于 `@open-multi-agent/core` 的 Hook 系统
+- 由 `@open-multi-agent/core` 提供的路由规则
+- `@open-multi-agent/core` 内置的熔断器与限流
+- 通过 `@open-multi-agent/core` 支持多平台（Telegram, Discord, Slack 等）
 
 ### 2.2 Hermes — 垂类 Agent 框架
 
@@ -75,7 +75,7 @@ Open-Agent-Teams = 高效团队（多个专家协同工作）
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    OpenClaw 编排内核                                │
+│                    Open Multi-Agent 编排内核（`@open-multi-agent/core`）                                │
 │                                                                     │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │
 │  │   意图分析   │ │   路由分发   │ │   权限管控   │ │   审计日志   │  │
@@ -103,18 +103,18 @@ Open-Agent-Teams = 高效团队（多个专家协同工作）
 ### 3.2 数据流
 
 ```
-1. 用户输入 → OpenClaw 接收
-2. OpenClaw 分析意图 → 判断需要哪个垂类 Agent
-3. OpenClaw 路由到对应的 Hermes 实例
+1. 用户输入 → Open Multi-Agent 编排器接收
+2. 编排器分析意图 → 判断需要哪个垂类 Agent
+3. 编排器路由到对应的 Hermes 实例
 4. Hermes 执行深度任务 → 返回结果
-5. OpenClaw 整合结果 → 返回给用户
+5. 编排器整合结果 → 返回给用户
 ```
 
 ---
 
 ## 4. 整合优势
 
-### 4.1 OpenClaw 的贡献（横向能力）
+### 4.1 Open Multi-Agent 框架的贡献（横向能力）
 
 | 能力 | 说明 |
 |------|------|
@@ -137,7 +137,7 @@ Open-Agent-Teams = 高效团队（多个专家协同工作）
 ### 4.3 结合后的倍增效应
 
 ```
-OpenClaw 单独：10 个 Agent × 1 能力 = 10 能力
+Open Multi-Agent 单独：10 个 Agent × 1 能力 = 10 能力
 Hermes 单独：1 个 Agent × 10 能力 = 10 能力
 结合后：10 个 Agent × 10 能力 = 100 能力（倍增）
 ```
@@ -148,7 +148,7 @@ Hermes 单独：1 个 Agent × 10 能力 = 10 能力
 
 ### 5.1 必须遵循
 
-1. **复用 OpenClaw** — 不要重新实现路由、鉴权、日志
+1. **复用 Open Multi-Agent 框架（`@open-multi-agent/core`）** — 不要重新实现路由、鉴权、日志
 2. **复用 Hermes** — 不要重新实现技能、记忆、推理
 3. **配置驱动** — 通过配置文件定义 Agent 实例
 4. **Hook 扩展** — 通过 Hook 实现自定义逻辑
@@ -163,7 +163,7 @@ Hermes 单独：1 个 Agent × 10 能力 = 10 能力
 ### 5.3 正确做法
 
 ```
-✅ 复用 Open-Agent-Teams 的 OpenClaw 配置
+✅ 复用 Open-Agent-Teams 的 `@open-multi-agent/core` 配置
 ✅ 复用 Open-Agent-Teams 的 Hook 系统
 ✅ 只添加新的 Agent 技能
 ✅ 只修改路由规则配置
@@ -176,7 +176,7 @@ Hermes 单独：1 个 Agent × 10 能力 = 10 能力
 ### 6.1 DEV-Agent（开发者多 Agent）
 
 ```
-OpenClaw 编排 + 4 个 Hermes 实例：
+└── @open-multi-agent/core 编排 + 4 个 Hermes 实例：
 • frontend Agent：React/Vue/TypeScript
 • backend Agent：Python/Node.js/Go
 • testing Agent：pytest/Jest/Playwright
@@ -199,19 +199,19 @@ OpenClaw 编排 + 4 个 Hermes 实例：
 ### 核心公式
 
 ```
-OpenClaw（横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
+Open Multi-Agent（`@open-multi-agent/core` 横向编排） × Hermes（垂类深度） = Open-Agent-Teams（能力倍增）
      x                              y                    k
 ```
 
 ### 关键点
 
-1. **OpenClaw 是大脑** — 负责思考、决策、协调
+1. **Open Multi-Agent 框架是大脑** — 负责思考、决策、协调
 2. **Hermes 是双手** — 负责执行、创造、深度工作
 3. **Open-Agent-Teams 是整体** — 1 + 1 > 2 的效果
 
 ### 行动指南
 
-- 创建新工程时，**必须复用 OpenClaw**
+- 创建新工程时，**必须复用 Open Multi-Agent 框架（`@open-multi-agent/core`）**
 - 不要重新实现已有功能
 - 专注于垂类技能和配置
 - 遵循 Open-Agent-Teams 的架构设计

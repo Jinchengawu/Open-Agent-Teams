@@ -8,13 +8,13 @@ set -e
 echo "🔧 AI-local-OS Hook 安装"
 echo "========================"
 
-# 检查 OpenClaw 是否已安装
+# 检查 openclaw CLI 是否已安装
 if ! command -v openclaw &> /dev/null; then
-    echo "❌ OpenClaw 未安装，请先安装 OpenClaw"
+    echo "❌ openclaw CLI 未安装，请先安装 openclaw"
     exit 1
 fi
 
-echo "✅ OpenClaw 已安装"
+echo "✅ openclaw CLI 已安装"
 
 # 检查 Hook 目录是否存在
 HOOK_DIR="./packages/openclaw/hooks/ai-local-os-router"
@@ -25,7 +25,7 @@ fi
 
 echo "✅ Hook 目录存在"
 
-# 复制 Hook 到 OpenClaw hooks 目录
+# 复制 Hook 到 openclaw hooks 目录
 echo ""
 echo "📦 安装 Hook..."
 OPENCLAW_HOOKS_DIR="$HOME/.openclaw/hooks"
