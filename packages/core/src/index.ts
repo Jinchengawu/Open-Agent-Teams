@@ -49,4 +49,9 @@ export type {
   OrchestratorEvent,
   OrchestratorAgentInfo,
   OrchestratorStatus,
+  RoutingDecision,
+  IntentRouterConfig,
 } from './orchestrator/types';
+
+// IntentRouter - 智能意图路由
+export { IntentRouter } from './intent/IntentRouter';

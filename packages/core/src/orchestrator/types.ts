@@ -109,3 +109,34 @@ export interface TeamOrchestratorConfig {
   maxDelegationDepth?: number;
   onProgress?: (event: OrchestratorEvent) => void;
 }
+
+// ============================================================================
+// 意图路由
+// ============================================================================
+
+/** 路由策略 */
+export type RoutingStrategy = 'single' | 'team' | 'meeting';
+
+/** 任务复杂度 */
+export type TaskComplexity = 'low' | 'medium' | 'high';
+
+/** 路由决策结果 */
+export interface RoutingDecision {
+  strategy: RoutingStrategy;
+  /** single 模式时的主 Agent ID */
+  primaryAgent?: string;
+  /** team/meeting 模式时参与的 Agent 列表 */
+  involvedAgents?: string[];
+  /** 路由决策理由 */
+  reasoning: string;
+  /** 任务复杂度评估 */
+  complexity: TaskComplexity;
+}
+
+/** IntentRouter 配置 */
+export interface IntentRouterConfig {
+  model: string;
+  baseURL: string;
+  apiKey: string;
+  timeoutMs?: number;
+}

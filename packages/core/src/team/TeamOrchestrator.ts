@@ -20,6 +20,8 @@ import {
 } from '@open-multi-agent/core';
 import { createSendMessageTool } from '../tools/send-message.js';
 import { registerTeam } from '../tools/team-registry.js';
+import { IntentRouter } from '../intent/IntentRouter.js';
+import type { RoutingDecision } from '../orchestrator/types.js';
 
 // ============================================================================
 // Config
@@ -33,6 +35,12 @@ export interface TeamAgentConfig {
   model: string;
   apiKey: string;
   baseUrl: string;
+  /** 专长领域（供 IntentRouter 路由决策使用） */
+  expertise?: string[];
+  /** 典型任务（供 IntentRouter 路由决策使用） */
+  typicalTasks?: string[];
+  /** 可用工具（供 IntentRouter 路由决策使用） */
+  tools?: string[];
 }
 
 export interface TeamOrchestratorConfig {
@@ -40,6 +48,8 @@ export interface TeamOrchestratorConfig {
   defaultModel: string;
   apiKey: string;
   baseUrl: string;
+  /** 默认 Agent ID（路由失败时的回退目标） */
+  defaultAgentId?: string;
 }
 
 // ============================================================================
@@ -50,12 +60,26 @@ export class TeamOrchestrator {
   private omAgent: OpenMultiAgent;
   private team: Team;
   private agentConfigs: Map<string, TeamAgentConfig>;
+  private intentRouter: IntentRouter;
+  private lastRoutingDecision: RoutingDecision | null = null;
 
   constructor(config: TeamOrchestratorConfig) {
     this.agentConfigs = new Map();
     for (const a of config.agents) {
       this.agentConfigs.set(a.id, a);
     }
+
+    // 初始化 IntentRouter
+    const defaultAgentId = config.defaultAgentId || config.agents[0]?.id || 'default';
+    this.intentRouter = new IntentRouter(
+      {
+        model: config.defaultModel,
+        baseURL: config.baseUrl,
+        apiKey: config.apiKey,
+      },
+      config.agents,
+      defaultAgentId,
+    );
 
     // 初始化 OpenMultiAgent
     this.omAgent = new OpenMultiAgent({
@@ -102,6 +126,67 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
     registerTeam(teamId, this.team);
 
     console.log(`[TeamOrchestrator] 团队已创建: ${this.team.getAgents().length} 成员`);
+  }
+
+  // ============================================================================
+  // 智能路由入口
+  // ============================================================================
+
+  /**
+   * handleRequest — 智能路由入口
+   *
+   * 1. 由 IntentRouter 分析用户意图，决策协作策略
+   * 2. 根据策略执行：single → runAgent / team → runTeam / meeting → runMeeting
+   */
+  async handleRequest(userQuery: string): Promise<TeamRunResult> {
+    const decision = await this.intentRouter.route(userQuery);
+    this.lastRoutingDecision = decision;
+
+    console.log(
+      `[IntentRouter] 决策: strategy=${decision.strategy}, complexity=${decision.complexity}, reasoning=${decision.reasoning.substring(0, 60)}...`,
+    );
+
+    switch (decision.strategy) {
+      case 'single': {
+        const agentId = decision.primaryAgent!;
+        const agentResult = await this.runAgent(agentId, userQuery);
+        // 将 AgentRunResult 包装为 TeamRunResult
+        const agentResults = new Map<string, AgentRunResult>();
+        agentResults.set(agentId, agentResult);
+        return {
+          success: agentResult.success,
+          goal: userQuery,
+          agentResults,
+          totalTokenUsage: agentResult.tokenUsage,
+        };
+      }
+      case 'team': {
+        return this.runTeam(userQuery);
+      }
+      case 'meeting': {
+        return this.runMeeting(userQuery);
+      }
+      default: {
+        // 回退到单 Agent
+        const fallbackAgent = this.agentConfigs.keys().next().value;
+        const agentResult = await this.runAgent(fallbackAgent, userQuery);
+        const agentResults = new Map<string, AgentRunResult>();
+        agentResults.set(fallbackAgent, agentResult);
+        return {
+          success: agentResult.success,
+          goal: userQuery,
+          agentResults,
+          totalTokenUsage: agentResult.tokenUsage,
+        };
+      }
+    }
+  }
+
+  /**
+   * 获取最后一次路由决策（用于审计和调试）
+   */
+  getLastRoutingDecision(): RoutingDecision | null {
+    return this.lastRoutingDecision;
   }
 
   /**
