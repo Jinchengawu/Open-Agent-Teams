@@ -35,6 +35,7 @@ interface OATGatewayConfig {
     enabled: boolean;
     version: string;
   };
+  llm: LLMConfig;
   instances: OATAgentInstance[];
   routing: {
     rules: RoutingRule[];
@@ -67,6 +68,19 @@ interface OATAgentInstance {
   hermesPort: number;
   tags: string[];
   skills: string[];
+  timeoutMs: number;
+  /** 专长领域（供 IntentRouter 路由决策） */
+  expertise?: string[];
+  /** 典型任务（供 IntentRouter 路由决策） */
+  typicalTasks?: string[];
+  /** 可用工具（供 IntentRouter 路由决策） */
+  tools?: string[];
+}
+
+interface LLMConfig {
+  model: string;
+  baseURL: string;
+  apiKey: string;
   timeoutMs: number;
 }
 
@@ -130,6 +144,12 @@ function normalizeConfig(raw: Record<string, unknown>): OATGatewayConfig {
       enabled: (raw.oat as Record<string, unknown>)?.enabled as boolean ?? true,
       version: (raw.oat as Record<string, unknown>)?.version as string || '2026.3.7',
     },
+    llm: {
+      model: (raw.llm as Record<string, unknown>)?.model as string || process.env.MODEL_NAME || 'deepseek-chat',
+      baseURL: (raw.llm as Record<string, unknown>)?.base_url as string || process.env.MODEL_BASE_URL || 'https://api.deepseek.com/v1',
+      apiKey: (raw.llm as Record<string, unknown>)?.api_key as string || process.env.API_KEY || '',
+      timeoutMs: (raw.llm as Record<string, unknown>)?.timeout_ms as number || 10000,
+    },
     instances: ((raw.instances || []) as Record<string, unknown>[]).map((i) => ({
       id: i.id as string,
       label: i.label as string,
@@ -138,6 +158,9 @@ function normalizeConfig(raw: Record<string, unknown>): OATGatewayConfig {
       tags: (i.tags || []) as string[],
       skills: (i.skills || []) as string[],
       timeoutMs: (i.timeout_ms || i.timeoutMs || 120000) as number,
+      expertise: (i.expertise || []) as string[],
+      typicalTasks: (i.typical_tasks || i.typicalTasks || []) as string[],
+      tools: (i.tools || []) as string[],
     })),
     routing: {
       rules: ((raw.routing as Record<string, unknown>)?.rules || []) as RoutingRule[],
@@ -169,12 +192,18 @@ function getDefaultConfig(): OATGatewayConfig {
   return {
     gateway: { host: '127.0.0.1', port: 8400, name: 'api-gateway' },
     oat: { enabled: true, version: '2026.3.7' },
+    llm: {
+      model: process.env.MODEL_NAME || 'deepseek-chat',
+      baseURL: process.env.MODEL_BASE_URL || 'https://api.deepseek.com/v1',
+      apiKey: process.env.API_KEY || '',
+      timeoutMs: 10000,
+    },
     instances: [
-      { id: 'dev-frontend', label: '前端开发 Agent', port: 8201, hermesPort: 9201, tags: ['react','vue','component','ui','css','typescript','frontend','前端'], skills: [], timeoutMs: 120000 },
-      { id: 'dev-backend', label: '后端开发 Agent', port: 8202, hermesPort: 9202, tags: ['api','database','server','python','node','go','backend','后端'], skills: [], timeoutMs: 120000 },
-      { id: 'dev-testing', label: '测试开发 Agent', port: 8203, hermesPort: 9203, tags: ['test','unit','e2e','coverage','jest','pytest','testing','测试'], skills: [], timeoutMs: 180000 },
-      { id: 'dev-devops', label: 'DevOps Agent', port: 8204, hermesPort: 9204, tags: ['docker','k8s','kubernetes','deploy','ci/cd','devops','运维'], skills: [], timeoutMs: 300000 },
-      { id: 'dev-pm', label: '产品经理 Agent', port: 8205, hermesPort: 9205, tags: ['prd','requirement','product','strategy','user-story','pm','产品','需求'], skills: [], timeoutMs: 120000 },
+      { id: 'dev-frontend', label: '前端开发 Agent', port: 8201, hermesPort: 9201, tags: ['react','vue','component','ui','css','typescript','frontend','前端'], skills: [], timeoutMs: 120000, expertise: ['React', 'Vue', 'TypeScript', 'CSS', 'Tailwind', 'UI/UX'], typicalTasks: ['组件开发', '页面实现', '样式优化', '前端架构'], tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'] },
+      { id: 'dev-backend', label: '后端开发 Agent', port: 8202, hermesPort: 9202, tags: ['api','database','server','python','node','go','backend','后端'], skills: [], timeoutMs: 120000, expertise: ['Python', 'Node.js', 'Go', 'API设计', '数据库'], typicalTasks: ['API开发', '数据库设计', '服务架构', '性能优化'], tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'] },
+      { id: 'dev-testing', label: '测试开发 Agent', port: 8203, hermesPort: 9203, tags: ['test','unit','e2e','coverage','jest','pytest','testing','测试'], skills: [], timeoutMs: 180000, expertise: ['pytest', 'Jest', 'Playwright', '单元测试', 'E2E测试'], typicalTasks: ['测试用例编写', '覆盖率分析', '自动化测试', 'Bug复现'], tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'] },
+      { id: 'dev-devops', label: 'DevOps Agent', port: 8204, hermesPort: 9204, tags: ['docker','k8s','kubernetes','deploy','ci/cd','devops','运维'], skills: [], timeoutMs: 300000, expertise: ['Docker', 'Kubernetes', 'CI/CD', '部署', '监控'], typicalTasks: ['容器化', '部署脚本', '流水线配置', '运维监控'], tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'] },
+      { id: 'dev-pm', label: '产品经理 Agent', port: 8205, hermesPort: 9205, tags: ['prd','requirement','product','strategy','user-story','pm','产品','需求'], skills: [], timeoutMs: 120000, expertise: ['PRD', '需求分析', '用户故事', '产品策略'], typicalTasks: ['PRD编写', '需求分析', '用户调研', '功能规划'], tools: ['file_read', 'file_write', 'file_edit', 'bash', 'grep'] },
     ],
     routing: { rules: [], default: 'dev-backend' },
     auth: { enabled: false, apiKey: '' },
@@ -192,9 +221,12 @@ class OATAgentRegistry {
   private instances: Map<string, OATAgentInstance> = new Map();
   private circuitBreakers: Map<string, CircuitBreakerState> = new Map();
   private config: OATGatewayConfig;
+  private llmConfig: LLMConfig;
+  private lastRoutingDecision: { strategy: string; agentId: string; reasoning: string; complexity: string } | null = null;
 
   constructor(config: OATGatewayConfig) {
     this.config = config;
+    this.llmConfig = config.llm;
     for (const instance of config.instances) {
       this.instances.set(instance.id, instance);
       this.circuitBreakers.set(instance.id, { failures: 0, lastFailure: 0, isOpen: false });
@@ -205,17 +237,108 @@ class OATAgentRegistry {
     }
   }
 
-  getInstance(id: string): OATAgentInstance | undefined {
-    return this.instances.get(id);
-  }
-
-  getAllInstances(): OATAgentInstance[] {
-    return [...this.instances.values()];
+  getLastRoutingDecision() {
+    return this.lastRoutingDecision;
   }
 
   /**
-   * Open-Agent-Teams 原生意图分析 — 基于标签评分
-   * 替代之前前端 detectAgent() 和 ai-router 的自实现逻辑
+   * LLM-based 智能意图路由 — 基于 IntentRouter 思路的内联实现
+   * 优先使用 LLM 分析，失败时回退到关键词评分
+   */
+  async analyzeIntentWithLLM(message: string): Promise<{ instance: OATAgentInstance; strategy: string; reasoning: string; complexity: string } | null> {
+    if (!this.llmConfig.apiKey) {
+      const fallback = this.analyzeIntent(message);
+      if (fallback) {
+        this.lastRoutingDecision = { strategy: 'single', agentId: fallback.instance.id, reasoning: 'LLM 未配置，使用关键词回退', complexity: 'medium' };
+        return { instance: fallback.instance, strategy: 'single', reasoning: '关键词回退', complexity: 'medium' };
+      }
+      return null;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.llmConfig.timeoutMs);
+
+      const agentDescriptions = [...this.instances.values()]
+        .map((inst) => `【Agent: ${inst.id}】
+名称: ${inst.label}
+${inst.expertise?.length ? `专长: ${inst.expertise.join('、')}` : `标签: ${inst.tags.join('、')}`}
+${inst.typicalTasks?.length ? `典型任务: ${inst.typicalTasks.join('、')}` : ''}
+${inst.tools?.length ? `可用工具: ${inst.tools.join('、')}` : ''}
+`).join('\n---\n');
+
+      const response = await fetch(`${this.llmConfig.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.llmConfig.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.llmConfig.model,
+          messages: [
+            {
+              role: 'system',
+              content: `你是意图路由分析师。分析用户请求，选择最合适的 Agent。输出 JSON：
+{"strategy":"single","agentId":"agent-id","reasoning":"理由","complexity":"low|medium|high"}`,
+            },
+            {
+              role: 'user',
+              content: `可用 Agent：\n${agentDescriptions}\n\n用户请求: "${message}"\n\n选择最合适的 Agent。`,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 300,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`LLM API ${response.status}`);
+      }
+
+      const data = (await response.json()) as { choices: [{ message: { content: string } }] };
+      const rawContent = data.choices[0]?.message?.content || '{}';
+      const parsed = JSON.parse(rawContent) as Partial<{
+        strategy: string;
+        agentId: string;
+        reasoning: string;
+        complexity: string;
+      }>;
+
+      const agentId = parsed.agentId || parsed.primaryAgent;
+      const validIds = new Set([...this.instances.keys()]);
+      const targetId = agentId && validIds.has(agentId) ? agentId : this.config.routing.default;
+      const targetInstance = this.instances.get(targetId) || this.getDefaultInstance();
+
+      this.lastRoutingDecision = {
+        strategy: parsed.strategy || 'single',
+        agentId: targetId,
+        reasoning: parsed.reasoning || 'LLM 路由',
+        complexity: parsed.complexity || 'medium',
+      };
+
+      return {
+        instance: targetInstance,
+        strategy: parsed.strategy || 'single',
+        reasoning: parsed.reasoning || 'LLM 路由',
+        complexity: parsed.complexity || 'medium',
+      };
+    } catch (error) {
+      console.warn('[IntentRouter] LLM 路由失败，回退到关键词评分:', error);
+      const fallback = this.analyzeIntent(message);
+      if (fallback) {
+        this.lastRoutingDecision = { strategy: 'single', agentId: fallback.instance.id, reasoning: 'LLM 失败，关键词回退', complexity: 'medium' };
+        return { instance: fallback.instance, strategy: 'single', reasoning: '关键词回退', complexity: 'medium' };
+      }
+      return null;
+    }
+  }
+
+  /**
+   * 关键词评分路由（快速路径 / 回退）
    */
   analyzeIntent(message: string): { instance: OATAgentInstance; score: number } | null {
     const lower = message.toLowerCase();
@@ -460,10 +583,12 @@ async function main(): Promise<void> {
         }
 
         if (!targetInstance) {
-          const intent = registry.analyzeIntent(messageText);
+          const intent = await registry.analyzeIntentWithLLM(messageText);
           if (intent) {
             targetInstance = intent.instance;
-            console.log(`[oat-route] "${messageText.substring(0, 40)}" → ${targetInstance.id} (score: ${intent.score})`);
+            const routingInfo = registry.getLastRoutingDecision();
+            console.log(`[oat-route] "${messageText.substring(0, 40)}" → ${targetInstance.id} (strategy: ${intent.strategy}, complexity: ${intent.complexity})`);
+            console.log(`[oat-route] reasoning: ${intent.reasoning.substring(0, 80)}...`);
           }
         }
 
@@ -514,10 +639,16 @@ async function main(): Promise<void> {
           }, config.logging.auditFile);
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const routingInfo = registry.getLastRoutingDecision();
           res.end(JSON.stringify({
             ...data,
             instance: targetInstance.id,
             routed_by: 'api-gateway',
+            routing: routingInfo ? {
+              strategy: routingInfo.strategy,
+              complexity: routingInfo.complexity,
+              reasoning: routingInfo.reasoning,
+            } : undefined,
             latency_ms: latencyMs,
             intent_analysis_ms: intentAnalysisMs,
           }));
