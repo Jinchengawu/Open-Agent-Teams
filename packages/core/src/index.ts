@@ -55,3 +55,94 @@ export type {
 
 // IntentRouter - 智能意图路由
 export { IntentRouter } from './intent/IntentRouter';
+
+// ── Hermes Agent 客户端（可选的 Agent 后端）──
+export {
+  HermesAgentClient,
+  createHermesAgentClient,
+  getGlobalHermesClient,
+} from './hermes/index.js';
+export type {
+  HermesInstance,
+  HermesConfig,
+  HermesAgentResult,
+} from './hermes/index.js';
+
+// ── Pipeline 引擎（面编排）──
+export {
+  Surface,
+  createSurface,
+  PipelineOrchestrator,
+  createPipelineOrchestrator,
+  ConflictResolver,
+  createConflictResolver,
+} from './pipeline/index.js';
+export type {
+  PipelineDefinition,
+  PipelineInstance,
+  PipelineStatus,
+  SurfaceDefinition,
+  SurfaceResult,
+  SurfaceStatus,
+  InputContract,
+  OutputContract,
+  Edge,
+  GateDefinition,
+  ConflictResolution,
+  ConflictStrategy,
+  Conflict,
+  ConflictConfig,
+} from './pipeline/index.js';
+
+// ── 知识中心 ──
+export {
+  KnowledgeCenter,
+  createKnowledgeCenter,
+  getGlobalKnowledgeCenter,
+  resetGlobalKnowledgeCenter,
+} from './knowledge/index.js';
+export type {
+  KnowledgeDocument,
+  KnowledgeQuery,
+  KnowledgeResult,
+  KnowledgeCenterConfig,
+} from './knowledge/index.js';
+
+// ── 业务事件总线（与遥测 EventBus 区分）──
+export { EventBus as AppEventBus, eventBus as appEventBus } from './event/EventBus.js';
+export type { AnyEvent as AppAnyEvent } from './event/EventBus.js';
+export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus.js';
+export type { AgentMessage, MessageBusOptions } from './event/MessageBus.js';
+export type {
+  KanbanEvent,
+  WorkflowEvent,
+  MeetingEvent,
+  SystemEvent,
+  EventHandler as AppEventHandler,
+  TaskStatus,
+  ActionItem,
+} from './event/types.js';
+export {
+  registerAllHandlers,
+  registerKanbanHandlers,
+  registerWorkflowHandlers,
+  registerMeetingHandlers,
+} from './event/handlers/index.js';
+export type {
+  AllHandlerDeps,
+  KanbanHandlerDeps,
+  WorkflowHandlerDeps,
+  MeetingHandlerDeps,
+} from './event/handlers/index.js';
+
+// ── 工作流状态管理 ──
+export { WorkflowStateManager } from './session/WorkflowStateManager.js';
+export type { WorkflowState, WorkflowStepState, WorkflowContext } from './session/WorkflowStateManager.js';
+
+// ── Token 预算管理 ──
+export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
+export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
+
+// ── 新增工具 ──
+export { createDocumentTools } from './tools/document-tools.js';
+export { createKanbanTools, setKanbanDatabase } from './tools/kanban-tools.js';

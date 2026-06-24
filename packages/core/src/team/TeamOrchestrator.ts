@@ -168,7 +168,7 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
       }
       default: {
         // 回退到单 Agent
-        const fallbackAgent = this.agentConfigs.keys().next().value;
+        const fallbackAgent = this.agentConfigs.keys().next().value || 'default';
         const agentResult = await this.runAgent(fallbackAgent, userQuery);
         const agentResults = new Map<string, AgentRunResult>();
         agentResults.set(fallbackAgent, agentResult);
@@ -201,7 +201,7 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
   /**
    * runAgent — 单 Agent 执行
    */
-  async runAgent(agentId: string, goal: string): Promise<AgentRunResult> {
+  async runAgent(agentId: string, goal: string, _sessionId?: string): Promise<AgentRunResult> {
     const config = this.agentConfigs.get(agentId);
     if (!config) throw new Error(`Agent "${agentId}" not found`);
 

@@ -1,0 +1,299 @@
+/**
+ * WorkflowStateManager — 工作流状态持久化管理器
+ *
+ * 职责：
+ * - 保存工作流执行状态到 SQLite
+ * - 从 SQLite 恢复工作流状态
+ * - 支持断点续传（resume from checkpoint）
+ * - 状态变更时自动触发 EventBus 事件
+ *
+ * 与 SessionManager 共享同一个 SQLite 数据库实例。
+ */
+
+import type { Database } from 'better-sqlite3';
+import { eventBus } from '../event/EventBus.js';
+import type { AgentRunResult, TokenUsage } from '../orchestrator/types.js';
+
+export interface WorkflowStepState {
+  index: number;
+  agentId: string;
+  goal: string;
+  output: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  startedAt?: number;
+  completedAt?: number;
+  error?: string;
+}
+
+export interface WorkflowContext {
+  sharedMemory?: string;
+  discussion?: string[];
+  [key: string]: unknown;
+}
+
+export interface WorkflowState {
+  id: string;
+  goal: string;
+  status: 'running' | 'paused' | 'completed' | 'failed';
+  currentStep: number;
+  totalSteps: number;
+  steps: WorkflowStepState[];
+  context: WorkflowContext;
+  tokenUsage: TokenUsage;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export class WorkflowStateManager {
+  private db: Database;
+
+  constructor(db: Database) {
+    this.db = db;
+  }
+
+  /**
+   * 创建并保存新的工作流状态
+   */
+  createState(goal: string, totalSteps: number): WorkflowState {
+    const id = `wf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const state: WorkflowState = {
+      id,
+      goal,
+      status: 'running',
+      currentStep: 0,
+      totalSteps,
+      steps: [],
+      context: {},
+      tokenUsage: { input_tokens: 0, output_tokens: 0 },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    this.save(state);
+
+    // 触发工作流开始事件
+    eventBus.emit({
+      type: 'workflow.started',
+      source: 'workflow',
+      timestamp: Date.now(),
+      payload: {
+        workflowId: id,
+        taskId: goal.substring(0, 50),
+        totalSteps,
+      },
+    });
+
+    return state;
+  }
+
+  /**
+   * 保存工作流状态到 SQLite
+   */
+  save(state: WorkflowState): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO workflow_states (
+        id, goal, status, current_step, total_steps,
+        steps, context, token_usage, error, created_at, updated_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      )
+    `);
+
+    stmt.run(
+      state.id,
+      state.goal,
+      state.status,
+      state.currentStep,
+      state.totalSteps,
+      JSON.stringify(state.steps),
+      JSON.stringify(state.context),
+      JSON.stringify(state.tokenUsage),
+      state.error || null,
+      new Date(state.createdAt).toISOString(),
+      new Date().toISOString(),
+    );
+  }
+
+  /**
+   * 从 SQLite 加载工作流状态
+   */
+  load(workflowId: string): WorkflowState | null {
+    const row = this.db.prepare('SELECT * FROM workflow_states WHERE id = ?').get(workflowId) as any;
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      goal: row.goal,
+      status: row.status,
+      currentStep: row.current_step,
+      totalSteps: row.total_steps,
+      steps: JSON.parse(row.steps || '[]'),
+      context: JSON.parse(row.context || '{}'),
+      tokenUsage: JSON.parse(row.token_usage || '{}'),
+      error: row.error || undefined,
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
+    };
+  }
+
+  /**
+   * 更新步骤状态
+   */
+  updateStep(
+    workflowId: string,
+    stepIndex: number,
+    updates: Partial<WorkflowStepState> & { agentResult?: AgentRunResult },
+  ): void {
+    const state = this.load(workflowId);
+    if (!state) {
+      console.error(`[WorkflowStateManager] 工作流 ${workflowId} 不存在，无法更新步骤`);
+      return;
+    }
+
+    // 找到或创建步骤
+    let step = state.steps.find((s) => s.index === stepIndex);
+    if (!step) {
+      step = {
+        index: stepIndex,
+        agentId: updates.agentId || 'unknown',
+        goal: updates.goal || '',
+        output: '',
+        status: 'pending',
+      };
+      state.steps.push(step);
+    }
+
+    // 更新步骤字段
+    if (updates.agentId) step.agentId = updates.agentId;
+    if (updates.goal) step.goal = updates.goal;
+    if (updates.output !== undefined) step.output = updates.output;
+    if (updates.status) step.status = updates.status;
+    if (updates.error) step.error = updates.error;
+    if (updates.startedAt) step.startedAt = updates.startedAt;
+    if (updates.completedAt) step.completedAt = updates.completedAt;
+
+    // 如果提供了 AgentRunResult，自动提取 output 和 tokenUsage
+    if (updates.agentResult) {
+      step.output = updates.agentResult.output;
+      state.tokenUsage.input_tokens += updates.agentResult.tokenUsage?.input_tokens || 0;
+      state.tokenUsage.output_tokens += updates.agentResult.tokenUsage?.output_tokens || 0;
+    }
+
+    state.currentStep = stepIndex;
+    state.updatedAt = Date.now();
+
+    this.save(state);
+
+    // 触发步骤完成事件
+    eventBus.emit({
+      type: 'workflow.step_completed',
+      source: 'workflow',
+      timestamp: Date.now(),
+      payload: {
+        workflowId,
+        stepIndex,
+        totalSteps: state.totalSteps,
+        output: step.output?.substring(0, 200),
+      },
+    });
+  }
+
+  /**
+   * 完成工作流
+   */
+  complete(workflowId: string, finalOutput?: string): void {
+    const state = this.load(workflowId);
+    if (!state) return;
+
+    state.status = 'completed';
+    state.currentStep = state.totalSteps;
+    state.updatedAt = Date.now();
+    this.save(state);
+
+    // 触发工作流完成事件
+    eventBus.emit({
+      type: 'workflow.completed',
+      source: 'workflow',
+      timestamp: Date.now(),
+      payload: {
+        workflowId,
+        taskId: state.goal.substring(0, 50),
+        output: finalOutput?.substring(0, 200),
+        tokenUsage: state.tokenUsage,
+      },
+    });
+  }
+
+  /**
+   * 标记工作流失败
+   */
+  fail(workflowId: string, error: string): void {
+    const state = this.load(workflowId);
+    if (!state) return;
+
+    state.status = 'failed';
+    state.error = error;
+    state.updatedAt = Date.now();
+    this.save(state);
+
+    // 触发工作流失败事件
+    eventBus.emit({
+      type: 'workflow.failed',
+      source: 'workflow',
+      timestamp: Date.now(),
+      payload: {
+        workflowId,
+        taskId: state.goal.substring(0, 50),
+        error,
+      },
+    });
+  }
+
+  /**
+   * 获取所有正在运行的工作流
+   */
+  getRunningWorkflows(): WorkflowState[] {
+    const rows = this.db.prepare("SELECT * FROM workflow_states WHERE status = 'running' ORDER BY updated_at DESC").all() as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      goal: row.goal,
+      status: row.status,
+      currentStep: row.current_step,
+      totalSteps: row.total_steps,
+      steps: JSON.parse(row.steps || '[]'),
+      context: JSON.parse(row.context || '{}'),
+      tokenUsage: JSON.parse(row.token_usage || '{}'),
+      error: row.error || undefined,
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
+    }));
+  }
+
+  /**
+   * 列出所有工作流（分页）
+   */
+  listWorkflows(limit: number = 50, offset: number = 0): WorkflowState[] {
+    const rows = this.db.prepare('SELECT * FROM workflow_states ORDER BY updated_at DESC LIMIT ? OFFSET ?').all(limit, offset) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      goal: row.goal,
+      status: row.status,
+      currentStep: row.current_step,
+      totalSteps: row.total_steps,
+      steps: JSON.parse(row.steps || '[]'),
+      context: JSON.parse(row.context || '{}'),
+      tokenUsage: JSON.parse(row.token_usage || '{}'),
+      error: row.error || undefined,
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
+    }));
+  }
+
+  /**
+   * 删除工作流状态
+   */
+  delete(workflowId: string): void {
+    this.db.prepare('DELETE FROM workflow_states WHERE id = ?').run(workflowId);
+  }
+}

@@ -16,6 +16,13 @@ export interface TeamAgentConfig {
   model: string;
   apiKey: string;
   baseUrl: string;
+  // === IntentRouter 路由决策所需字段 ===
+  /** 专长领域列表（用于路由匹配） */
+  expertise?: string[];
+  /** 可用工具列表 */
+  tools?: string[];
+  /** 典型任务示例（帮助 LLM 理解 Agent 能力边界） */
+  typicalTasks?: string[];
 }
 
 // ============================================================================
