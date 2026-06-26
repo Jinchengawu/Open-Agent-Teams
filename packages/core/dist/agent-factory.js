@@ -312,7 +312,7 @@ async function callHermes(hermesPort, messages, retries = 5) {
     // 优先使用直连 API（如果配置了 MODEL_BASE_URL 和 API_KEY）
     const directUrl = process.env.MODEL_BASE_URL;
     const directKey = process.env.API_KEY;
-    const directModel = process.env.MODEL_NAME || 'mimo-v2.5-pro';
+    const directModel = process.env.MODEL_NAME || 'deepseek-v4-pro';
     const useDirect = !!(directUrl && directKey);
     let lastError = '';
     for (let attempt = 0; attempt <= retries; attempt++) {

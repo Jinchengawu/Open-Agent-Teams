@@ -135,14 +135,13 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
       const { systemMessages, chatMessages, compressedCount } =
         compressor.buildContext(allMessages, fullSystemPrompt);
 
-      // MiMo-V2.5-Pro 使用标准 Anthropic/OAI 协议，不需要 thinking 过滤
-      const hermesPayload = [
+      const hermesPayload = toProviderSafeMessages([
         ...systemMessages.map((c) => ({ role: 'system', content: c })),
         ...chatMessages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
-      ];
+      ]);
 
       const content = await callHermes(
         config.hermesPort,
@@ -213,10 +212,10 @@ export function createAgentApp(config: AgentFactoryConfig): AgentApp {
         const basePrompt = config.buildSystemPrompt();
         const peerInfo = buildPeerAwarenessPrompt(config);
         const systemPrompt = peerInfo ? `${basePrompt}\n\n${peerInfo}` : basePrompt;
-        const hermesPayload = [
+        const hermesPayload = toProviderSafeMessages([
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `以下任务来自 Agent "${envelope.from}" 的委托：\n\n${prompt}` },
-        ];
+        ]);
         const output = await callHermes(config.hermesPort, hermesPayload);
         sendResponse({
           id: uuidv4(),
@@ -385,7 +384,7 @@ async function callHermes(
   // 优先使用直连 API（如果配置了 MODEL_BASE_URL 和 API_KEY）
   const directUrl = process.env.MODEL_BASE_URL;
   const directKey = process.env.API_KEY;
-  const directModel = process.env.MODEL_NAME || 'mimo-v2.5-pro';
+  const directModel = process.env.MODEL_NAME || 'deepseek-v4-pro';
   const useDirect = !!(directUrl && directKey);
 
   let lastError = '';
@@ -440,4 +439,38 @@ async function callHermes(
   }
 
   return `模型调用失败 (已重试 ${retries} 次): ${lastError}`;
+}
+
+function toProviderSafeMessages(
+  messages: { role: string; content: string }[]
+): { role: 'user' | 'assistant'; content: string }[] {
+  const systemContent = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .filter(Boolean)
+    .join('\n\n');
+
+  const nonSystemMessages = messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
+      content: message.content,
+    }));
+
+  if (!systemContent) return nonSystemMessages;
+
+  const firstUserIndex = nonSystemMessages.findIndex((message) => message.role === 'user');
+  const systemPrefix = `系统上下文与执行规则：\n${systemContent}`;
+
+  if (firstUserIndex === -1) {
+    return [{ role: 'user', content: systemPrefix }, ...nonSystemMessages];
+  }
+
+  return nonSystemMessages.map((message, index) => {
+    if (index !== firstUserIndex) return message;
+    return {
+      ...message,
+      content: `${systemPrefix}\n\n用户请求：\n${message.content}`,
+    };
+  });
 }

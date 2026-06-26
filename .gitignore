@@ -19,6 +19,7 @@ out/
 # --- 测试与覆盖率 ---
 coverage/
 .nyc_output/
+scripts/test-reports/
 
 # --- 环境变量与敏感配置（勿提交）---
 .env

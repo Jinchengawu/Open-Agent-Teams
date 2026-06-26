@@ -275,7 +275,7 @@ ${inst.tools?.length ? `可用工具: ${inst.tools.join('、')}` : ''}
         },
         body: JSON.stringify({
           model: this.llmConfig.model,
-          messages: [
+          messages: toProviderSafeMessages([
             {
               role: 'system',
               content: `你是意图路由分析师。分析用户请求，选择最合适的 Agent。输出 JSON：
@@ -285,7 +285,7 @@ ${inst.tools?.length ? `可用工具: ${inst.tools.join('、')}` : ''}
               role: 'user',
               content: `可用 Agent：\n${agentDescriptions}\n\n用户请求: "${message}"\n\n选择最合适的 Agent。`,
             },
-          ],
+          ]),
           temperature: 0.2,
           max_tokens: 300,
           response_format: { type: 'json_object' },
@@ -702,3 +702,37 @@ main().catch((error) => {
   console.error('❌ Open-Agent-Teams Gateway 启动失败:', error);
   process.exit(1);
 });
+
+function toProviderSafeMessages(
+  messages: { role: string; content: string }[],
+): { role: 'user' | 'assistant'; content: string }[] {
+  const systemContent = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .filter(Boolean)
+    .join('\n\n');
+
+  const nonSystemMessages = messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
+      content: message.content,
+    }));
+
+  if (!systemContent) return nonSystemMessages;
+
+  const firstUserIndex = nonSystemMessages.findIndex((message) => message.role === 'user');
+  const systemPrefix = `系统上下文与执行规则：\n${systemContent}`;
+
+  if (firstUserIndex === -1) {
+    return [{ role: 'user', content: systemPrefix }, ...nonSystemMessages];
+  }
+
+  return nonSystemMessages.map((message, index) => {
+    if (index !== firstUserIndex) return message;
+    return {
+      ...message,
+      content: `${systemPrefix}\n\n用户请求：\n${message.content}`,
+    };
+  });
+}

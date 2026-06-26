@@ -56,10 +56,10 @@ export class IntentRouter {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages: [
+          messages: toProviderSafeMessages([
             { role: 'system', content: this.buildSystemPrompt() },
             { role: 'user', content: prompt },
-          ],
+          ]),
           temperature: 0.2, // 低温度确保路由稳定性
           max_tokens: 800,
           response_format: { type: 'json_object' },
@@ -228,4 +228,38 @@ ${agentDescriptions}
       complexity: 'medium',
     };
   }
+}
+
+function toProviderSafeMessages(
+  messages: { role: string; content: string }[],
+): { role: 'user' | 'assistant'; content: string }[] {
+  const systemContent = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .filter(Boolean)
+    .join('\n\n');
+
+  const nonSystemMessages = messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
+      content: message.content,
+    }));
+
+  if (!systemContent) return nonSystemMessages;
+
+  const firstUserIndex = nonSystemMessages.findIndex((message) => message.role === 'user');
+  const systemPrefix = `系统上下文与执行规则：\n${systemContent}`;
+
+  if (firstUserIndex === -1) {
+    return [{ role: 'user', content: systemPrefix }, ...nonSystemMessages];
+  }
+
+  return nonSystemMessages.map((message, index) => {
+    if (index !== firstUserIndex) return message;
+    return {
+      ...message,
+      content: `${systemPrefix}\n\n用户请求：\n${message.content}`,
+    };
+  });
 }

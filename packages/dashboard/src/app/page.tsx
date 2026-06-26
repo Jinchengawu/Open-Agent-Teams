@@ -1,15 +1,57 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
 
+interface TeamLoopStatusResponse {
+  ok: boolean
+  checkedAt?: number
+  checkSummary?: string
+  missing?: string[]
+  deliveryGate?: {
+    ok: boolean
+    report: string
+    summary: string
+    href: string
+  } | null
+  latestWorkflow?: {
+    id: string
+    status?: string
+    pipelineId?: string | null
+    projectId?: string | null
+    taskCount?: number
+    href?: string | null
+  } | null
+  agents?: {
+    onlineCount: number
+    totalAgents: number
+  }
+}
+
+const jsonFetcher = <T,>(url: string): Promise<T> =>
+  fetch(url, { cache: 'no-store' }).then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) return { ok: false, ...data }
+    return data
+  })
+
 export default function Dashboard() {
   const router = useRouter()
   const { agents, stats, error, isLoading, mutate } = useAgentHealth()
+  const {
+    data: teamLoop,
+    mutate: refreshTeamLoop,
+  } = useSWR<TeamLoopStatusResponse>('/api/team-loop/status', jsonFetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: false,
+  })
 
   const statCards = [
     {
@@ -61,6 +103,81 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Team Coordination Loop */}
+      <Card
+        className={teamLoop?.ok ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}
+        data-testid="dashboard-team-loop-card"
+      >
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge className={teamLoop?.ok ? 'bg-green-600' : 'bg-amber-600'} data-testid="dashboard-team-loop-badge">
+                {teamLoop?.ok ? 'Framework Ready' : 'Needs Evidence'}
+              </Badge>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Team Coordination Loop</p>
+                <p className="text-xs text-gray-600" data-testid="dashboard-team-loop-diagnostics">
+                  {teamLoop?.checkSummary
+                    ? teamLoop.ok
+                      ? `Checks ${teamLoop.checkSummary}`
+                      : `Missing ${teamLoop.missing?.[0] || 'coordination evidence'}`
+                    : 'Checking framework loop evidence'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-agents">
+                <p className="text-gray-500">Agents</p>
+                <p className="font-semibold text-gray-900">
+                  {teamLoop?.agents ? `${teamLoop.agents.onlineCount}/${teamLoop.agents.totalAgents}` : '--'}
+                </p>
+              </div>
+              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-workflow">
+                <p className="text-gray-500">Workflow</p>
+                <p className="font-semibold text-gray-900">
+                  {teamLoop?.latestWorkflow?.status || '--'}
+                </p>
+                {teamLoop?.latestWorkflow?.href && (
+                  <Link href={teamLoop.latestWorkflow.href} className="mt-1 inline-block text-[11px] font-medium text-blue-700 hover:text-blue-900">
+                    Open
+                  </Link>
+                )}
+              </div>
+              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-gate">
+                <p className="text-gray-500">E2E Gate</p>
+                <p className="font-semibold text-gray-900">
+                  {teamLoop?.deliveryGate?.summary || '--'}
+                </p>
+                {teamLoop?.deliveryGate?.href && (
+                  <Link href={teamLoop.deliveryGate.href} target="_blank" className="mt-1 inline-block text-[11px] font-medium text-blue-700 hover:text-blue-900">
+                    Report
+                  </Link>
+                )}
+              </div>
+              <div className="rounded-md bg-white/80 px-3 py-2">
+                <p className="text-gray-500">Checked</p>
+                <p className="font-semibold text-gray-900">
+                  {teamLoop?.checkedAt ? new Date(teamLoop.checkedAt).toLocaleTimeString() : '--'}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                mutate()
+                refreshTeamLoop()
+              }}
+              data-testid="dashboard-team-loop-refresh"
+            >
+              Refresh
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading
