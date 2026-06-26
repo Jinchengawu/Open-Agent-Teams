@@ -36,6 +36,20 @@ export class Surface {
 
   private sessionId: string;
 
+  private isAgentFailureOutput(output: string): boolean {
+    const normalized = output.toLowerCase();
+    return [
+      'api call failed',
+      'insufficient balance',
+      'hermes 调用失败',
+      'http 402',
+      'http 401',
+      'http 403',
+      'rate limit',
+      'quota exceeded',
+    ].some((pattern) => normalized.includes(pattern));
+  }
+
   /**
    * 获取面 ID
    */
@@ -152,6 +166,12 @@ export class Surface {
 
       // 3. 调用 Agent 执行
       const agentResult = await this.orchestrator.runAgent(this.agent, goal, this.sessionId);
+      if (!agentResult.success) {
+        throw new Error(`Agent ${this.agent} 执行失败: ${agentResult.output || 'unknown error'}`);
+      }
+      if (this.isAgentFailureOutput(agentResult.output || '')) {
+        throw new Error(`Agent ${this.agent} 返回失败输出: ${agentResult.output}`);
+      }
 
       // 4. 提取输出产物
       result.artifacts = {
