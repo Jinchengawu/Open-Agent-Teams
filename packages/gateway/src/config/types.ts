@@ -16,7 +16,7 @@ export function loadGatewayConfig(): GatewayConfig {
     port: parseInt(process.env.GATEWAY_PORT || '8400', 10),
     auditFile: process.env.AUDIT_FILE || join(
       process.env.HOME || '~',
-      '.dev-agent/logs/audit.log',
+      '.open-agent-teams/logs/audit.log',
     ),
   };
 }

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { AppSettings } from '@/lib/types';
 import { DEFAULT_SETTINGS } from '@/lib/constants';
 
-const STORAGE_KEY = 'dev-agent-settings';
+const STORAGE_KEY = 'open-agent-teams-settings';
 
 function loadSettings(): AppSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_SETTINGS };

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DEV-Agent 自动化测试脚本
+# Open-Agent-Teams 自动化测试脚本
 # 使用方法: ./run-tests.sh [all|gateway|frontend|backend|testing|devops]
 
 set -e
@@ -23,7 +23,7 @@ mkdir -p "$REPORT_DIR"
 # 初始化报告
 init_report() {
     cat > "$REPORT_FILE" << EOF
-# DEV-Agent 测试报告
+# Open-Agent-Teams 测试报告
 
 **测试时间**：$(date)
 **测试环境**：$(uname -a)
@@ -74,7 +74,7 @@ test_gateway() {
     echo -e "${YELLOW}  测试 3: 前端任务路由${NC}"
     RESPONSE=$(curl -s -X POST http://127.0.0.1:8200/v1/chat/completions \
       -H "Content-Type: application/json" \
-      -d '{"model":"dev-agent","messages":[{"role":"user","content":"创建 React 组件"}]}' 2>/dev/null)
+      -d '{"model":"open-agent-teams","messages":[{"role":"user","content":"创建 React 组件"}]}' 2>/dev/null)
     if echo "$RESPONSE" | grep -q '"agent":"dev-frontend"'; then
         echo -e "  ${GREEN}✅ 通过${NC}"
         append_result "前端任务路由" "✅ 通过" "路由到 dev-frontend"
@@ -87,7 +87,7 @@ test_gateway() {
     echo -e "${YELLOW}  测试 4: 后端任务路由${NC}"
     RESPONSE=$(curl -s -X POST http://127.0.0.1:8200/v1/chat/completions \
       -H "Content-Type: application/json" \
-      -d '{"model":"dev-agent","messages":[{"role":"user","content":"设计数据库表结构"}]}' 2>/dev/null)
+      -d '{"model":"open-agent-teams","messages":[{"role":"user","content":"设计数据库表结构"}]}' 2>/dev/null)
     if echo "$RESPONSE" | grep -q '"agent":"dev-backend"'; then
         echo -e "  ${GREEN}✅ 通过${NC}"
         append_result "后端任务路由" "✅ 通过" "路由到 dev-backend"
@@ -254,7 +254,7 @@ EOF
 main() {
     local test_type=${1:-all}
     
-    echo -e "${BLUE}🚀 DEV-Agent 自动化测试${NC}"
+    echo -e "${BLUE}🚀 Open-Agent-Teams 自动化测试${NC}"
     echo "========================"
     echo ""
     

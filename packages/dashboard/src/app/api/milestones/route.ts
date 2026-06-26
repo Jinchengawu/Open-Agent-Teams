@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 
-const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.dev-agent/data/sessions.db`;
+const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.open-agent-teams/data/sessions.db`;
 
 export async function GET() {
   const db = new Database(DB_PATH, { readonly: true });

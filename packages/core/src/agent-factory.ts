@@ -30,7 +30,7 @@ import { getGlobalDocumentManager } from './knowledge/DocumentManager.js';
 // ============================================================================
 
 export interface AgentAppConfig {
-  /** 数据库目录，默认 ~/.dev-agent/data */
+  /** 数据库目录，默认 ~/.open-agent-teams/data */
   dataDir?: string;
   /** 进度回调（用于 Dashboard 实时展示） */
   onProgress?: (event: OrchestratorEvent) => void;
@@ -78,7 +78,7 @@ function extractOutput(agentResult: { output: string; success: boolean; messages
 // ============================================================================
 
 export async function createAgentApp(config: AgentAppConfig = {}): Promise<AgentApp> {
-  const dataDir = config.dataDir || process.env.AGENT_DB_PATH || path.join(os.homedir(), '.dev-agent/data');
+  const dataDir = config.dataDir || process.env.AGENT_DB_PATH || path.join(os.homedir(), '.open-agent-teams/data');
   mkdirSync(dataDir, { recursive: true });
   const dbPath = path.join(dataDir, 'sessions.db');
 

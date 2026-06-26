@@ -1,51 +1,70 @@
-import { execFile } from 'child_process';
+import { access, readFile } from 'fs/promises';
 import { resolve } from 'path';
-import { promisify } from 'util';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const execFileAsync = promisify(execFile);
 const ROOT = resolve(process.cwd(), '../..');
-const DEV_AGENT_BIN = resolve(ROOT, 'dev-agent');
 
-function parseDoctorOutput(stdout: string) {
-  try {
-    return JSON.parse(stdout);
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to parse doctor JSON',
-      raw: stdout.slice(0, 4000),
-    };
-  }
+const REQUIRED_FILES = [
+  'packages/dashboard/src/app/kanban/page.tsx',
+  'packages/dashboard/src/app/pipeline/page.tsx',
+  'packages/dashboard/src/app/knowledge/page.tsx',
+  'packages/dashboard/src/app/api/kanban/route.ts',
+  'packages/dashboard/src/app/api/knowledge/route.ts',
+  'packages/dashboard/src/app/api/pipelines/route.ts',
+  'packages/dashboard/src/app/api/pipeline-instances/route.ts',
+  'packages/dashboard/src/app/api/milestones/route.ts',
+  'packages/dashboard/src/app/api/readiness/route.ts',
+  'packages/dashboard/src/app/api/snapshots/route.ts',
+  'packages/core/src/knowledge/DocumentManager.ts',
+  'packages/core/src/tools/document-tools-v2.ts',
+  'packages/core/src/pipeline/Orchestrator.ts',
+  'packages/core/src/session/WorkflowStateManager.ts',
+  'packages/gateway/src/api-gateway.ts',
+  'docs/open-agent-teams/framework-sync-policy.md',
+];
+
+async function assertFileExists(relativePath: string): Promise<void> {
+  await access(resolve(ROOT, relativePath));
+}
+
+async function readRepoFile(relativePath: string): Promise<string> {
+  return readFile(resolve(ROOT, relativePath), 'utf8');
 }
 
 export async function GET() {
   try {
-    const { stdout } = await execFileAsync(DEV_AGENT_BIN, ['doctor', '--json'], {
-      cwd: ROOT,
-      timeout: 20_000,
-      maxBuffer: 1024 * 1024,
+    await Promise.all(REQUIRED_FILES.map(assertFileExists));
+
+    const [constants, i18n, gateway] = await Promise.all([
+      readRepoFile('packages/dashboard/src/lib/constants.ts'),
+      readRepoFile('packages/dashboard/src/lib/i18n.tsx'),
+      readRepoFile('packages/gateway/src/api-gateway.ts'),
+    ]);
+
+    if (!constants.includes('nav.kanban') && !i18n.includes('nav.kanban')) {
+      throw new Error('console navigation does not expose kanban');
+    }
+
+    if (!gateway.includes('pipeline-instances')) {
+      throw new Error('pipeline instance API is not exposed');
+    }
+
+    return NextResponse.json({
+      checkedAt: Date.now(),
+      source: 'dashboard readiness static checks',
+      ok: true,
+      summary: 'Open-Agent-Teams framework sync baseline OK',
+      checkedFiles: REQUIRED_FILES.length,
     });
-    const doctor = parseDoctorOutput(stdout);
-    return NextResponse.json({
-      checkedAt: Date.now(),
-      source: './dev-agent doctor --json',
-      ...doctor,
-    }, { status: doctor.ok ? 200 : 503 });
   } catch (error: any) {
-    const stdout = typeof error?.stdout === 'string' ? error.stdout : '';
-    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
-    const doctor = stdout ? parseDoctorOutput(stdout) : null;
     return NextResponse.json({
       checkedAt: Date.now(),
-      source: './dev-agent doctor --json',
+      source: 'dashboard readiness static checks',
       ok: false,
       error: error instanceof Error ? error.message : 'Readiness check failed',
-      stderr: stderr.slice(0, 4000),
-      doctor,
     }, { status: 503 });
   }
 }

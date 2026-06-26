@@ -7,17 +7,15 @@
 | 包名 | 路径 | 说明 |
 | --- | --- | --- |
 | `open-agent-teams` | `/package.json` | 工作区根；聚合脚本 |
-| `@open-agent-teams/openclaw` | `packages/openclaw/` | 依赖 npm **`openclaw`**（CLI 与 Gateway 能力以官方为准） |
+| `@open-agent-teams/core` | `packages/core/` | 共享 Agent Teams 协同抽象、Pipeline、Knowledge、Kanban 与 Gateway 支撑能力 |
+| `@open-agent-teams/gateway` | `packages/gateway/` | HTTP API Gateway 与统一入口 |
+| `@open-agent-teams/dashboard` | `packages/dashboard/` | 可观测 Dashboard、Kanban、Pipeline、Knowledge、Agents 等界面 |
 | `@open-agent-teams/hermes-agent` | `packages/hermes-agent/` | **无** Hermes 核心 npm 依赖；提供 `bootstrap`（官方 curl 安装）与 `doctor` |
 
 ## 命令（在仓库根）
 
 ```bash
 pnpm install
-
-# `openclaw`（来自子包依赖）
-pnpm openclaw:version
-pnpm openclaw -- --help
 
 # Hermes Agent（官方脚本 + 本机 PATH）
 pnpm hermes:install-help   # 仅打印官方安装命令
@@ -28,12 +26,8 @@ pnpm hermes:doctor         # 检测是否已安装 hermes CLI
 ## Node 版本
 
 - **当前声明**：根与子包 `engines` 为 **≥ 22.17**（与常见 CI 对齐）。  
-- **推荐**：Node **≥ 22.19** 或 **24 LTS**，以与 `openclaw` 上游子依赖声明完全一致。  
+- **推荐**：Node **≥ 22.19** 或 **24 LTS**，以与当前 Dashboard/Gateway 工具链保持一致。
 - 根目录 `.npmrc` 中 `engine-strict=false` 可在未升级 Node 时完成安装，但可能收到 **WARN**。
-
-## openclaw postinstall 权限提示
-
-若安装日志出现 `EACCES` 读取 `~/.openclaw/openclaw.json`，按日志提示修正该文件属主（`chown`）后重启 Gateway；属本机配置问题，与仓库代码无关。
 
 ## Hermes：`pnpm hermes:bootstrap` 卡在 SSH clone
 

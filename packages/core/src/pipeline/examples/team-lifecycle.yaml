@@ -1,0 +1,54 @@
+id: agent-team-lifecycle
+name: Agent Team Lifecycle
+version: 1.0.0
+context:
+  description: Generic request-to-artifact lifecycle for Open-Agent-Teams.
+  execution:
+    dryRun: true
+surfaces:
+  - id: intake
+    name: Requirement Intake
+    agent: dev-pm
+    prompt: |
+      Clarify the user request, identify scope, risks, stakeholders, and expected artifacts.
+      Produce a concise requirement brief that can be linked to kanban tasks and knowledge documents.
+  - id: planning
+    name: Delivery Planning
+    agent: project-admin
+    dependsOn:
+      - intake
+    prompt: |
+      Convert the requirement brief into a task plan, milestones, ownership, and acceptance criteria.
+      Keep the output domain-neutral so downstream teams can specialize it.
+  - id: execution
+    name: Team Execution
+    agent: dev-backend
+    dependsOn:
+      - planning
+    prompt: |
+      Execute the planned work as an Agent Team surface.
+      Return artifacts, implementation notes, and any handoff details.
+  - id: verification
+    name: Verification
+    agent: dev-testing
+    dependsOn:
+      - execution
+    prompt: |
+      Verify the produced artifacts against acceptance criteria.
+      Return pass/fail evidence, risks, and next recommended action.
+  - id: experience
+    name: Experience Capture
+    agent: project-admin
+    dependsOn:
+      - verification
+    prompt: |
+      Summarize the reusable lessons, decisions, and operational memory created by this run.
+edges:
+  - from: intake
+    to: planning
+  - from: planning
+    to: execution
+  - from: execution
+    to: verification
+  - from: verification
+    to: experience

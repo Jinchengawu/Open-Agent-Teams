@@ -62,7 +62,7 @@
 ./packages/upgrade/upgrade.sh version
 
 # 测试功能
-./test-gateway.sh
+bash scripts/run-tests.sh
 
 # 检查服务状态
 ./deploy.sh status

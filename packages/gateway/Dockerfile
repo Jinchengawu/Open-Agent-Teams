@@ -1,4 +1,4 @@
-# AI-local-OS Gateway Dockerfile
+# Open-Agent-Teams Gateway Dockerfile
 FROM node:20-slim
 
 # 安装 curl 用于健康检查

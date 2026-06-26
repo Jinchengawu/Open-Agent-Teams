@@ -14,7 +14,7 @@ interface BroadcastRecord {
   responses: { agent: string; content: string; error?: boolean }[]
 }
 
-const STORAGE_KEY = 'dev-agent-broadcast-v1'
+const STORAGE_KEY = 'open-agent-teams-broadcast-v1'
 
 function loadHistory(): BroadcastRecord[] {
   try {

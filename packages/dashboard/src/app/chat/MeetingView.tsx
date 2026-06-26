@@ -29,7 +29,7 @@ interface AgentStatus {
   toolCalls?: number
 }
 
-const STORAGE_KEY = 'dev-agent-meeting-v1'
+const STORAGE_KEY = 'open-agent-teams-meeting-v1'
 
 // ============================================================================
 // Storage

@@ -11,7 +11,7 @@
 | 5 | [../plans/2026-04-26-open-agent-teams.md](../plans/2026-04-26-open-agent-teams.md) | 分步实现与验证清单 |
 | 6 | [integration-handoff.md](./integration-handoff.md) | **阶段 2**：集成移交、官方文档链接表、可运行检查项 |
 | 7 | [milestones-roadmap.md](./milestones-roadmap.md) | **里程碑**：A → A+ → B → C 按周建议节奏与验收 |
-| 8 | [monorepo-packages.md](./monorepo-packages.md) | **pnpm 多包**：`@open-agent-teams/openclaw` + `@open-agent-teams/hermes-agent` 与根脚本 |
+| 8 | [monorepo-packages.md](./monorepo-packages.md) | **pnpm 多包**：共享框架包、Gateway、Dashboard 与 Hermes 安装引导 |
 
 **侧车（意图 SSOT）**：[debug/superpowers-intent/REQ-2026-0426-open-agent-teams.md](../../debug/superpowers-intent/REQ-2026-0426-open-agent-teams.md)
 

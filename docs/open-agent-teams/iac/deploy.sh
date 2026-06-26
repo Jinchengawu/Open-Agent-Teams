@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AI-local-OS Docker 部署脚本
+# Open-Agent-Teams Docker 部署脚本
 # 使用方法: ./deploy.sh [up|down|status|logs]
 
 set -e
@@ -8,7 +8,7 @@ set -e
 COMPOSE_FILE="docker-compose.yml"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🚀 AI-local-OS Docker 部署"
+echo "🚀 Open-Agent-Teams Docker 部署"
 echo "=========================="
 
 # 检查 Docker 是否已安装

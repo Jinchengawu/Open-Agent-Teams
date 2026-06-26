@@ -30,17 +30,32 @@ for file in "${required_files[@]}"; do
   fi
 done
 
-if grep -R -E "@dev-agent/core|@dev-agent/" packages/core/src packages/gateway/src packages/dashboard/src >/dev/null; then
+if command -v rg >/dev/null 2>&1; then
+  if rg -q "@dev-agent/core|@dev-agent/" packages/core/src packages/gateway/src packages/dashboard/src; then
+    echo "found downstream package imports in Open-Agent-Teams" >&2
+    exit 1
+  fi
+elif grep -R -E "@dev-agent/core|@dev-agent/" packages/core/src packages/gateway/src packages/dashboard/src >/dev/null; then
   echo "found downstream package imports in Open-Agent-Teams" >&2
   exit 1
 fi
 
-if ! grep -E "nav\\.kanban" packages/dashboard/src/lib/constants.ts packages/dashboard/src/lib/i18n.tsx >/dev/null; then
+if command -v rg >/dev/null 2>&1; then
+  if ! rg -q "nav\\.kanban" packages/dashboard/src/lib/constants.ts packages/dashboard/src/lib/i18n.tsx; then
+    echo "console navigation does not expose kanban" >&2
+    exit 1
+  fi
+elif ! grep -E "nav\\.kanban" packages/dashboard/src/lib/constants.ts packages/dashboard/src/lib/i18n.tsx >/dev/null; then
   echo "console navigation does not expose kanban" >&2
   exit 1
 fi
 
-if ! grep -R "pipeline-instances" packages/gateway/src/api-gateway.ts packages/dashboard/src/app/api/pipeline-instances >/dev/null; then
+if command -v rg >/dev/null 2>&1; then
+  if ! rg -q "pipeline-instances" packages/gateway/src/api-gateway.ts packages/dashboard/src/app/api/pipeline-instances; then
+    echo "pipeline instance API is not exposed" >&2
+    exit 1
+  fi
+elif ! grep -R "pipeline-instances" packages/gateway/src/api-gateway.ts packages/dashboard/src/app/api/pipeline-instances >/dev/null; then
   echo "pipeline instance API is not exposed" >&2
   exit 1
 fi

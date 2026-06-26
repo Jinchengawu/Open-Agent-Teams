@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# DEV-Agent Gateway 启动脚本
+# Open-Agent-Teams Gateway 启动脚本
 # 使用方法: ./start-gateway.sh
 
 set -e
 
-echo "🚀 DEV-Agent Gateway 启动"
+echo "🚀 Open-Agent-Teams Gateway 启动"
 echo "=========================="
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,7 +29,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # 检查配置文件
-CONFIG_DIR="$HOME/.dev-agent"
+CONFIG_DIR="$HOME/.open-agent-teams"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
 if [ ! -f "$CONFIG_FILE" ]; then

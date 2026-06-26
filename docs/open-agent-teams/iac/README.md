@@ -79,10 +79,10 @@ curl -X POST http://127.0.0.1:8100/v1/chat/completions \
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| AI_LOCAL_OS_HOST | 0.0.0.0 | Gateway 监听地址 |
-| AI_LOCAL_OS_PORT | 8100 | Gateway 监听端口 |
-| AI_LOCAL_OS_AUTH_ENABLED | false | 是否启用鉴权 |
-| AI_LOCAL_OS_API_KEY | - | API Key |
+| OPEN_AGENT_TEAMS_HOST | 0.0.0.0 | Gateway 监听地址 |
+| OPEN_AGENT_TEAMS_PORT | 8100 | Gateway 监听端口 |
+| OPEN_AGENT_TEAMS_AUTH_ENABLED | false | 是否启用鉴权 |
+| OPEN_AGENT_TEAMS_API_KEY | - | API Key |
 
 ### 配置文件
 
@@ -166,10 +166,10 @@ docker system prune -a
 
 ```bash
 # 使用本地 Hermes 实例
-./start-all-instances.sh
+pnpm hermes:doctor
 
 # 使用本地 Gateway
-./start-gateway.sh
+bash scripts/start-gateway.sh
 ```
 
 ### Docker 开发

@@ -1,8 +1,8 @@
 # @open-agent-teams/hermes-agent
 
-**Hermes Agent**（Nous Research）的**官方主分发**为安装脚本 + Python 运行时，**不是**像 openclaw 一样以单一 `npm install hermes-agent` 作为核心交付。本包在 **Node/pnpm 工作区**中的职责是：
+**Hermes Agent**（Nous Research）的**官方主分发**为安装脚本 + Python 运行时，**不是**以单一 `npm install hermes-agent` 作为核心交付。本包在 **Node/pnpm 工作区**中的职责是：
 
-- 用 **Node 脚本** 调用官方安装入口（`curl … | bash`），便于与 `@open-agent-teams/openclaw` 同一套 `pnpm` 命令管理；
+- 用 **Node 脚本** 调用官方安装入口（`curl … | bash`），便于与 Open-Agent-Teams 工作区同一套 `pnpm` 命令管理；
 - 提供 `doctor` 检查本机是否已有 `hermes` 命令。
 
 ## 使用

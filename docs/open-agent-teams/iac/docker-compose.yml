@@ -1,4 +1,4 @@
-# AI-local-OS Docker Compose 配置
+# Open-Agent-Teams Docker Compose 配置
 # 使用方法: docker compose up -d
 # 停止: docker compose down
 
@@ -98,22 +98,22 @@ services:
           cpus: "1.0"
 
   # =========================================================================
-  # AI-local-OS Gateway
+  # Open-Agent-Teams Gateway
   # =========================================================================
   
   gateway:
     build:
       context: ./packages/gateway
       dockerfile: Dockerfile
-    container_name: ai-local-os-gateway
+    container_name: open-agent-teams-gateway
     working_dir: /app
     volumes:
       - gateway-logs:/root/.hermes-gateway/logs
       - ./gateway-config:/root/.hermes-gateway
     environment:
-      - AI_LOCAL_OS_HOST=0.0.0.0
-      - AI_LOCAL_OS_PORT=8100
-      - AI_LOCAL_OS_AUTH_ENABLED=false
+      - OPEN_AGENT_TEAMS_HOST=0.0.0.0
+      - OPEN_AGENT_TEAMS_PORT=8100
+      - OPEN_AGENT_TEAMS_AUTH_ENABLED=false
     ports:
       - "8100:8100"
     depends_on:

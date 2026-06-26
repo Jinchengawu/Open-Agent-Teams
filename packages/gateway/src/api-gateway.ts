@@ -106,7 +106,7 @@ function createRequestAbortSignal(res: { writableEnded: boolean; on: (event: str
 }
 
 function getDataDir(): string {
-  return process.env.AGENT_DB_PATH || join(homedir(), '.dev-agent/data');
+  return process.env.AGENT_DB_PATH || join(homedir(), '.open-agent-teams/data');
 }
 
 function getRuntimePipelinesDir(): string {
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
 
   // 加载示例 Pipeline
   try {
-    const yamlPath = resolve(__dirname, '../../core/src/pipeline/examples/stock-analysis.yaml');
+    const yamlPath = resolve(__dirname, '../../core/src/pipeline/examples/team-lifecycle.yaml');
     await agentApp.pipelineOrchestrator.loadFromYaml(yamlPath);
     console.log(`[Gateway] Pipeline YAML 已加载: ${yamlPath}`);
   } catch (err) {

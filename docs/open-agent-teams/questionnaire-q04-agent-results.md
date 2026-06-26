@@ -19,7 +19,7 @@
 1. **双智能体拓扑**：用户从统一入口进入 **编排器（`@open-multi-agent/core`）** → 完成意图识别与任务拆解 → 按 [routing-rules.md](./routing-rules.md) 判定通用/系统类 **内核自执行**，或个性化、垂类、长期沉淀类任务 **HTTP 调用已注册的多 Hermes 实例** → Hermes 返回结果由内核整合后统一输出（与 [设计规格](../specs/2026-04-26-open-agent-teams-design.md) 数据流一致）。  
 2. **多实例与隔离**：每台 Hermes **独立端口与持久化**，避免垂类记忆混杂；API 建议仅对本机内核与白名单开放。  
 3. **韧性**：插件/出站调用侧约定 **超时、错误捕获、熔断**；失败时 **内核兜底**，主路径不静默挂死。  
-4. **同仓工程化**：根目录 pnpm workspace 纳管 `@open-agent-teams/openclaw`（npm `openclaw`）与 `@open-agent-teams/hermes-agent`（官方安装引导 + `doctor`），与文档模板闭环，支撑从纸面到冒烟的检查项（见 [integration-handoff.md](./integration-handoff.md)）。  
+4. **同仓工程化**：根目录 pnpm workspace 纳管共享核心包、Gateway、Dashboard 与 `@open-agent-teams/hermes-agent`（官方安装引导 + `doctor`），与文档模板闭环，支撑从纸面到冒烟的检查项（见 [integration-handoff.md](./integration-handoff.md)）。
 5. **AI 驱动开发流（ai-work-flow 资产）**：`@ai-work-flow/cli` / `core` 与 **web3-fe-superpowers** 技能包（如 `using-skills`、`systematic-debugging`、`verification-before-completion`）形成**人机协同的长链工作流**，而非单次对话式「拍脑袋改代码」。
 
 ---
@@ -32,7 +32,7 @@
 
 本仓库围绕 **Open-Agent-Teams** 落地了一套 **Open Multi-Agent + 多实例 Hermes** 的私有化集成方案（方案 A：纯集成编排）。解决的痛点是：① 私有化场景需要统一入口的「本地智能 OS」，但通用助手难以同时满足**全局调度**与**垂类长期心智、数据隔离**；② 多 Agent 协同缺少可执行的**路由判定、实例注册与熔断兜底**，容易停留在架构图而无法工程验收；③ AI 辅助研发缺少可复制的**技能门禁与验证闭环**，团队难以规模化、可审计地使用编码代理。
 
-在 Agent / AI 驱动逻辑上，采用 **双智能体协作**：**Open Multi-Agent** 作为内核完成意图识别、任务拆解、插件与工具调度；**多 Hermes 实例**作为垂类单元承接强依赖个人/项目上下文与长期沉淀的推理与记忆，经 **HTTP** 与内核互联，结果回流后由内核统一对用户输出。路由上区分「内核自执行」与「下发 Hermes」，并约定超时、错误处理与失败时的**内核降级**，避免主链路挂死。仓库内同时提供 **pnpm 多包**纳管 openclaw npm 依赖与 Hermes 安装/自检脚本，以及 **Superpowers 技能流水线**与 CLI/编排类型包，支撑从规格、模板到冒烟检查的可重复落地。
+在 Agent / AI 驱动逻辑上，采用 **双智能体协作**：**Open Multi-Agent** 作为内核完成意图识别、任务拆解、插件与工具调度；**多 Hermes 实例**作为垂类单元承接强依赖个人/项目上下文与长期沉淀的推理与记忆，经 **HTTP** 与内核互联，结果回流后由内核统一对用户输出。路由上区分「内核自执行」与「下发 Hermes」，并约定超时、错误处理与失败时的**内核降级**，避免主链路挂死。仓库内同时提供 **pnpm 多包**纳管共享核心包、Gateway、Dashboard 与 Hermes 安装/自检脚本，以及 **Superpowers 技能流水线**与 CLI/编排类型包，支撑从规格、模板到冒烟检查的可重复落地。
 
 当前交付以**规格、模板、移交清单与工程纳管**为主；规模化生产指标请据实填写：**日均 token 约〔请填〕、覆盖团队约〔请填〕人、在〔评审/联调/文档对齐〕等环节效率提升约〔请填〕%**（若无统计可写「处于试点/文档驱动阶段，量化指标待上线后统计」）。
 

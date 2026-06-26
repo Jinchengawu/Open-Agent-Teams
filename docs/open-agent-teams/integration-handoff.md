@@ -1,6 +1,6 @@
 # Open-Agent-Teams 集成移交与推进清单（方案 A → 可运行）
 
-> **当前落地范围：方案 A（纯集成编排）。** 仓库侧交付为规格、模板、移交清单与里程碑文档；**不包含**薄网关服务代码、**不包含** `iac/` 一键编排目录。切换 B/C 需用户另条消息明确选定方案。  
+> **当前落地范围：方案 A+（集成编排 + 可运行框架基座）。** 仓库侧交付为规格、模板、移交清单、共享核心包、Gateway、Dashboard 与 IaC 示例。
 > 前置阅读：[README](./README.md)、[设计规格 §5–6](../specs/2026-04-26-open-agent-teams-design.md)。  
 > 侧车更新：填写本文 **§2 官方文档链接表** 后，请将 URL 同步到 [REQ-2026-0426](../../debug/superpowers-intent/REQ-2026-0426-open-agent-teams.md)「**产品与 API 文档链接**」节，并在「后续跟踪清单」勾选对应项（或随 PR 更新）。
 
@@ -8,9 +8,9 @@
 
 ## 0. 方案 A 落地顺序（速览）
 
-**仅方案 A**：不实现薄网关（B）、不新增 `iac/`（C）；以 编排器插件/出站 HTTP + 多 Hermes 为主。
+**方案 A+**：以编排器插件/出站 HTTP + 多 Hermes 为主，同时保留 Gateway、Dashboard 与 IaC 示例，方便下游产品直接孵化。
 
-0. **Node 工作区**：在仓库根执行 `pnpm install`，纳管 openclaw npm 包与 Hermes 安装脚本（见 [monorepo-packages.md](./monorepo-packages.md)）。  
+0. **Node 工作区**：在仓库根执行 `pnpm install`，纳管共享框架包、Gateway、Dashboard 与 Hermes 安装脚本（见 [monorepo-packages.md](./monorepo-packages.md)）。
 1. **对齐**：读 [设计规格](../specs/2026-04-26-open-agent-teams-design.md) §2–§5 与 [routing-rules.md](./routing-rules.md)。  
 2. **文档入口**：完成下方 **§2** 官方链接表（可公开 URL 或脱敏说明）。  
 3. **机密与实例表**：按 **§3** 使用 `hermes-instances.local.yaml` 与 `.env`（勿提交仓库）。  
@@ -57,12 +57,9 @@
 
 ---
 
-## 5. 仓库内拓扑与流程参考（PDF）
+## 5. 仓库内拓扑与流程参考
 
-以下文件在仓库根目录，便于对照拓扑与接入流程（路径以你本机克隆为准）：
-
-- `Open-Agent-Teams：Open Multi-Agent+Hermes 私有化本地智能操作系统方案.pdf`
-- `Open Multi-Agent + Hermes 双智能体融合架构（拓扑图+接入流程）.pdf`
+拓扑与流程以 [CORE-ARCHITECTURE.md](./CORE-ARCHITECTURE.md)、[routing-rules.md](./routing-rules.md) 与 [framework-sync-policy.md](./framework-sync-policy.md) 为准；旧 PDF 草稿已从仓库中移除，避免和当前框架实现产生歧义。
 
 ---
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 
-const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.dev-agent/data/sessions.db`;
+const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.open-agent-teams/data/sessions.db`;
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   const body = await request.json();

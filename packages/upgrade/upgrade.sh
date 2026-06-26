@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# AI-local-OS 版本检查和升级脚本
+# Open-Agent-Teams 版本检查和升级脚本
 # 使用方法: ./upgrade.sh [check|upgrade|version]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION_FILE="$SCRIPT_DIR/VERSION"
-REMOTE_VERSION_URL="https://raw.githubusercontent.com/Jinchengawu/AI-local-OS/main/VERSION"
-CHANGELOG_URL="https://raw.githubusercontent.com/Jinchengawu/AI-local-OS/main/CHANGELOG.md"
+REMOTE_VERSION_URL="https://raw.githubusercontent.com/Jinchengawu/Open-Agent-Teams/main/VERSION"
+CHANGELOG_URL="https://raw.githubusercontent.com/Jinchengawu/Open-Agent-Teams/main/CHANGELOG.md"
 
-echo "🔄 AI-local-OS 版本管理"
+echo "🔄 Open-Agent-Teams 版本管理"
 echo "======================"
 
 # 获取当前版本
@@ -70,15 +70,15 @@ do_upgrade() {
     
     # 备份当前配置
     echo "  💾 备份配置..."
-    backup_dir="$HOME/.ai-local-os-backup/$(date +%Y%m%d_%H%M%S)"
+    backup_dir="$HOME/.open-agent-teams-backup/$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$backup_dir"
     
     if [ -d "$HOME/.hermes-gateway" ]; then
         cp -r "$HOME/.hermes-gateway" "$backup_dir/"
     fi
     
-    if [ -f "$HOME/.ai-local-os/config.yaml" ]; then
-        cp "$HOME/.ai-local-os/config.yaml" "$backup_dir/"
+    if [ -f "$HOME/.open-agent-teams/config.yaml" ]; then
+        cp "$HOME/.open-agent-teams/config.yaml" "$backup_dir/"
     fi
     
     echo "  ✅ 配置已备份到: $backup_dir"
@@ -109,8 +109,8 @@ do_upgrade() {
     echo ""
     echo "  💡 建议操作："
     echo "    1. 检查配置兼容性"
-    echo "    2. 重启服务: ./start-all-instances.sh"
-    echo "    3. 验证功能: ./test-gateway.sh"
+    echo "    2. 重启服务: bash scripts/start-gateway.sh"
+    echo "    3. 验证功能: bash scripts/run-tests.sh"
 }
 
 # 显示版本信息
@@ -120,7 +120,7 @@ show_version() {
     
     current=$(get_current_version)
     echo "  版本: $current"
-    echo "  仓库: https://github.com/Jinchengawu/AI-local-OS"
+    echo "  仓库: https://github.com/Jinchengawu/Open-Agent-Teams"
     echo ""
     
     # 显示最近更新

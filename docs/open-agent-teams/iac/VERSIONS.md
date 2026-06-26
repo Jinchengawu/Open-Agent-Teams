@@ -12,13 +12,6 @@
 | Python | 3.11 | 运行时 |
 | OpenAI SDK | 2.24.0 | API 客户端 |
 
-### openclaw CLI
-
-| 组件 | 版本 | 说明 |
-|------|------|------|
-| openclaw | 2026.3.7 | CLI 工具 |
-| Node.js | >= 20 | 运行时 |
-
 ### Open-Agent-Teams Gateway
 
 | 组件 | 版本 | 说明 |
@@ -79,7 +72,7 @@ npm test
 
 # 部署测试
 docker compose up -d
-./test-gateway.sh
+bash scripts/run-tests.sh
 ```
 
 ### 4. 记录变更
@@ -92,11 +85,6 @@ docker compose up -d
 
 - 需要 Python 3.10+
 - 某些工具需要额外依赖
-
-### openclaw 2026.3.7
-
-- feishu 插件需要额外依赖
-- 部分配置项已弃用
 
 ## 升级 Runbook
 
