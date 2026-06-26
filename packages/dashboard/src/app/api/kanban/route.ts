@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 
 const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.open-agent-teams/data/sessions.db`;
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 type KanbanTask = {
   id: string;

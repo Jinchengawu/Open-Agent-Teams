@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 interface HealthResult {
   id: string;

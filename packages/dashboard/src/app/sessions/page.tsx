@@ -52,7 +52,7 @@ export default function SessionsPage() {
   const viewSession = (session: Session) => {
     setSelectedSession(session)
     setLoadingMessages(true)
-    fetch(`http://127.0.0.1:8400/v1/sessions/${session.id}`)
+    fetch(`http://127.0.0.1:8401/v1/sessions/${session.id}`)
       .then((r) => r.json())
       .then((data) => setMessages(data.messages || []))
       .catch(() => {})

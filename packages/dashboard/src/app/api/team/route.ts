@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 /**
  * /api/team — 多 Agent 协作端点

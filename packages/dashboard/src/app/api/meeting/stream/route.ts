@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 /**
  * /api/meeting/stream — SSE 流式会议端点

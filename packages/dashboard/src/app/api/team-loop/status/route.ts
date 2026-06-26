@@ -4,7 +4,7 @@ import { getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 async function fetchGatewayJson(path: string) {
   const controller = new AbortController();
