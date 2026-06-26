@@ -21,6 +21,7 @@ import {
 import { createSendMessageTool } from '../tools/send-message.js';
 import { registerTeam } from '../tools/team-registry.js';
 import { IntentRouter } from '../intent/IntentRouter.js';
+import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
 import type { RoutingDecision } from '../orchestrator/types.js';
 
 // ============================================================================
@@ -195,6 +196,15 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
    */
   async runTeam(goal: string): Promise<TeamRunResult> {
     console.log(`[TeamOrchestrator] runTeam: "${goal.substring(0, 60)}..."`);
+    if (isModelSpendGuardEnabled()) {
+      const result = createGuardedAgentResult('team');
+      return {
+        success: false,
+        goal,
+        agentResults: new Map([['team', result as unknown as AgentRunResult]]),
+        totalTokenUsage: result.tokenUsage,
+      };
+    }
     return this.omAgent.runTeam(this.team, goal);
   }
 
@@ -204,6 +214,10 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
   async runAgent(agentId: string, goal: string, _sessionId?: string): Promise<AgentRunResult> {
     const config = this.agentConfigs.get(agentId);
     if (!config) throw new Error(`Agent "${agentId}" not found`);
+
+    if (isModelSpendGuardEnabled()) {
+      return createGuardedAgentResult(agentId) as unknown as AgentRunResult;
+    }
 
     return this.omAgent.runAgent(
       {
@@ -223,6 +237,19 @@ ${config.agents.map((a) => `- ${a.id}: ${a.role}`).join('\n')}`,
    */
   async runMeeting(goal: string): Promise<TeamRunResult> {
     console.log(`[TeamOrchestrator] runMeeting: "${goal.substring(0, 60)}..."`);
+
+    if (isModelSpendGuardEnabled()) {
+      const agentResults = new Map<string, AgentRunResult>();
+      for (const agentId of this.agentConfigs.keys()) {
+        agentResults.set(agentId, createGuardedAgentResult(agentId) as unknown as AgentRunResult);
+      }
+      return {
+        success: false,
+        goal,
+        agentResults,
+        totalTokenUsage: { input_tokens: 0, output_tokens: 0 },
+      };
+    }
 
     const agents = this.team.getAgents();
     const agentResults = new Map<string, AgentRunResult>();

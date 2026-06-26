@@ -56,6 +56,14 @@ export type {
 // IntentRouter - 智能意图路由
 export { IntentRouter } from './intent/IntentRouter';
 
+// Runtime guards
+export {
+  createGuardedAgentResult,
+  createGuardedRoutingDecision,
+  isModelSpendGuardEnabled,
+  modelSpendGuardMessage,
+} from './runtime/model-spend-guard.js';
+
 // ── Hermes Agent 客户端（可选的 Agent 后端）──
 export {
   HermesAgentClient,

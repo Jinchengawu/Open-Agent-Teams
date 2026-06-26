@@ -16,6 +16,7 @@ import type {
   RoutingDecision,
   IntentRouterConfig,
 } from '../orchestrator/types.js';
+import { createGuardedRoutingDecision, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
 
 /**
  * IntentRouter — LLM-based 意图路由
@@ -42,6 +43,13 @@ export class IntentRouter {
    * 核心路由方法
    */
   async route(userQuery: string): Promise<RoutingDecision> {
+    if (isModelSpendGuardEnabled()) {
+      return createGuardedRoutingDecision(
+        this.defaultAgentId,
+        'MODEL_SPEND_GUARD enabled; using deterministic fallback routing without external LLM call.',
+      );
+    }
+
     const prompt = this.buildRouterPrompt(userQuery);
 
     try {
