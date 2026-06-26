@@ -1,14 +1,12 @@
 /**
- * 全局 Team 注册表
+ * 全局 Team 注册表（已废弃）
  *
- * 用于打破 createTeam() 与 customTools 之间的循环依赖：
- * - createTeam() 需要 AgentConfig（含 customTools）
- * - customTools 的 execute 需要 Team 实例
- *
- * 流程：先创建 tool（通过 teamId 引用） → createTeam() → registerTeam()
- * tool 的 execute 在 agent 运行时才调用，此时 team 已注册。
+ * 原用于打破 createTeam() 与 customTools 之间的循环依赖。
+ * 现在基于 Hermes Agent 架构，不再需要 Team 实例。
+ * 保留空实现以兼容现有代码。
  */
-import type { Team } from '@open-multi-agent/core';
-export declare function registerTeam(id: string, team: Team): void;
-export declare function getTeam(id: string): Team | undefined;
+/** @deprecated 基于 Hermes 的架构不再使用 Team 注册 */
+export declare function registerTeam(id: string, team: any): void;
+/** @deprecated 基于 Hermes 的架构不再使用 Team 注册 */
+export declare function getTeam(id: string): any | undefined;
 //# sourceMappingURL=team-registry.d.ts.map

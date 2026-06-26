@@ -8,16 +8,18 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { AGENTS, detectAgent } from '@/lib/agents'
 import type { ChatMessage } from '@/lib/types'
+import CodePreview from '@/components/CodePreview'
+import FileUpload from '@/components/FileUpload'
 
 const AGENT_LIST = Object.entries(AGENTS).map(([, info]) => ({ ...info }))
 const MAX_INPUT_LENGTH = 10000
-const SESSION_STORAGE_KEY = 'dev-agent-chat-v1'
+const SESSION_STORAGE_KEY = 'open-agent-teams-chat-v1'
 
 function getWelcomeMessage(agentId: string): ChatMessage {
   if (!agentId) return {
     id: 'welcome',
     role: 'assistant',
-    content: "Hello! I'm DEV-Agent-Teams. Select an agent tab above to start a conversation.",
+    content: "Hello! I'm Open-Agent-Teams. Select an agent tab above to start a conversation.",
     agentId: 'system',
     timestamp: Date.now(),
   }
@@ -46,6 +48,12 @@ function loadConversations(): Record<string, ChatMessage[]> {
   } catch { return {} }
 }
 
+function extractCodeBlock(content: string): { code: string; lang: string } | null {
+  const match = content.match(/```(\w+)?\n([\s\S]*?)```/);
+  if (!match) return null;
+  return { code: match[2].trim(), lang: match[1] || 'html' };
+}
+
 function saveConversations(convs: Record<string, ChatMessage[]>) {
   if (typeof window === 'undefined') return
   try {
@@ -68,7 +76,7 @@ export default function ChatContent() {
   const initialAgent = searchParams.get('agent') || ''
 
   // 多 Tab 管理 — 持久化到 localStorage，路由切换不丢失
-  const TABS_STORAGE_KEY = 'dev-agent-chat-tabs-v1'
+  const TABS_STORAGE_KEY = 'open-agent-teams-chat-tabs-v1'
   const [tabs, setTabs] = useState<AgentTab[]>(() => {
     if (typeof window === 'undefined') return initialAgent ? [{ id: initialAgent, input: '' }] : []
     try {
@@ -84,7 +92,7 @@ export default function ChatContent() {
   const [activeTab, setActiveTab] = useState<number>(() => {
     if (typeof window === 'undefined') return 0
     try {
-      return parseInt(localStorage.getItem('dev-agent-chat-active-v1') || '0', 10)
+      return parseInt(localStorage.getItem('open-agent-teams-chat-active-v1') || '0', 10)
     } catch { return 0 }
   })
   const [showAddMenu, setShowAddMenu] = useState(false)
@@ -92,10 +100,13 @@ export default function ChatContent() {
   const [sessions, setSessions] = useState<Record<string, string>>(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const raw = localStorage.getItem('dev-agent-sessions-v1')
+      const raw = localStorage.getItem('open-agent-teams-sessions-v1')
       return raw ? JSON.parse(raw) : {}
     } catch { return {} }
   })
+
+  // 附件管理（每个 Agent 独立）
+  const [attachments, setAttachments] = useState<Record<string, Array<{ filename: string; originalname: string; url: string; mimetype: string }>>>({})
 
   // 每个 Agent 独立的发送状态（并发关键）
   const [sending, setSending] = useState<Record<string, boolean>>({})
@@ -131,7 +142,7 @@ export default function ChatContent() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('dev-agent-sessions-v1', JSON.stringify(sessions))
+      localStorage.setItem('open-agent-teams-sessions-v1', JSON.stringify(sessions))
     }
   }, [sessions])
 
@@ -139,7 +150,7 @@ export default function ChatContent() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(tabs))
-      localStorage.setItem('dev-agent-chat-active-v1', String(activeTab))
+      localStorage.setItem('open-agent-teams-chat-active-v1', String(activeTab))
     }
   }, [tabs, activeTab])
 
@@ -224,12 +235,13 @@ export default function ChatContent() {
     addMessage(key, userMessage)
 
     const sessionId = sessions[key] || undefined
+    const currentAttachments = attachments[key] || []
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: existingHistory, agentId, sessionId }),
+        body: JSON.stringify({ messages: existingHistory, agentId, sessionId, attachments: currentAttachments }),
       })
 
       let data: Record<string, unknown> = {}
@@ -355,7 +367,7 @@ export default function ChatContent() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-2xl">
             <div className="text-5xl mb-6">🧠</div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">DEV-Agent-Teams</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Open-Agent-Teams</h2>
             <p className="text-gray-500 mb-8">选择一个 Agent 开始对话，支持同时打开多个标签页并发对话</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {AGENT_LIST.map((agent) => (
@@ -395,92 +407,6 @@ export default function ChatContent() {
                   🗑️ Clear
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isCurrentSending || !currentInput.trim()}
-                onClick={async () => {
-                  const msg = currentInput.trim()
-                  if (!msg) return
-                  // 广播到所有已打开的标签
-                  const targets = tabs.map(t => t.id)
-                  if (targets.length === 0) return
-                  setTabInput(activeAgentId, '')
-                  // 在当前对话中显示广播消息
-                  addMessage(activeKey, {
-                    id: `user-${Date.now()}-broadcast`,
-                    role: 'user',
-                    content: `📢 Broadcast to ${targets.length} agents: ${msg}`,
-                    agentId: activeAgentId,
-                    timestamp: Date.now(),
-                  })
-                  // 并发发送
-                  try {
-                    const res = await fetch('/api/collab', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ message: msg, agents: targets }),
-                    })
-                    const data = await res.json()
-                    for (const r of (data.responses || [])) {
-                      const agentInfo = AGENTS[r.agent] || { icon: '🤖', name: r.agent }
-                      addMessage(activeKey, {
-                        id: `agent-${Date.now()}-${r.agent}`,
-                        role: 'assistant',
-                        content: r.content,
-                        agentId: r.agent,
-                        timestamp: Date.now(),
-                      })
-                    }
-                  } catch (e) {
-                    showToast(`Broadcast failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error')
-                  }
-                }}
-              >
-                📢 Broadcast
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isCurrentSending || !currentInput.trim()}
-                className="border-purple-300 text-purple-600 hover:bg-purple-50"
-                onClick={async () => {
-                  const msg = currentInput.trim()
-                  if (!msg) return
-                  const targets = tabs.map(t => t.id)
-                  if (targets.length === 0) return
-                  setTabInput(activeAgentId, '')
-                  addMessage(activeKey, {
-                    id: `user-${Date.now()}-meeting`,
-                    role: 'user',
-                    content: `🎙️ Meeting (${targets.length} agents): ${msg}`,
-                    agentId: activeAgentId,
-                    timestamp: Date.now(),
-                  })
-                  try {
-                    const res = await fetch('/api/collab', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ message: msg, agents: targets, mode: 'meeting' }),
-                    })
-                    const data = await res.json()
-                    for (const r of (data.responses || [])) {
-                      const agentInfo = AGENTS[r.agent] || { icon: '🤖', name: r.agent }
-                      addMessage(activeKey, {
-                        id: `agent-${Date.now()}-${r.agent}`,
-                        role: 'assistant',
-                        content: r.content,
-                        agentId: r.agent,
-                        timestamp: Date.now(),
-                      })
-                    }
-                  } catch (e) {
-                    showToast(`Meeting failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error')
-                  }
-                }}
-              >
-                🎙️ Meeting
-              </Button>
             </div>
           </div>
 
@@ -518,6 +444,11 @@ export default function ChatContent() {
                     <div className="whitespace-pre-wrap text-sm leading-relaxed">
                       {message.content}
                     </div>
+                    {/* 代码预览：只给 assistant 消息且包含代码块 */}
+                    {message.role === 'assistant' && (() => {
+                      const codeBlock = extractCodeBlock(message.content);
+                      return codeBlock ? <CodePreview code={codeBlock.code} language={codeBlock.lang} /> : null;
+                    })()}
                     <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
                       {message.timestamp > 1000000000000
                         ? new Date(message.timestamp).toLocaleTimeString()
@@ -581,14 +512,43 @@ export default function ChatContent() {
                 className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm disabled:opacity-50"
               />
               <Button
-                onClick={() => handleSendForAgent(activeAgentId, currentInput)}
+                onClick={() => {
+                  handleSendForAgent(activeAgentId, currentInput)
+                  // 发送后清除附件
+                  setAttachments(prev => {
+                    const next = { ...prev }
+                    delete next[activeAgentId]
+                    return next
+                  })
+                }}
                 disabled={!currentInput.trim() || isCurrentSending}
                 size="lg"
               >
                 Send →
               </Button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            {/* 附件显示 + 上传按钮 */}
+            {(attachments[activeAgentId]?.length ?? 0) > 0 && (
+              <div className="flex items-center gap-2 mt-2">
+                {attachments[activeAgentId].map((att, i) => (
+                  <span key={i} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200">
+                    📎 {att.originalname}
+                  </span>
+                ))}
+                <button
+                  onClick={() => setAttachments(prev => {
+                    const next = { ...prev }
+                    delete next[activeAgentId]
+                    return next
+                  })}
+                  className="text-xs text-red-400 hover:text-red-600"
+                >
+                  清除
+                </button>
+              </div>
+            )}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex flex-wrap gap-2">
               {[
                 { label: 'React component', text: 'Create a React login component with TypeScript and Tailwind CSS' },
                 { label: 'Design API', text: 'Design a RESTful user API endpoint with Express' },
@@ -606,6 +566,8 @@ export default function ChatContent() {
                   💡 {suggestion.label}
                 </Button>
               ))}
+              </div>
+              <FileUpload onUpload={(files) => setAttachments(prev => ({ ...prev, [activeAgentId]: files }))} />
             </div>
           </div>
         </Card>

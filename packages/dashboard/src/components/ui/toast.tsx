@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -38,7 +38,7 @@ const typeIcons: Record<ToastType, string> = {
 
 let toastId = 0;
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {

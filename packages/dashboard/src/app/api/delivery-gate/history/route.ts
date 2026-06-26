@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { DELIVERY_GATE_REPORT_DIR, getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,9 @@ function parseLimit(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const reports = getCompletedDeliveryGateReports(parseLimit(request))
+    const limit = parseLimit(request)
+    const reports = getCompletedDeliveryGateReports(limit)
+
     return NextResponse.json({
       ok: reports.length > 0,
       checkedAt: Date.now(),

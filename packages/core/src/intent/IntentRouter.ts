@@ -8,7 +8,6 @@
  * - 返回结构化路由决策（含推理理由，可审计）
  *
  * 不直接执行任何 Agent 操作，只负责"决策"。
- * 设计为通用模块，不耦合任何业务 Agent ID。
  */
 
 import type {
@@ -24,19 +23,13 @@ import { createGuardedRoutingDecision, isModelSpendGuardEnabled } from '../runti
 export class IntentRouter {
   private config: Required<IntentRouterConfig>;
   private agentCapabilities: TeamAgentConfig[];
-  private defaultAgentId: string;
 
-  constructor(
-    config: IntentRouterConfig,
-    agentCapabilities: TeamAgentConfig[],
-    defaultAgentId: string,
-  ) {
+  constructor(config: IntentRouterConfig, agentCapabilities: TeamAgentConfig[]) {
     this.config = {
       timeoutMs: 10000,
       ...config,
     };
     this.agentCapabilities = agentCapabilities;
-    this.defaultAgentId = defaultAgentId;
   }
 
   /**
@@ -44,10 +37,7 @@ export class IntentRouter {
    */
   async route(userQuery: string): Promise<RoutingDecision> {
     if (isModelSpendGuardEnabled()) {
-      return createGuardedRoutingDecision(
-        this.defaultAgentId,
-        'MODEL_SPEND_GUARD enabled; using deterministic fallback routing without external LLM call.',
-      );
+      return createGuardedRoutingDecision('MODEL_SPEND_GUARD enabled; using deterministic fallback routing without external LLM call.');
     }
 
     const prompt = this.buildRouterPrompt(userQuery);
@@ -64,10 +54,10 @@ export class IntentRouter {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages: toProviderSafeMessages([
+          messages: [
             { role: 'system', content: this.buildSystemPrompt() },
             { role: 'user', content: prompt },
-          ]),
+          ],
           temperature: 0.2, // 低温度确保路由稳定性
           max_tokens: 800,
           response_format: { type: 'json_object' },
@@ -115,9 +105,9 @@ export class IntentRouter {
 - meeting: 任务涉及多个领域的判断和讨论，需要多 Agent 共同商议决策
 
 复杂度判断标准：
-- low: 原子性任务，目标单一，步骤不超过3步
-- medium: 多步骤但领域关联紧密
-- high: 架构级、跨多个独立领域、需要权衡取舍`;
+- low: 原子性任务，目标单一，步骤不超过3步（如"写一个React按钮组件"）
+- medium: 多步骤但领域关联紧密（如"设计登录API并写单元测试"）
+- high: 架构级、跨多个独立领域、需要权衡取舍（如"设计一个电商系统的技术方案"）`;
   }
 
   /**
@@ -130,9 +120,9 @@ export class IntentRouter {
 【Agent: ${a.id}】
 名称: ${a.name}
 角色: ${a.role}
-${a.expertise ? `专长: ${a.expertise.join('、')}` : ''}
-${a.typicalTasks ? `典型任务: ${a.typicalTasks.join('、')}` : ''}
-${a.tools ? `可用工具: ${a.tools.join('、')}` : ''}
+专长: ${a.expertise.join('、')}
+典型任务: ${a.typicalTasks.join('、')}
+可用工具: ${a.tools.join('、')}
 `,
       )
       .join('\n---\n');
@@ -178,7 +168,8 @@ ${agentDescriptions}
     // 校验 primaryAgent
     let primaryAgent = parsed.primaryAgent;
     if (strategy === 'single' && (!primaryAgent || !validAgentIds.has(primaryAgent))) {
-      primaryAgent = this.defaultAgentId;
+      // 回退到默认 backend
+      primaryAgent = 'dev-backend';
     }
 
     // 校验 involvedAgents
@@ -231,43 +222,9 @@ ${agentDescriptions}
   private fallbackDecision(_userQuery: string): RoutingDecision {
     return {
       strategy: 'single',
-      primaryAgent: this.defaultAgentId,
-      reasoning: `LLM 路由失败，使用默认回退策略（${this.defaultAgentId}）`,
+      primaryAgent: 'dev-backend',
+      reasoning: 'LLM 路由失败，使用默认回退策略（dev-backend）',
       complexity: 'medium',
     };
   }
-}
-
-function toProviderSafeMessages(
-  messages: { role: string; content: string }[],
-): { role: 'user' | 'assistant'; content: string }[] {
-  const systemContent = messages
-    .filter((message) => message.role === 'system')
-    .map((message) => message.content)
-    .filter(Boolean)
-    .join('\n\n');
-
-  const nonSystemMessages = messages
-    .filter((message) => message.role !== 'system')
-    .map((message) => ({
-      role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
-      content: message.content,
-    }));
-
-  if (!systemContent) return nonSystemMessages;
-
-  const firstUserIndex = nonSystemMessages.findIndex((message) => message.role === 'user');
-  const systemPrefix = `系统上下文与执行规则：\n${systemContent}`;
-
-  if (firstUserIndex === -1) {
-    return [{ role: 'user', content: systemPrefix }, ...nonSystemMessages];
-  }
-
-  return nonSystemMessages.map((message, index) => {
-    if (index !== firstUserIndex) return message;
-    return {
-      ...message,
-      content: `${systemPrefix}\n\n用户请求：\n${message.content}`,
-    };
-  });
 }

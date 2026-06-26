@@ -12,9 +12,12 @@
  * - 冲突解决（project-admin 仲裁）
  */
 
+import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { parse } from 'yaml';
 import { eventBus } from '../event/EventBus.js';
 import type { TeamOrchestrator } from '../team/TeamOrchestrator.js';
-import type { WorkflowStateManager } from '../session/WorkflowStateManager.js';
+import type { WorkflowState, WorkflowStateManager } from '../session/WorkflowStateManager.js';
 import { Surface, createSurface } from './Surface.js';
 import type {
   PipelineDefinition,
@@ -23,8 +26,10 @@ import type {
   SurfaceDefinition,
   Edge,
   SurfaceResult,
+  PipelineExecuteOptions,
 } from './types.js';
 import type { KnowledgeCenter } from '../knowledge/KnowledgeCenter.js';
+import type { DocumentManager, Task } from '../knowledge/DocumentManager.js';
 
 // ============================================================================
 // 循环编排状态
@@ -48,6 +53,33 @@ interface ConflictResolution {
   reason: string;           // 解决理由
 }
 
+interface PipelineCoordinationBinding {
+  projectId: string;
+  taskIdsBySurface: Map<string, string>;
+  docIdsBySurface: Map<string, string>;
+}
+
+type PersistedPipelineContext = {
+  kind?: 'pipeline';
+  pipelineId?: string;
+  pipelineName?: string;
+  surfaceIds?: string[];
+  coordination?: PipelineInstance['coordination'];
+  execution?: {
+    dryRun?: boolean;
+    surfaceTimeoutMs?: number;
+  };
+};
+
+interface DryRunGuard {
+  root: string;
+  baseline: string[];
+}
+
+function isTerminalPipelineStatus(status: PipelineStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'rolled_back';
+}
+
 /**
  * Pipeline 编排器
  */
@@ -57,16 +89,21 @@ export class PipelineOrchestrator {
   private teamOrchestrator: TeamOrchestrator;
   private stateManager?: WorkflowStateManager;
   private knowledgeCenter?: KnowledgeCenter;
+  private documentManager?: DocumentManager;
   private loopStates: Map<string, Map<string, LoopState>> = new Map(); // instanceId -> edgeKey -> LoopState
+  private controllers: Map<string, AbortController> = new Map();
+  private coordinationBindings: Map<string, PipelineCoordinationBinding> = new Map();
 
   constructor(
     teamOrchestrator: TeamOrchestrator,
     stateManager?: WorkflowStateManager,
     knowledgeCenter?: KnowledgeCenter,
+    documentManager?: DocumentManager,
   ) {
     this.teamOrchestrator = teamOrchestrator;
     this.stateManager = stateManager;
     this.knowledgeCenter = knowledgeCenter;
+    this.documentManager = documentManager;
   }
 
   /**
@@ -77,19 +114,48 @@ export class PipelineOrchestrator {
   }
 
   /**
+   * 设置 V2 文档管理器（运行时注入）
+   */
+  setDocumentManager(dm: DocumentManager): void {
+    this.documentManager = dm;
+  }
+
+  /**
    * 加载 Pipeline 定义
    */
   loadPipeline(def: PipelineDefinition): void {
     this.pipelines.set(def.id, def);
+    this.markInterruptedPipelineRuns(def.id);
     console.log(`[PipelineOrchestrator] Pipeline "${def.name}" (${def.id}) 已加载`);
   }
 
   /**
-   * 从 YAML 文件加载（异步，需要解析器）
+   * 卸载 Pipeline 定义。
    */
-  async loadFromYaml(_yamlPath: string): Promise<void> {
-    // TODO: 实现 YAML 解析
-    console.log('[PipelineOrchestrator] YAML 加载待实现');
+  unloadPipeline(pipelineId: string): boolean {
+    const deleted = this.pipelines.delete(pipelineId);
+    if (deleted) {
+      console.log(`[PipelineOrchestrator] Pipeline "${pipelineId}" 已卸载`);
+    }
+    return deleted;
+  }
+
+  /**
+   * 从 YAML 文件加载 Pipeline 定义。
+   */
+  async loadFromYaml(yamlPath: string): Promise<PipelineDefinition> {
+    const yamlContent = await readFile(yamlPath, 'utf8');
+    return this.loadFromYamlContent(yamlContent, yamlPath);
+  }
+
+  /**
+   * 从 YAML 文本加载 Pipeline 定义。
+   */
+  loadFromYamlContent(yamlContent: string, source: string = 'inline-yaml'): PipelineDefinition {
+    const parsed = parse(yamlContent);
+    const pipeline = this.assertPipelineDefinition(parsed, source);
+    this.loadPipeline(pipeline);
+    return pipeline;
   }
 
   /**
@@ -101,37 +167,109 @@ export class PipelineOrchestrator {
    * 4. 传递输入/输出产物
    * 5. 产物自动沉淀到知识中心
    */
-  async execute(pipelineId: string, initialInput?: Record<string, any>): Promise<PipelineInstance> {
+  async execute(
+    pipelineId: string,
+    initialInput?: Record<string, any>,
+    options: PipelineExecuteOptions = {},
+  ): Promise<PipelineInstance> {
+    const { pipeline, instance, signal } = this.prepareRun(pipelineId, options);
+    await this.runPipeline(pipeline, instance, initialInput, { ...options, signal });
+    return instance;
+  }
+
+  /**
+   * 后台启动 Pipeline，立即返回实例；调用方可轮询实例状态。
+   */
+  start(
+    pipelineId: string,
+    initialInput?: Record<string, any>,
+    options: PipelineExecuteOptions = {},
+  ): PipelineInstance {
+    const { pipeline, instance, signal } = this.prepareRun(pipelineId, options);
+    void this.runPipeline(pipeline, instance, initialInput, { ...options, signal }).catch((error) => {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      instance.status = signal.aborted ? 'cancelled' : 'failed';
+      instance.error = errorMsg;
+      instance.completedAt = Date.now();
+      if (instance.status === 'cancelled') {
+        this.stateManager?.cancel(instance.id, errorMsg);
+      } else {
+        this.stateManager?.fail(instance.id, errorMsg);
+      }
+    });
+    return instance;
+  }
+
+  private prepareRun(
+    pipelineId: string,
+    options: PipelineExecuteOptions = {},
+  ): { pipeline: PipelineDefinition; instance: PipelineInstance; signal: AbortSignal } {
     const pipeline = this.pipelines.get(pipelineId);
     if (!pipeline) {
       throw new Error(`Pipeline "${pipelineId}" 未找到`);
     }
 
-    const instanceId = `pipeline-${Date.now()}`;
+    const now = Date.now();
     const instance: PipelineInstance = {
-      id: instanceId,
+      id: `pipeline-${now}`,
       pipelineId,
       status: 'running',
       surfaceResults: new Map(),
-      startedAt: Date.now(),
+      startedAt: now,
+      workflowStateId: `pipeline-${now}`,
     };
 
-    this.instances.set(instanceId, instance);
-    this.loopStates.set(instanceId, new Map());
+    this.instances.set(instance.id, instance);
+    this.loopStates.set(instance.id, new Map());
+    this.stateManager?.createState(`Pipeline: ${pipeline.name}`, pipeline.surfaces.length, instance.id, {
+      kind: 'pipeline',
+      pipelineId,
+      pipelineName: pipeline.name,
+      surfaceIds: pipeline.surfaces.map((surface) => surface.id),
+      execution: {
+        dryRun: options.dryRun ?? pipeline.context?.execution?.dryRun,
+        surfaceTimeoutMs: options.surfaceTimeoutMs ?? pipeline.context?.execution?.surfaceTimeoutMs,
+      },
+    });
+    this.createCoordinationBinding(pipeline, instance);
 
-    console.log(`[PipelineOrchestrator] Pipeline "${pipeline.name}" 开始执行 (instance: ${instanceId})`);
+    const controller = new AbortController();
+    const abortFromCaller = () => {
+      controller.abort(options.signal?.reason || new Error('Pipeline cancelled by caller'));
+    };
+    if (options.signal?.aborted) {
+      abortFromCaller();
+    } else {
+      options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+    this.controllers.set(instance.id, controller);
+
+    console.log(`[PipelineOrchestrator] Pipeline "${pipeline.name}" 开始执行 (instance: ${instance.id})`);
 
     // 发布 Pipeline 开始事件
     eventBus.emit({
       type: 'workflow.started',
       source: 'workflow',
-      timestamp: Date.now(),
+      timestamp: now,
       payload: {
-        workflowId: instanceId,
+        workflowId: instance.id,
         taskId: pipeline.name,
         pipelineId,
       },
     });
+
+    return { pipeline, instance, signal: controller.signal };
+  }
+
+  private async runPipeline(
+    pipeline: PipelineDefinition,
+    instance: PipelineInstance,
+    initialInput?: Record<string, any>,
+    options: PipelineExecuteOptions = {},
+  ): Promise<void> {
+    const signal = options.signal;
+    const dryRun = options.dryRun ?? pipeline.context?.execution?.dryRun;
+    const dryRunGuard = dryRun ? this.createDryRunGuard() : undefined;
 
     try {
       // 构建 DAG 和执行顺序
@@ -140,15 +278,18 @@ export class PipelineOrchestrator {
 
       // 按批次执行（支持并行）
       for (let batchIndex = 0; batchIndex < executionOrder.length; batchIndex++) {
+        this.throwIfCancelled(signal);
         const batch = executionOrder[batchIndex];
         console.log(`[PipelineOrchestrator] 执行批次: ${batch.join(', ')}`);
 
         // 并行执行当前批次
         const batchPromises = batch.map((surfaceId) =>
-          this.executeSurface(pipeline, surfaceId, instance, initialInput),
+          this.executeSurface(pipeline, surfaceId, instance, initialInput, options),
         );
 
         await Promise.all(batchPromises);
+        this.throwIfCancelled(signal);
+        this.assertDryRunNoRepositorySideEffects(dryRunGuard);
 
         // 检查是否有失败
         const hasFailure = batch.some((sid) => {
@@ -157,8 +298,13 @@ export class PipelineOrchestrator {
         });
 
         if (hasFailure) {
+          const failedSurface = batch.find((sid) => instance.surfaceResults.get(sid)?.status === 'failed');
+          const failedResult = failedSurface ? instance.surfaceResults.get(failedSurface) : undefined;
           console.error(`[PipelineOrchestrator] 批次执行失败，Pipeline 终止`);
           instance.status = 'failed';
+          instance.error = failedSurface
+            ? `${failedSurface}: ${failedResult?.error || 'surface failed'}`
+            : 'batch execution failed';
           break;
         }
 
@@ -176,7 +322,7 @@ export class PipelineOrchestrator {
           // 检查 gate 是否通过
           if (downstreamResult && !this.checkGatePassed(downstreamResult, edge)) {
             const edgeKey = `${edge.from}->${downstreamId}`;
-            const loopState = this.getOrCreateLoopState(instanceId, edgeKey);
+            const loopState = this.getOrCreateLoopState(instance.id, edgeKey);
             const maxLoops = edge.maxLoops ?? 3;
 
             if (loopState.count >= maxLoops) {
@@ -204,14 +350,20 @@ export class PipelineOrchestrator {
             
             // 清除上游面的结果，重新执行
             instance.surfaceResults.delete(edge.from);
-            const upstreamResult = await this.executeSurface(pipeline, edge.from, instance, {
-              ...initialInput,
-              __loop_feedback: feedbackArtifact,
-            });
+            await this.executeSurface(
+              pipeline,
+              edge.from,
+              instance,
+              {
+                ...initialInput,
+                __loop_feedback: feedbackArtifact,
+              },
+              options,
+            );
 
             // 重新执行下游面
             instance.surfaceResults.delete(downstreamId);
-            const newDownstreamResult = await this.executeSurface(pipeline, downstreamId, instance, initialInput);
+            const newDownstreamResult = await this.executeSurface(pipeline, downstreamId, instance, initialInput, options);
 
             // 如果 gate 通过了，跳出循环
             if (this.checkGatePassed(newDownstreamResult, edge)) {
@@ -229,7 +381,8 @@ export class PipelineOrchestrator {
         if (instance.status === 'failed') break;
       }
 
-      if (instance.status !== 'failed') {
+      if (instance.status !== 'failed' && instance.status !== 'cancelled') {
+        this.assertDryRunNoRepositorySideEffects(dryRunGuard);
         instance.status = 'completed';
         instance.completedAt = Date.now();
 
@@ -239,51 +392,71 @@ export class PipelineOrchestrator {
           source: 'workflow',
           timestamp: Date.now(),
           payload: {
-            workflowId: instanceId,
+            workflowId: instance.id,
             taskId: pipeline.name,
-            pipelineId,
+            pipelineId: pipeline.id,
             output: 'Pipeline 执行完成',
           },
         });
+        this.stateManager?.complete(instance.id, 'Pipeline 执行完成');
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      instance.status = 'failed';
+      instance.status = signal?.aborted ? 'cancelled' : 'failed';
       instance.error = errorMsg;
       instance.completedAt = Date.now();
 
-      // 发布 Pipeline 失败事件
+      // 发布 Pipeline 失败/取消事件
       eventBus.emit({
-        type: 'workflow.failed',
+        type: signal?.aborted ? 'workflow.cancelled' : 'workflow.failed',
         source: 'workflow',
         timestamp: Date.now(),
         payload: {
-          workflowId: instanceId,
+          workflowId: instance.id,
           taskId: pipeline.name,
-          pipelineId,
+          pipelineId: pipeline.id,
           error: errorMsg,
         },
       });
     }
 
-    // 清理循环状态
-    this.loopStates.delete(instanceId);
+    this.finalizeDryRunGuard(dryRunGuard, instance);
 
-    return instance;
+    if (instance.status === 'cancelled') {
+      this.blockUnfinishedSurfaceTasks(pipeline, instance);
+      this.stateManager?.cancel(instance.id, instance.error || 'Pipeline cancelled');
+    } else if (instance.status === 'failed') {
+      this.blockUnfinishedSurfaceTasks(pipeline, instance);
+      this.stateManager?.fail(instance.id, instance.error || 'Pipeline 执行失败');
+    }
+    if (instance.status === 'completed' || instance.status === 'cancelled' || instance.status === 'failed') {
+      this.capturePipelineExperience(pipeline, instance);
+    }
+
+    // 清理循环状态
+    this.loopStates.delete(instance.id);
+    this.controllers.delete(instance.id);
   }
 
   /**
    * 获取 Pipeline 实例状态
    */
   getStatus(instanceId: string): PipelineInstance | null {
-    return this.instances.get(instanceId) || null;
+    return this.instances.get(instanceId) || this.restorePipelineInstance(instanceId);
   }
 
   /**
    * 列出所有实例（包括已完成和失败的）
    */
   listInstances(): PipelineInstance[] {
-    return [...this.instances.values()];
+    const instances = new Map<string, PipelineInstance>();
+    for (const instance of this.restorePipelineInstances()) {
+      instances.set(instance.id, instance);
+    }
+    for (const instance of this.instances.values()) {
+      instances.set(instance.id, instance);
+    }
+    return [...instances.values()].sort((a, b) => b.startedAt - a.startedAt);
   }
 
   /**
@@ -297,6 +470,7 @@ export class PipelineOrchestrator {
     return {
       ...instance,
       surfaceResults,
+      coordination: this.serializeCoordinationBinding(instance.id) ?? instance.coordination,
     };
   }
 
@@ -311,39 +485,88 @@ export class PipelineOrchestrator {
    * 列出运行中的实例
    */
   listRunningInstances(): PipelineInstance[] {
-    return [...this.instances.values()].filter((i) => i.status === 'running');
+    return this.listInstances().filter((i) => i.status === 'running');
   }
 
   /**
-   * 暂停 Pipeline（待实现）
+   * 暂停 Pipeline
+   *
+   * 当前 Pipeline Surface 执行由 Hermes 请求驱动，尚没有可安全挂起并恢复的
+   * checkpoint 协议。这里明确拒绝，避免把内存状态改成 paused 但后台仍在执行。
    */
   async pause(instanceId: string): Promise<void> {
-    const instance = this.instances.get(instanceId);
+    const instance = this.instances.get(instanceId) || this.restorePipelineInstance(instanceId);
     if (!instance) throw new Error(`实例 ${instanceId} 未找到`);
-    instance.status = 'paused';
-    console.log(`[PipelineOrchestrator] Pipeline ${instanceId} 已暂停`);
+    throw new Error('Pipeline pause is not supported yet. Use cancel to stop the run safely.');
   }
 
   /**
-   * 恢复 Pipeline（待实现）
+   * 取消 Pipeline
+   */
+  async cancel(instanceId: string, reason: string = 'Pipeline cancelled'): Promise<void> {
+    const liveInstance = this.instances.get(instanceId);
+    const instance = liveInstance || this.restorePipelineInstance(instanceId);
+    if (!instance) throw new Error(`实例 ${instanceId} 未找到`);
+    if (instance.status === 'cancelled') {
+      return;
+    }
+    if (isTerminalPipelineStatus(instance.status)) {
+      throw new Error(`Pipeline ${instanceId} is already ${instance.status} and cannot be cancelled.`);
+    }
+
+    this.controllers.get(instanceId)?.abort(new Error(reason));
+    instance.status = 'cancelled';
+    instance.error = reason;
+    instance.completedAt = Date.now();
+    if (!liveInstance) {
+      this.instances.set(instanceId, instance);
+    }
+    this.stateManager?.cancel(instanceId, reason);
+    const pipeline = this.pipelines.get(instance.pipelineId);
+    if (pipeline) {
+      this.blockUnfinishedSurfaceTasks(pipeline, instance);
+      this.capturePipelineExperience(pipeline, instance);
+    }
+
+    eventBus.emit({
+      type: 'workflow.cancelled',
+      source: 'workflow',
+      timestamp: Date.now(),
+      payload: {
+        workflowId: instanceId,
+        taskId: instance.pipelineId,
+        error: reason,
+      },
+    });
+
+    console.log(`[PipelineOrchestrator] Pipeline ${instanceId} 已取消: ${reason}`);
+  }
+
+  /**
+   * 恢复 Pipeline
+   *
+   * 恢复需要 Surface 级 checkpoint/replay 协议。当前只能从持久化状态恢复只读投影，
+   * 不能继续执行未完成的 Surface，因此明确拒绝。
    */
   async resume(instanceId: string): Promise<void> {
-    const instance = this.instances.get(instanceId);
+    const instance = this.instances.get(instanceId) || this.restorePipelineInstance(instanceId);
     if (!instance) throw new Error(`实例 ${instanceId} 未找到`);
-    instance.status = 'running';
-    console.log(`[PipelineOrchestrator] Pipeline ${instanceId} 已恢复`);
+    throw new Error('Pipeline resume is not supported yet. Re-run the Pipeline from the desired input after reviewing recovered state.');
   }
 
   /**
-   * 回滚到指定面（待实现）
+   * 回滚到指定面
+   *
+   * 当前只能恢复状态投影，不能保证 Agent 外部副作用可逆。为避免假回滚，先明确拒绝。
    */
   async rollback(instanceId: string, surfaceId: string): Promise<void> {
-    const instance = this.instances.get(instanceId);
+    const instance = this.instances.get(instanceId) || this.restorePipelineInstance(instanceId);
     if (!instance) throw new Error(`实例 ${instanceId} 未找到`);
-    console.log(`[PipelineOrchestrator] Pipeline ${instanceId} 回滚到 ${surfaceId}`);
-    instance.status = 'rolled_back';
-
-    // TODO: 从缓存恢复上下文
+    const pipeline = this.pipelines.get(instance.pipelineId);
+    if (!pipeline?.surfaces.some((surface) => surface.id === surfaceId)) {
+      throw new Error(`面 ${surfaceId} 未定义`);
+    }
+    throw new Error('Pipeline rollback is not supported yet. Current dry-run guard can detect side effects, but cannot reverse them safely.');
   }
 
   /**
@@ -536,10 +759,10 @@ ${JSON.stringify(artifacts, null, 2)}
   private sinkToKnowledgeCenter(
     surfaceId: string,
     surfaceName: string,
+    agentId: string,
     result: SurfaceResult,
     instanceId: string,
   ): void {
-    if (!this.knowledgeCenter) return;
     if (!result.artifacts) return;
 
     try {
@@ -550,21 +773,60 @@ ${JSON.stringify(artifacts, null, 2)}
       const content = this.extractArtifactsContent(result.artifacts);
       if (!content) return;
 
-      this.knowledgeCenter.addDocument({
-        title: `${surfaceName} (${surfaceId}) - ${instanceId}`,
-        content,
-        type: docType,
-        source: surfaceId,
-        tags: ['pipeline-artifact', instanceId, surfaceId],
-        metadata: {
-          instanceId,
-          surfaceId,
-          surfaceName,
-          status: result.status,
-          tokenUsage: result.tokenUsage,
-          timestamp: Date.now(),
-        },
-      });
+      if (this.knowledgeCenter) {
+        this.knowledgeCenter.addDocument({
+          title: `${surfaceName} (${surfaceId}) - ${instanceId}`,
+          content,
+          type: docType,
+          source: surfaceId,
+          tags: ['pipeline-artifact', instanceId, surfaceId],
+          metadata: {
+            instanceId,
+            surfaceId,
+            surfaceName,
+            status: result.status,
+            tokenUsage: result.tokenUsage,
+            timestamp: Date.now(),
+          },
+        });
+      }
+
+      const binding = this.coordinationBindings.get(instanceId);
+      const taskId = binding?.taskIdsBySurface.get(surfaceId);
+      const relatedTaskIds = binding ? Array.from(binding.taskIdsBySurface.values()) : [];
+      const relatedDocIds = binding ? Array.from(binding.docIdsBySurface.values()) : [];
+
+      if (this.documentManager) {
+        const doc = this.documentManager.createDocument({
+          title: `${surfaceName} (${surfaceId}) - ${instanceId}`,
+          content,
+          type: this.inferDocumentType(surfaceId),
+          projectId: binding?.projectId,
+          taskId,
+          authorId: agentId,
+          authorName: surfaceName,
+          tags: ['pipeline-artifact', instanceId, surfaceId],
+          relatedDocIds,
+          relatedTaskIds,
+          relatedAgentIds: [agentId],
+          metadata: {
+            instanceId,
+            surfaceId,
+            surfaceName,
+            taskId,
+            projectId: binding?.projectId,
+            status: result.status,
+            tokenUsage: result.tokenUsage,
+            timestamp: Date.now(),
+          },
+        });
+        binding?.docIdsBySurface.set(surfaceId, doc.id);
+        const instance = this.instances.get(instanceId);
+        if (instance) {
+          instance.coordination = this.serializeCoordinationBinding(instanceId);
+          this.persistInstanceContext(instance);
+        }
+      }
 
       console.log(`[PipelineOrchestrator] 产物已沉淀到知识中心: ${surfaceId}`);
     } catch (error) {
@@ -581,6 +843,19 @@ ${JSON.stringify(artifacts, null, 2)}
     if (surfaceId.includes('meeting') || surfaceId.includes('review')) return 'meeting';
     if (surfaceId.includes('test') || surfaceId.includes('e2e') || surfaceId.includes('qc')) return 'report';
     if (surfaceId.includes('task') || surfaceId.includes('cr')) return 'task';
+    return 'general';
+  }
+
+  /**
+   * 推断 V2 文档类型
+   */
+  private inferDocumentType(surfaceId: string): 'prd' | 'tech_spec' | 'meeting' | 'report' | 'task' | 'general' | 'review' | 'code_review' {
+    if (surfaceId.includes('discovery') || surfaceId.includes('prd') || surfaceId.includes('pd')) return 'prd';
+    if (surfaceId.includes('planning') || surfaceId.includes('task')) return 'task';
+    if (surfaceId.includes('meeting')) return 'meeting';
+    if (surfaceId.includes('testing') || surfaceId.includes('test') || surfaceId.includes('e2e') || surfaceId.includes('qc')) return 'report';
+    if (surfaceId.includes('review') || surfaceId.includes('cr')) return 'review';
+    if (surfaceId.includes('frontend') || surfaceId.includes('backend') || surfaceId.includes('fe') || surfaceId.includes('be')) return 'tech_spec';
     return 'general';
   }
 
@@ -602,6 +877,361 @@ ${JSON.stringify(artifacts, null, 2)}
     }
     
     return parts.join('\n\n');
+  }
+
+  /**
+   * 创建本次 Pipeline 的项目、任务、文档绑定脉络
+   */
+  private createCoordinationBinding(pipeline: PipelineDefinition, instance: PipelineInstance): void {
+    if (!this.documentManager) return;
+
+    try {
+      const project = this.documentManager.createProject(
+        `${pipeline.name} - ${instance.id}`,
+        `Pipeline coordination project for ${pipeline.id}. Instance ${instance.id}.`,
+      );
+      const taskIdsBySurface = new Map<string, string>();
+
+      for (const surface of pipeline.surfaces) {
+        const task = this.documentManager.createTask(
+          project.id,
+          `${surface.name} (${surface.id})`,
+          [
+            `Pipeline: ${pipeline.id}`,
+            `Instance: ${instance.id}`,
+            `Surface: ${surface.id}`,
+            `Agent: ${surface.agent}`,
+            surface.output?.description ? `Expected output: ${surface.output.description}` : '',
+          ].filter(Boolean).join('\n'),
+          surface.agent,
+        );
+        taskIdsBySurface.set(surface.id, task.id);
+      }
+
+      this.coordinationBindings.set(instance.id, {
+        projectId: project.id,
+        taskIdsBySurface,
+        docIdsBySurface: new Map(),
+      });
+      instance.coordination = this.serializeCoordinationBinding(instance.id);
+      this.persistInstanceContext(instance);
+      console.log(`[PipelineOrchestrator] 协作脉络已创建: project=${project.id}, tasks=${taskIdsBySurface.size}`);
+    } catch (error) {
+      console.warn(`[PipelineOrchestrator] 协作脉络创建失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private updateSurfaceTaskStatus(instanceId: string, surfaceId: string, status: Task['status']): void {
+    const taskId = this.getSurfaceTaskId(instanceId, surfaceId);
+    if (!taskId || !this.documentManager) return;
+
+    try {
+      this.documentManager.updateTaskStatus(taskId, status);
+    } catch (error) {
+      console.warn(`[PipelineOrchestrator] 任务状态更新失败: ${surfaceId} -> ${status}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private blockUnfinishedSurfaceTasks(pipeline: PipelineDefinition, instance: PipelineInstance): void {
+    for (const surface of pipeline.surfaces) {
+      const result = instance.surfaceResults.get(surface.id);
+      if (result?.status === 'completed') continue;
+      this.updateSurfaceTaskStatus(instance.id, surface.id, 'blocked');
+    }
+  }
+
+  private getSurfaceTaskId(instanceId: string, surfaceId: string): string | undefined {
+    const liveBindingTaskId = this.coordinationBindings.get(instanceId)?.taskIdsBySurface.get(surfaceId);
+    if (liveBindingTaskId) return liveBindingTaskId;
+
+    const liveInstanceTaskId = this.instances.get(instanceId)?.coordination?.taskIdsBySurface?.[surfaceId];
+    if (liveInstanceTaskId) return liveInstanceTaskId;
+
+    const state = this.stateManager?.load(instanceId);
+    const context = state?.context as PersistedPipelineContext | undefined;
+    return context?.coordination?.taskIdsBySurface?.[surfaceId];
+  }
+
+  private serializeCoordinationBinding(instanceId: string): PipelineInstance['coordination'] | undefined {
+    const binding = this.coordinationBindings.get(instanceId);
+    if (!binding) return undefined;
+
+    return {
+      projectId: binding.projectId,
+      taskIdsBySurface: Object.fromEntries(binding.taskIdsBySurface),
+      documentIdsBySurface: Object.fromEntries(binding.docIdsBySurface),
+    };
+  }
+
+  private createDryRunGuard(): DryRunGuard | undefined {
+    try {
+      const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }).trim();
+
+      return {
+        root,
+        baseline: this.readGitPorcelain(root),
+      };
+    } catch (error) {
+      console.warn(`[PipelineOrchestrator] dry-run 仓库副作用检测不可用: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+
+  private readGitPorcelain(root: string): string[] {
+    const output = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+
+    return output
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter(Boolean)
+      .sort();
+  }
+
+  private assertDryRunNoRepositorySideEffects(guard?: DryRunGuard): void {
+    if (!guard) return;
+
+    const current = this.readGitPorcelain(guard.root);
+    const before = new Set(guard.baseline);
+    const after = new Set(current);
+    const addedOrChanged = current.filter((line) => !before.has(line));
+    const removed = guard.baseline.filter((line) => !after.has(line));
+    const diff = [...addedOrChanged, ...removed.map((line) => `removed baseline state: ${line}`)];
+
+    if (diff.length > 0) {
+      throw new Error(`Dry-run repository side effect detected. Changed git status entries: ${diff.slice(0, 20).join('; ')}`);
+    }
+  }
+
+  private finalizeDryRunGuard(guard: DryRunGuard | undefined, instance: PipelineInstance): void {
+    if (!guard) return;
+
+    try {
+      this.assertDryRunNoRepositorySideEffects(guard);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const alreadyFailedForSameReason = instance.status === 'failed' && instance.error === errorMsg;
+      instance.status = 'failed';
+      instance.error = errorMsg;
+      instance.completedAt = Date.now();
+
+      if (!alreadyFailedForSameReason) {
+        eventBus.emit({
+          type: 'workflow.failed',
+          source: 'workflow',
+          timestamp: Date.now(),
+          payload: {
+            workflowId: instance.id,
+            taskId: instance.pipelineId,
+            pipelineId: instance.pipelineId,
+            error: errorMsg,
+          },
+        });
+      }
+    }
+  }
+
+  private persistInstanceContext(instance: PipelineInstance): void {
+    if (!this.stateManager) return;
+
+    this.stateManager.updateContext(instance.id, {
+      coordination: this.serializeCoordinationBinding(instance.id) ?? instance.coordination,
+    });
+  }
+
+  private restorePipelineInstances(): PipelineInstance[] {
+    if (!this.stateManager) return [];
+
+    return this.stateManager
+      .listWorkflows(500, 0)
+      .map((state) => this.workflowStateToPipelineInstance(state))
+      .filter((instance): instance is PipelineInstance => Boolean(instance));
+  }
+
+  private restorePipelineInstance(instanceId: string): PipelineInstance | null {
+    if (!this.stateManager) return null;
+    const state = this.stateManager.load(instanceId);
+    return state ? this.workflowStateToPipelineInstance(state) : null;
+  }
+
+  private markInterruptedPipelineRuns(pipelineId: string): void {
+    if (!this.stateManager) return;
+
+    const interrupted = this.stateManager
+      .listWorkflows(500, 0)
+      .filter((state) => {
+        const context = state.context as PersistedPipelineContext;
+        return (
+          context.kind === 'pipeline' &&
+          context.pipelineId === pipelineId &&
+          state.status === 'running' &&
+          !this.instances.has(state.id)
+        );
+      });
+
+    for (const state of interrupted) {
+      this.stateManager.fail(state.id, 'Pipeline interrupted by Gateway restart before completion');
+      this.blockPersistedCoordinationTasks(state);
+      const failedState = this.stateManager.load(state.id);
+      const pipeline = this.pipelines.get(pipelineId);
+      const instance = failedState ? this.workflowStateToPipelineInstance(failedState) : null;
+      if (pipeline && instance) {
+        this.capturePipelineExperience(pipeline, instance);
+      }
+    }
+
+    if (interrupted.length > 0) {
+      console.warn(`[PipelineOrchestrator] 已标记 ${interrupted.length} 个中断的 Pipeline 实例: ${pipelineId}`);
+    }
+  }
+
+  private blockPersistedCoordinationTasks(state: WorkflowState): void {
+    if (!this.documentManager) return;
+
+    const context = state.context as PersistedPipelineContext;
+    const taskIds = Object.values(context.coordination?.taskIdsBySurface ?? {});
+    for (const taskId of taskIds) {
+      try {
+        this.documentManager.updateTaskStatus(taskId, 'blocked');
+      } catch (error) {
+        console.warn(`[PipelineOrchestrator] 中断任务状态更新失败: ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  private capturePipelineExperience(pipeline: PipelineDefinition, instance: PipelineInstance): void {
+    if (!this.documentManager) return;
+
+    const coordination = this.serializeCoordinationBinding(instance.id) ?? instance.coordination;
+    if (!coordination?.projectId) return;
+    if (coordination.documentIdsBySurface?._experience) return;
+
+    const taskIds = Object.values(coordination.taskIdsBySurface || {});
+    const existingDocIds = Object.values(coordination.documentIdsBySurface || {});
+    const surfaceLines = pipeline.surfaces.map((surface) => {
+      const result = instance.surfaceResults.get(surface.id);
+      const status = result?.status || (instance.status === 'completed' ? 'pending' : 'blocked');
+      const error = result?.error ? ` — ${result.error}` : '';
+      return `- ${surface.id}: ${status}${error}`;
+    });
+    const summary = [
+      `Pipeline: ${pipeline.name} (${pipeline.id})`,
+      `Instance: ${instance.id}`,
+      `Status: ${instance.status}`,
+      instance.error ? `Error: ${instance.error}` : undefined,
+      `Tasks: ${taskIds.length}`,
+      `Surface artifacts: ${existingDocIds.length}`,
+    ].filter(Boolean).join('\n');
+
+    try {
+      const doc = this.documentManager.createDocument({
+        title: `Experience: ${pipeline.name} - ${instance.id}`,
+        content: [
+          '# Pipeline Experience Summary',
+          '',
+          summary,
+          '',
+          '## Surface States',
+          surfaceLines.join('\n'),
+          '',
+          '## Reusable Experience',
+          '- Preserve the coordination chain between workflow state, Kanban tasks, and documents.',
+          '- Treat terminal Pipeline states as explicit team state, not only runtime control flow.',
+          '- Keep this run available as evidence for future planning and retrospectives.',
+        ].join('\n'),
+        type: 'report',
+        projectId: coordination.projectId,
+        taskId: coordination.taskIdsBySurface?.retrospective,
+        authorId: 'system',
+        authorName: 'Pipeline Experience',
+        tags: ['experience', 'pipeline-summary', pipeline.id, instance.status],
+        relatedDocIds: existingDocIds,
+        relatedTaskIds: taskIds,
+        relatedAgentIds: Array.from(new Set(pipeline.surfaces.map((surface) => surface.agent))),
+        metadata: {
+          instanceId: instance.id,
+          pipelineId: pipeline.id,
+          status: instance.status,
+          error: instance.error,
+          capturedAt: Date.now(),
+        },
+      });
+
+      const nextCoordination = {
+        ...coordination,
+        documentIdsBySurface: {
+          ...coordination.documentIdsBySurface,
+          _experience: doc.id,
+        },
+      };
+      const binding = this.coordinationBindings.get(instance.id);
+      binding?.docIdsBySurface.set('_experience', doc.id);
+      instance.coordination = nextCoordination;
+      this.persistInstanceContext(instance);
+
+      eventBus.emit({
+        type: 'experience.captured',
+        source: 'experience',
+        timestamp: Date.now(),
+        payload: {
+          experienceId: doc.id,
+          workflowId: instance.id,
+          pipelineId: pipeline.id,
+          projectId: coordination.projectId,
+          status: instance.status,
+          summary,
+          metadata: {
+            taskCount: taskIds.length,
+            artifactCount: existingDocIds.length,
+          },
+        },
+      });
+    } catch (error) {
+      console.warn(`[PipelineOrchestrator] 经验沉淀失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private workflowStateToPipelineInstance(state: WorkflowState): PipelineInstance | null {
+    const context = state.context as PersistedPipelineContext;
+    if (context.kind !== 'pipeline' || !context.pipelineId) return null;
+
+    const surfaceResults = new Map<string, SurfaceResult>();
+    const surfaceIds = context.surfaceIds || [];
+
+    for (const step of state.steps) {
+      const surfaceId = surfaceIds[step.index] || step.goal || `step-${step.index}`;
+      surfaceResults.set(surfaceId, {
+        surfaceId,
+        status: step.status,
+        artifacts: step.output ? { output: step.output } : undefined,
+        logs: [],
+        startedAt: step.startedAt,
+        completedAt: step.completedAt,
+        error: step.error,
+      });
+    }
+
+    const startedAt = state.createdAt;
+    const terminal = state.status === 'completed' || state.status === 'failed' || state.status === 'cancelled';
+    const currentSurface = surfaceIds[state.currentStep];
+
+    return {
+      id: state.id,
+      pipelineId: context.pipelineId,
+      status: state.status,
+      surfaceResults,
+      currentSurface,
+      startedAt,
+      completedAt: terminal ? state.updatedAt : undefined,
+      error: state.error,
+      workflowStateId: state.id,
+      coordination: context.coordination,
+    };
   }
 
   /**
@@ -682,7 +1312,9 @@ ${JSON.stringify(artifacts, null, 2)}
     surfaceId: string,
     instance: PipelineInstance,
     initialInput?: Record<string, any>,
+    options: PipelineExecuteOptions = {},
   ): Promise<SurfaceResult> {
+    this.throwIfCancelled(options.signal);
     const surfaceDef = pipeline.surfaces.find((s) => s.id === surfaceId);
     if (!surfaceDef) {
       throw new Error(`面 ${surfaceId} 未定义`);
@@ -690,6 +1322,7 @@ ${JSON.stringify(artifacts, null, 2)}
 
     console.log(`[PipelineOrchestrator] 执行面: ${surfaceId} (${surfaceDef.name})`);
     instance.currentSurface = surfaceId;
+    this.updateSurfaceTaskStatus(instance.id, surfaceId, 'in_progress');
 
     // 创建面实例（使用 Pipeline instance ID 作为统一预算 session）
     const surface = createSurface(surfaceDef, this.teamOrchestrator, instance.id);
@@ -757,14 +1390,113 @@ ${JSON.stringify(artifacts, null, 2)}
     // 打印最终输入
     console.log(`  → 面 ${surfaceId} 最终输入 keys: [${Array.from(surface.getInputKeys()).join(', ')}]`);
 
+    const runningResult: SurfaceResult = {
+      surfaceId,
+      status: 'running',
+      startedAt: Date.now(),
+      logs: ['Surface execution started'],
+    };
+    instance.surfaceResults.set(surfaceId, runningResult);
+    this.updateSurfaceTaskStatus(instance.id, surfaceId, 'in_progress');
+
+    const stepIndex = Math.max(0, pipeline.surfaces.findIndex((s) => s.id === surfaceId));
+    this.stateManager?.updateStep(instance.id, stepIndex, {
+      agentId: surfaceDef.agent,
+      goal: surfaceDef.workflow?.goal || surfaceDef.name,
+      output: '',
+      status: 'running',
+      startedAt: runningResult.startedAt,
+    });
+
     // 执行面
-    const result = await surface.execute();
+    const result = await surface.execute({
+      signal: options.signal,
+      timeoutMs: surfaceDef.timeout ?? options.surfaceTimeoutMs ?? pipeline.context?.execution?.surfaceTimeoutMs,
+      dryRun: options.dryRun ?? pipeline.context?.execution?.dryRun,
+    });
     instance.surfaceResults.set(surfaceId, result);
+    this.updateSurfaceTaskStatus(
+      instance.id,
+      surfaceId,
+      result.status === 'completed' ? 'done' : result.status === 'failed' || result.status === 'cancelled' ? 'blocked' : 'in_progress',
+    );
+
+    this.stateManager?.updateStep(instance.id, stepIndex, {
+      agentId: surfaceDef.agent,
+      goal: surfaceDef.workflow?.goal || surfaceDef.name,
+      output: result.artifacts?.output || result.error || '',
+      status: result.status === 'completed'
+        ? 'completed'
+        : result.status === 'failed'
+          ? 'failed'
+          : result.status === 'cancelled'
+            ? 'cancelled'
+            : 'running',
+      startedAt: result.startedAt,
+      completedAt: result.completedAt,
+      error: result.error,
+    });
 
     // 产物自动沉淀到知识中心
-    this.sinkToKnowledgeCenter(surfaceId, surfaceDef.name, result, instance.id);
+    this.sinkToKnowledgeCenter(surfaceId, surfaceDef.name, surfaceDef.agent, result, instance.id);
 
     return result;
+  }
+
+  private throwIfCancelled(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      const reason = signal.reason;
+      throw reason instanceof Error ? reason : new Error(String(reason || 'Pipeline cancelled'));
+    }
+  }
+
+  private assertPipelineDefinition(value: unknown, source: string): PipelineDefinition {
+    if (!value || typeof value !== 'object') {
+      throw new Error(`Invalid Pipeline YAML (${source}): root must be an object`);
+    }
+
+    const pipeline = value as Partial<PipelineDefinition>;
+    if (!pipeline.id || typeof pipeline.id !== 'string') {
+      throw new Error(`Invalid Pipeline YAML (${source}): id is required`);
+    }
+    if (!pipeline.name || typeof pipeline.name !== 'string') {
+      throw new Error(`Invalid Pipeline YAML (${source}): name is required`);
+    }
+    if (!Array.isArray(pipeline.surfaces) || pipeline.surfaces.length === 0) {
+      throw new Error(`Invalid Pipeline YAML (${source}): surfaces must be a non-empty array`);
+    }
+    if (!Array.isArray(pipeline.edges)) {
+      throw new Error(`Invalid Pipeline YAML (${source}): edges must be an array`);
+    }
+
+    const surfaceIds = new Set<string>();
+    for (const [index, surface] of pipeline.surfaces.entries()) {
+      if (!surface?.id || typeof surface.id !== 'string') {
+        throw new Error(`Invalid Pipeline YAML (${source}): surfaces[${index}].id is required`);
+      }
+      if (surfaceIds.has(surface.id)) {
+        throw new Error(`Invalid Pipeline YAML (${source}): duplicate surface id "${surface.id}"`);
+      }
+      if (!surface.name || typeof surface.name !== 'string') {
+        throw new Error(`Invalid Pipeline YAML (${source}): surface "${surface.id}" name is required`);
+      }
+      if (!surface.agent || typeof surface.agent !== 'string') {
+        throw new Error(`Invalid Pipeline YAML (${source}): surface "${surface.id}" agent is required`);
+      }
+      surfaceIds.add(surface.id);
+    }
+
+    for (const [index, edge] of pipeline.edges.entries()) {
+      if (!edge?.from || typeof edge.from !== 'string' || !surfaceIds.has(edge.from)) {
+        throw new Error(`Invalid Pipeline YAML (${source}): edges[${index}].from references an unknown surface`);
+      }
+      const downstream = Array.isArray(edge.to) ? edge.to : [edge.to];
+      if (downstream.length === 0 || downstream.some((surfaceId) => typeof surfaceId !== 'string' || !surfaceIds.has(surfaceId))) {
+        throw new Error(`Invalid Pipeline YAML (${source}): edges[${index}].to references an unknown surface`);
+      }
+    }
+
+    return pipeline as PipelineDefinition;
   }
 }
 
@@ -775,6 +1507,7 @@ export function createPipelineOrchestrator(
   teamOrchestrator: TeamOrchestrator,
   stateManager?: WorkflowStateManager,
   knowledgeCenter?: KnowledgeCenter,
+  documentManager?: DocumentManager,
 ): PipelineOrchestrator {
-  return new PipelineOrchestrator(teamOrchestrator, stateManager, knowledgeCenter);
+  return new PipelineOrchestrator(teamOrchestrator, stateManager, knowledgeCenter, documentManager);
 }

@@ -15,5 +15,8 @@
     "hermes:bootstrap": "pnpm --filter @open-agent-teams/hermes-agent run bootstrap",
     "hermes:doctor": "pnpm --filter @open-agent-teams/hermes-agent run doctor",
     "hermes:install-help": "pnpm --filter @open-agent-teams/hermes-agent run install-help"
+  },
+  "devDependencies": {
+    "typescript": "5.3.3"
   }
 }

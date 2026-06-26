@@ -10,7 +10,7 @@ export interface AgentInfo {
   id: string;
   name: string;
   label: string;
-  port: number;
+  port?: number;
   icon: string;
   color: string;
   tags: string[];
@@ -47,6 +47,7 @@ export interface AppSettings {
   temperature: number;
   autoRoute: boolean;
   logLevel: string;
+  language: 'zh' | 'en';
 }
 
 export interface DashboardStats {

@@ -1,3 +1,211 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #111820;
+  --muted: #536273;
+  --line: rgba(17, 24, 39, 0.13);
+  --paper: rgba(255, 255, 255, 0.76);
+  --accent: #ff5c1f;
+  --teal: #007f96;
+}
+
+html {
+  background: #f7f9fa;
+}
+
+body {
+  margin: 0;
+  background: #f7f9fa;
+  color: var(--ink);
+}
+
+::selection {
+  background: rgba(0, 127, 150, 0.18);
+  color: #111820;
+}
+
+.dev-shell {
+  position: relative;
+  overflow-x: hidden;
+  background:
+    linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 72% 24%, rgba(209, 220, 225, 0.56), transparent 28rem),
+    #f7f9fa;
+  background-size: 64px 64px, 64px 64px, auto, auto;
+}
+
+.dev-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0, rgba(17, 24, 39, 0.10) 49.96%, transparent 50.04%),
+    linear-gradient(180deg, transparent 0, rgba(0, 127, 150, 0.10) 49.96%, transparent 50.04%);
+  background-size: 100vw 1px, 1px 100vh;
+  opacity: 0.4;
+}
+
+.dev-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dev-shell .bg-white,
+.dev-shell .bg-white\/50,
+.dev-shell .bg-white\/80,
+.dev-shell .bg-slate-50,
+.dev-shell .bg-slate-100,
+.dev-shell .bg-gray-50,
+.dev-shell .bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.dev-shell .bg-black\/20,
+.dev-shell .bg-black\/24,
+.dev-shell .bg-black\/\[0\.26\],
+.dev-shell .bg-white\/\[0\.035\],
+.dev-shell .bg-white\/\[0\.04\],
+.dev-shell .bg-white\/\[0\.05\],
+.dev-shell .bg-white\/\[0\.06\],
+.dev-shell .bg-white\/\[0\.07\],
+.dev-shell .bg-white\/\[0\.08\],
+.dev-shell .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.dev-shell .bg-\[\#101219\]\/86,
+.dev-shell .bg-\[\#101219\]\/90,
+.dev-shell .bg-\[\#0d1f18\]\/80,
+.dev-shell .bg-\[\#23190d\]\/80 {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.dev-shell .bg-blue-50,
+.dev-shell .bg-indigo-100,
+.dev-shell .bg-purple-100,
+.dev-shell .bg-pink-100 {
+  background-color: rgba(0, 127, 150, 0.09) !important;
+}
+
+.dev-shell .bg-green-50,
+.dev-shell .bg-green-100,
+.dev-shell .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.10) !important;
+}
+
+.dev-shell .bg-amber-50,
+.dev-shell .bg-amber-100,
+.dev-shell .bg-orange-100,
+.dev-shell .bg-yellow-500 {
+  background-color: rgba(255, 92, 31, 0.12) !important;
+}
+
+.dev-shell .bg-red-50,
+.dev-shell .bg-red-100 {
+  background-color: rgba(220, 38, 38, 0.10) !important;
+}
+
+.dev-shell .text-\[\#f4f8ff\],
+.dev-shell .text-\[\#eef5ff\],
+.dev-shell .text-\[\#dce7f5\],
+.dev-shell .text-gray-950,
+.dev-shell .text-gray-900,
+.dev-shell .text-slate-900 {
+  color: #111820 !important;
+}
+
+.dev-shell .text-\[\#c7d2e1\],
+.dev-shell .text-\[\#aab6c7\],
+.dev-shell .text-gray-700,
+.dev-shell .text-slate-700,
+.dev-shell .text-gray-600,
+.dev-shell .text-slate-600 {
+  color: #334155 !important;
+}
+
+.dev-shell .text-\[\#8d9bad\],
+.dev-shell .text-\[\#78869a\],
+.dev-shell .text-gray-500,
+.dev-shell .text-slate-500,
+.dev-shell .text-gray-400,
+.dev-shell .text-slate-400,
+.dev-shell .text-gray-300 {
+  color: #5b6778 !important;
+}
+
+.dev-shell .text-\[\#64e7ff\],
+.dev-shell .text-\[\#8ff0ff\],
+.dev-shell .text-blue-700,
+.dev-shell .text-blue-600 {
+  color: #007f96 !important;
+}
+
+.dev-shell .text-\[\#63f7ae\],
+.dev-shell .text-green-700,
+.dev-shell .text-green-600,
+.dev-shell .text-emerald-700 {
+  color: #047857 !important;
+}
+
+.dev-shell .text-\[\#ff8a56\],
+.dev-shell .text-\[\#ffb15f\],
+.dev-shell .text-\[\#ffca85\],
+.dev-shell .text-orange-700,
+.dev-shell .text-orange-600,
+.dev-shell .text-amber-700 {
+  color: #c2410c !important;
+}
+
+.dev-shell .text-\[\#ff7f7f\],
+.dev-shell .text-\[\#ff9a9a\],
+.dev-shell .text-red-700,
+.dev-shell .text-red-600 {
+  color: #b91c1c !important;
+}
+
+.dev-shell .border,
+.dev-shell .border-white\/10,
+.dev-shell .border-white\/12,
+.dev-shell .border-white\/14,
+.dev-shell .border-gray-200,
+.dev-shell .border-slate-200,
+.dev-shell .border-gray-300,
+.dev-shell .border-blue-200,
+.dev-shell .border-green-200,
+.dev-shell .border-amber-200 {
+  border-color: var(--line) !important;
+}
+
+.dev-shell input,
+.dev-shell select,
+.dev-shell textarea {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(17, 24, 39, 0.15) !important;
+  color: #111820 !important;
+}
+
+.dev-shell input::placeholder,
+.dev-shell textarea::placeholder {
+  color: #7c8796 !important;
+}
+
+.dev-shell option {
+  background: #ffffff;
+  color: #111820;
+}
+
+.dev-shell pre,
+.dev-shell code {
+  color: #17202b;
+}
+
+.dev-shell a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}

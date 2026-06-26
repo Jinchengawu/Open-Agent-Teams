@@ -7,7 +7,7 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
 function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn('animate-pulse rounded-md bg-gray-200', className)}
+      className={cn('animate-pulse rounded-md bg-slate-200/80', className)}
       {...props}
     />
   );
@@ -15,7 +15,7 @@ function Skeleton({ className, ...props }: SkeletonProps) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-lg shadow p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-white/70 p-6">
       <Skeleton className="h-4 w-2/3" />
       <Skeleton className="h-8 w-1/3" />
       <Skeleton className="h-3 w-full" />

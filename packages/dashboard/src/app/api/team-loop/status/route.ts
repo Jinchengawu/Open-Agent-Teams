@@ -1,124 +1,152 @@
-import { NextResponse } from 'next/server'
-import { getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports'
+import { NextResponse } from 'next/server';
+import { getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports';
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const AGENT_PORTS = [8201, 8202, 8203, 8204, 8205]
-const AGENT_IDS = ['frontend', 'backend', 'testing', 'devops', 'pm']
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
 
-async function fetchJson(url: string, timeoutMs = 3000) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+async function fetchGatewayJson(path: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const response = await fetch(url, {
+    const response = await fetch(`${GATEWAY_URL}${path}`, {
       signal: controller.signal,
       cache: 'no-store',
-    })
-    if (!response.ok) return null
-    return response.json()
+    });
+    if (!response.ok) return null;
+    return response.json();
   } catch {
-    return null
+    return null;
   } finally {
-    clearTimeout(timeout)
+    clearTimeout(timeout);
   }
 }
 
-async function getAgentHealth() {
-  const agents = await Promise.all(
-    AGENT_PORTS.map(async (port, index) => {
-      const data = await fetchJson(`http://127.0.0.1:${port}/health`)
-      return {
-        id: AGENT_IDS[index],
-        port,
-        online: Boolean(data?.status === 'ok'),
-        skills: Number(data?.skills || 0),
-      }
-    }),
-  )
-  return {
-    agents,
-    onlineCount: agents.filter((agent) => agent.online).length,
-    totalAgents: agents.length,
-    totalSkills: agents.reduce((sum, agent) => sum + agent.skills, 0),
-  }
+function countObjectValues(value: unknown) {
+  if (!value || typeof value !== 'object') return 0;
+  return Object.values(value as Record<string, unknown>).filter(Boolean).length;
 }
 
-async function getWorkflowEvidence() {
-  const data = await fetchJson('http://127.0.0.1:8205/v1/workflows', 5000)
-  const workflows = Array.isArray(data?.workflows) ? data.workflows : []
-  const latestWorkflow = workflows[0] ?? null
-  return {
-    reachable: Boolean(data),
-    workflows,
-    latestWorkflow,
-    workflowCount: workflows.length,
-  }
+function getTaskStatusCounts(tasks: any[]) {
+  return tasks.reduce<Record<string, number>>((acc, task) => {
+    const status = String(task.status || 'unknown');
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
 }
 
 function getMissingChecks(checks: Record<string, boolean>) {
   return Object.entries(checks)
     .filter(([, passed]) => !passed)
-    .map(([name]) => name)
+    .map(([name]) => name);
 }
 
 export async function GET() {
-  const [agentHealth, workflowEvidence] = await Promise.all([
-    getAgentHealth(),
-    getWorkflowEvidence(),
-  ])
-  const latestGate = getCompletedDeliveryGateReports(1)[0] ?? null
-  const latestWorkflow = workflowEvidence.latestWorkflow
-  const projectId = latestWorkflow?.project_id || latestWorkflow?.projectId || null
-  const taskCount = Number(latestWorkflow?.coordination_task_count || latestWorkflow?.taskCount || 0)
+  const [instancesData, workflowsData, tasksData, documentsData] = await Promise.all([
+    fetchGatewayJson('/pipeline-instances?limit=1'),
+    fetchGatewayJson('/v1/workflows?limit=1'),
+    fetchGatewayJson('/api/v2/tasks'),
+    fetchGatewayJson('/api/v2/documents?limit=50'),
+  ]);
+
+  const gateReports = getCompletedDeliveryGateReports(20);
+  const latestGate = gateReports[0] ?? null;
+  const evidenceGate = gateReports.find((report) => report.ok) ?? latestGate;
+  const latestInstance = instancesData?.instances?.[0] ?? null;
+  const latestWorkflow = workflowsData?.workflows?.[0] ?? null;
+  const tasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
+  const documents = Array.isArray(documentsData?.documents) ? documentsData.documents : [];
+  const projectId = latestInstance?.coordination?.projectId ?? latestWorkflow?.project_id ?? null;
+  const taskIdsBySurface = latestInstance?.coordination?.taskIdsBySurface || {};
+  const documentIdsBySurface = latestInstance?.coordination?.documentIdsBySurface || {};
+  const surfaceTaskCount = countObjectValues(taskIdsBySurface);
+  const surfaceDocumentCount = countObjectValues(documentIdsBySurface);
+  const projectTasks = projectId ? tasks.filter((task: any) => task.projectId === projectId) : [];
+  const projectDocuments = projectId ? documents.filter((doc: any) => doc.projectId === projectId) : [];
+  const boundProjectDocuments = projectDocuments.filter((doc: any) => {
+    const relatedTasks = Array.isArray(doc.relatedTaskIds) ? doc.relatedTaskIds : [];
+    return Boolean(doc.taskId) || relatedTasks.length > 0 || doc.metadata?.instanceId === latestInstance?.id;
+  });
+  const latestDocument = [...boundProjectDocuments].sort((a: any, b: any) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))[0] ?? null;
+  const taskStatusCounts = getTaskStatusCounts(projectTasks);
   const checks = {
-    agentsOnline: agentHealth.onlineCount > 0,
-    teamReachable: agentHealth.onlineCount === agentHealth.totalAgents,
-    workflowEndpointReachable: workflowEvidence.reachable,
-    latestWorkflowPresent: Boolean(latestWorkflow?.id),
-    deliveryGateEvidencePresent: Boolean(latestGate?.total),
-    deliveryGateOk: Boolean(latestGate?.ok),
-  }
-  const missing = getMissingChecks(checks)
+    deliveryGateOk: Boolean(evidenceGate?.ok),
+    latestPipelinePresent: Boolean(latestInstance?.id),
+    projectBound: Boolean(projectId),
+    surfaceTasksBound: surfaceTaskCount > 0,
+    projectTasksPresent: projectTasks.length > 0,
+    surfaceDocumentsBound: surfaceDocumentCount > 0,
+    boundDocumentsPresent: boundProjectDocuments.length > 0,
+  };
+  const missing = getMissingChecks(checks);
+  const loopOk = missing.length === 0;
 
   return NextResponse.json({
-    ok: missing.length === 0,
+    ok: loopOk,
     checkedAt: Date.now(),
     checks,
     missing,
     checkSummary: `${Object.values(checks).filter(Boolean).length}/${Object.keys(checks).length}`,
-    agents: agentHealth,
     deliveryGate: latestGate
       ? {
-          ok: latestGate.ok,
-          report: latestGate.report,
-          reportTime: latestGate.reportTime,
-          summary: latestGate.summary,
-          href: '/api/delivery-gate/latest?format=markdown',
+          ok: Boolean(evidenceGate?.ok),
+          report: evidenceGate?.report ?? latestGate.report,
+          summary: evidenceGate?.summary ?? latestGate.summary,
+          reportTime: evidenceGate?.reportTime ?? latestGate.reportTime,
+          latestReport: {
+            ok: latestGate.ok,
+            report: latestGate.report,
+            summary: latestGate.summary,
+            reportTime: latestGate.reportTime,
+          },
         }
       : null,
     latestWorkflow: latestWorkflow
       ? {
           id: latestWorkflow.id,
           status: latestWorkflow.status,
-          pipelineId: latestWorkflow.pipeline_id || latestWorkflow.template || latestWorkflow.pipelineId || null,
+          pipelineId: latestWorkflow.pipeline_id || latestWorkflow.template,
+          projectId: latestWorkflow.project_id || projectId,
+          taskCount: latestWorkflow.coordination_task_count ?? surfaceTaskCount,
+          href: latestWorkflow.pipeline_url || (latestInstance?.id ? `/pipeline?instanceId=${latestInstance.id}` : null),
+        }
+      : null,
+    latestInstance: latestInstance
+      ? {
+          id: latestInstance.id,
+          status: latestInstance.status,
+          pipelineId: latestInstance.pipelineId,
           projectId,
-          taskCount,
-          href: '/workflows',
+          surfaceTaskCount,
+          surfaceDocumentCount,
+          currentSurface: latestInstance.currentSurface || null,
+          href: latestInstance.pipeline_url || `/pipeline?instanceId=${latestInstance.id}`,
         }
       : null,
     kanban: {
       projectId,
-      taskCount,
-      surfaceTaskCount: taskCount,
-      href: null,
+      taskCount: projectTasks.length,
+      statusCounts: taskStatusCounts,
+      surfaceTaskCount,
+      href: projectId ? `/kanban?source=coordination` : null,
     },
     documents: {
-      projectDocumentCount: 0,
-      boundProjectDocumentCount: 0,
-      total: 0,
-      href: null,
-      latestDocument: null,
+      projectDocumentCount: projectDocuments.length,
+      boundProjectDocumentCount: boundProjectDocuments.length,
+      total: Number(documentsData?.total || documents.length || 0),
+      href: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}` : null,
+      latestDocument: latestDocument
+        ? {
+            id: latestDocument.id,
+            title: latestDocument.title,
+            type: latestDocument.type,
+            taskId: latestDocument.taskId || null,
+            href: projectId
+              ? `/knowledge?projectId=${encodeURIComponent(projectId)}&documentId=${encodeURIComponent(latestDocument.id)}`
+              : `/knowledge?documentId=${encodeURIComponent(latestDocument.id)}`,
+          }
+        : null,
     },
-  })
+  });
 }

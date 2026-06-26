@@ -19,6 +19,12 @@ export interface IOrchestrator {
     runMeeting(goal: string): Promise<TeamRunResult>;
     /** 带实时进度的圆桌会议（并发控制 + 重试） */
     runMeetingWithProgress(goal: string, onProgress: (event: MeetingProgressEvent) => void): Promise<TeamRunResult>;
+    /** 智能路由入口 — 自动决策协作模式
+     * 由 IntentRouter 分析用户意图，自动选择 single/team/meeting 策略
+     */
+    handleRequest(userQuery: string): Promise<TeamRunResult>;
+    /** 获取最后一次路由决策（用于调试和审计） */
+    getLastRoutingDecision(): import('./types.js').RoutingDecision | null;
     /** 获取 Agent 间消息历史 */
     getMessages(agentName?: string): unknown[];
     /** 广播消息给所有 Agent */

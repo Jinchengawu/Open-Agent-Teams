@@ -2,7 +2,7 @@
  * Event Handlers — 事件处理器注册入口
  *
  * 用法：
- *   import { registerAllHandlers } from '@dev-agent/core/event/handlers';
+ *   import { registerAllHandlers } from '@open-agent-teams/core/event/handlers';
  *   registerAllHandlers({
  *     kanban: { runWorkflow: async (taskId, goal) => { ... } },
  *     workflow: { updateTaskStatus: async (taskId, status) => { ... } },

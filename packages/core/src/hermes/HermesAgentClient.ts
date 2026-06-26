@@ -120,6 +120,8 @@ export class HermesAgentClient {
     systemPrompt?: string;
     maxTokens?: number;
     sessionId?: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
   }): Promise<HermesAgentResult> {
     const instance = this.instanceMap.get(agentId);
     if (!instance) {
@@ -143,7 +145,7 @@ export class HermesAgentClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer dev-agent-teams-key',
+      'Authorization': 'Bearer open-agent-teams-key',
     };
 
     if (options?.sessionId) {
@@ -153,11 +155,22 @@ export class HermesAgentClient {
     const startTime = Date.now();
     console.log(`[HermesClient] 调用 ${agentId} @ ${url} → "${goal.substring(0, 60)}..."`);
 
+    const controller = new AbortController();
+    const timeoutMs = options?.timeoutMs ?? instance.timeout_ms ?? 120000;
+    const timeout = setTimeout(() => controller.abort(new Error(`Hermes request timed out after ${timeoutMs}ms`)), timeoutMs);
+    const onAbort = () => controller.abort(options?.signal?.reason || new Error('Hermes request cancelled'));
+    if (options?.signal?.aborted) {
+      onAbort();
+    } else {
+      options?.signal?.addEventListener('abort', onAbort, { once: true });
+    }
+
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -195,6 +208,9 @@ export class HermesAgentClient {
         tokenUsage: { input_tokens: 0, output_tokens: 0 },
         toolCalls: [],
       };
+    } finally {
+      clearTimeout(timeout);
+      options?.signal?.removeEventListener('abort', onAbort);
     }
   }
 
@@ -223,7 +239,7 @@ export class HermesAgentClient {
   /**
    * 检查 Agent 实例是否在线
    */
-  async healthCheck(agentId: string): Promise<{ online: boolean; latency: number }> {
+  async healthCheck(agentId: string, timeoutMs = 1500): Promise<{ online: boolean; latency: number }> {
     const instance = this.instanceMap.get(agentId);
     if (!instance) return { online: false, latency: -1 };
 
@@ -232,7 +248,7 @@ export class HermesAgentClient {
     const startTime = Date.now();
 
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       return { online: response.ok, latency: Date.now() - startTime };
     } catch {
       return { online: false, latency: -1 };
@@ -242,11 +258,11 @@ export class HermesAgentClient {
   /**
    * 检查所有实例状态
    */
-  async healthCheckAll(): Promise<Map<string, { online: boolean; latency: number }>> {
+  async healthCheckAll(timeoutMs = 1500): Promise<Map<string, { online: boolean; latency: number }>> {
     const results = new Map<string, { online: boolean; latency: number }>();
 
     const promises = this.config.instances.map(async (inst) => {
-      const status = await this.healthCheck(inst.id);
+      const status = await this.healthCheck(inst.id, timeoutMs);
       results.set(inst.id, status);
     });
 

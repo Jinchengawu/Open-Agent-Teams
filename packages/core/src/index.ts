@@ -1,8 +1,26 @@
-// @open-agent-teams/core - Shared Agent Team infrastructure
+// @open-agent-teams/core — Agent Teams 协作框架核心能力
+
+// ── Hermes Agent 客户端（新增 — 替代 omAgent）──
+export {
+  HermesAgentClient,
+  createHermesAgentClient,
+  getGlobalHermesClient,
+} from './hermes/index.js';
+export type {
+  HermesInstance,
+  HermesConfig,
+  HermesAgentResult,
+} from './hermes/index.js';
+
+// ── 会话管理 ──
 export { SessionManager } from './session/SessionManager';
 export { initSchema } from './session/schema';
+export { WorkflowStateManager } from './session/WorkflowStateManager';
+export type { WorkflowState, WorkflowStepState, WorkflowContext } from './session/WorkflowStateManager';
 export { RollbackManager } from './session/rollback';
 export type { SessionSnapshot } from './session/rollback';
+
+// ── 记忆、上下文与 Agent 通信基础设施 ──
 export { MemoryStore } from './memory/MemoryStore';
 export { ProjectMemory } from './memory/project-memory';
 export type { MemoryEntry, MemoryQuery } from './memory/project-memory';
@@ -16,47 +34,35 @@ export { RegistryClient } from './bus/RegistryClient';
 export { AgentBus } from './bus/AgentBus';
 export { MessageType } from './bus/types';
 export type { AgentMessageEnvelope, AgentRegistration } from './bus/types';
+
+// ── 模板化工作流 ──
 export { WorkflowOrchestrator } from './workflow/WorkflowOrchestrator';
 export { BUILTIN_TEMPLATES } from './workflow/templates';
 export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types';
-export { createAgentApp } from './agent-factory';
-export type { AgentFactoryConfig } from './agent-factory';
+
+// ── 编排器（核心）──
 export { TeamOrchestrator, createTeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
-export type { TeamAgentConfig, TeamOrchestratorConfig } from './team/TeamOrchestrator';
 
-// Quality - LLM-as-a-judge
-export { OutputJudge } from './quality/judge';
-export type { EvaluationResult, EvaluationRequest, EvaluationDimension, LLMCaller } from './quality/judge';
-
-// Telemetry - 可观测性
-export { EventBus, createEvent, generateEventId } from './telemetry/events';
-export type { TelemetryEvent, EventType, EventLevel, EventHandler } from './telemetry/events';
-export { TokenTracker } from './telemetry/token-tracker';
-export type { TokenUsageRecord, ModelPricing } from './telemetry/token-tracker';
-
-// Orchestrator - 编排器抽象层
+// ── 编排器抽象层（解耦 @open-multi-agent/core）──
 export type { IOrchestrator } from './orchestrator/IOrchestrator';
 export type {
-  TeamAgentConfig as OrchestratorTeamAgentConfig,
-  TeamOrchestratorConfig as OrchestratorTeamOrchestratorConfig,
-  TokenUsage,
-  ToolCallRecord,
-  LLMMessage,
+  TeamAgentConfig,
+  TeamOrchestratorConfig,
+  MeetingProgressEvent,
+  OrchestratorEvent,
   AgentRunResult,
   TeamRunResult,
   TaskDefinition,
-  MeetingProgressEvent,
-  OrchestratorEvent,
-  OrchestratorAgentInfo,
   OrchestratorStatus,
+  TokenUsage,
   RoutingDecision,
   IntentRouterConfig,
 } from './orchestrator/types';
 
-// IntentRouter - 智能意图路由
+// ── 意图路由（新增）──
 export { IntentRouter } from './intent/IntentRouter';
 
-// Runtime guards
+// ── 模型消耗保护（Codex 回填模式）──
 export {
   createGuardedAgentResult,
   createGuardedRoutingDecision,
@@ -64,19 +70,40 @@ export {
   modelSpendGuardMessage,
 } from './runtime/model-spend-guard.js';
 
-// ── Hermes Agent 客户端（可选的 Agent 后端）──
-export {
-  HermesAgentClient,
-  createHermesAgentClient,
-  getGlobalHermesClient,
-} from './hermes/index.js';
-export type {
-  HermesInstance,
-  HermesConfig,
-  HermesAgentResult,
-} from './hermes/index.js';
+// ── 质量评估与遥测 ──
+export { OutputJudge } from './quality/judge';
+export type { EvaluationResult, EvaluationRequest, EvaluationDimension, LLMCaller } from './quality/judge';
+export { EventBus as TelemetryEventBus, createEvent, generateEventId } from './telemetry/events';
+export type { TelemetryEvent, EventType, EventLevel, EventHandler as TelemetryEventHandler } from './telemetry/events';
+export { TokenTracker } from './telemetry/token-tracker';
+export type { TokenUsageRecord, ModelPricing } from './telemetry/token-tracker';
 
-// ── Pipeline 引擎（面编排）──
+// ── 事件总线（新增 — Phase 1: 打通孤岛）──
+export { EventBus, eventBus } from './event/EventBus';
+export type { AnyEvent } from './event/EventBus';
+export type {
+  KanbanEvent,
+  WorkflowEvent,
+  MeetingEvent,
+  SystemEvent,
+  ActionItem,
+  TaskStatus,
+  EventHandler,
+} from './event/types';
+export {
+  registerAllHandlers,
+  registerKanbanHandlers,
+  registerWorkflowHandlers,
+  registerMeetingHandlers,
+} from './event/handlers';
+export type {
+  AllHandlerDeps,
+  KanbanHandlerDeps,
+  WorkflowHandlerDeps,
+  MeetingHandlerDeps,
+} from './event/handlers';
+
+// ── Pipeline 引擎（新增 — 面编排）──
 export {
   Surface,
   createSurface,
@@ -84,7 +111,7 @@ export {
   createPipelineOrchestrator,
   ConflictResolver,
   createConflictResolver,
-} from './pipeline/index.js';
+} from './pipeline';
 export type {
   PipelineDefinition,
   PipelineInstance,
@@ -100,58 +127,48 @@ export type {
   ConflictStrategy,
   Conflict,
   ConflictConfig,
-} from './pipeline/index.js';
+} from './pipeline';
 
-// ── 知识中心 ──
+// ── 内置生命周期模板 ──
+export { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
+
+// ── 知识中心（新增 — P1）──
 export {
   KnowledgeCenter,
-  createKnowledgeCenter,
   getGlobalKnowledgeCenter,
   resetGlobalKnowledgeCenter,
-} from './knowledge/index.js';
+  createKnowledgeCenter,
+} from './knowledge/KnowledgeCenter.js';
 export type {
   KnowledgeDocument,
   KnowledgeQuery,
   KnowledgeResult,
   KnowledgeCenterConfig,
-} from './knowledge/index.js';
+} from './knowledge/KnowledgeCenter.js';
 
-// ── 业务事件总线（与遥测 EventBus 区分）──
-export { EventBus as AppEventBus, eventBus as appEventBus } from './event/EventBus.js';
-export type { AnyEvent as AppAnyEvent } from './event/EventBus.js';
-export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus.js';
-export type { AgentMessage, MessageBusOptions } from './event/MessageBus.js';
-export type {
-  KanbanEvent,
-  WorkflowEvent,
-  MeetingEvent,
-  SystemEvent,
-  EventHandler as AppEventHandler,
-  TaskStatus,
-  ActionItem,
-} from './event/types.js';
+// ── 增强文档管理（新增 — 支持项目/任务/Agent关联、评论、版本）──
 export {
-  registerAllHandlers,
-  registerKanbanHandlers,
-  registerWorkflowHandlers,
-  registerMeetingHandlers,
-} from './event/handlers/index.js';
+  DocumentManager,
+  createDocumentManager,
+  getGlobalDocumentManager,
+  resetGlobalDocumentManager,
+} from './knowledge/DocumentManager.js';
 export type {
-  AllHandlerDeps,
-  KanbanHandlerDeps,
-  WorkflowHandlerDeps,
-  MeetingHandlerDeps,
-} from './event/handlers/index.js';
+  DocumentV2,
+  DocumentComment,
+  DocumentQuery,
+  Project,
+  Task,
+  DocumentManagerConfig,
+} from './knowledge/DocumentManager.js';
+export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus';
+export type { AgentMessage, MessageBusOptions } from './event/MessageBus';
 
-// ── 工作流状态管理 ──
-export { WorkflowStateManager } from './session/WorkflowStateManager.js';
-export type { WorkflowState, WorkflowStepState, WorkflowContext } from './session/WorkflowStateManager.js';
+// ── Token 预算管理（新增 — Phase 5: 成本控制）──
+export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager';
+export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager';
 
-// ── Token 预算管理 ──
-export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
-export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
-
-// ── 国际化 / 本地化协商 ──
+// ── 国际化（新增 — 全栈中英展示协商）──
 export {
   normalizeLocale,
   negotiateLocale,
@@ -162,6 +179,11 @@ export {
 } from './i18n/index.js';
 export type { Locale, LocalizedText } from './i18n/index.js';
 
-// ── 新增工具 ──
+// ── HTTP API 层 ──
+export { createAgentApp } from './agent-factory';
+export type { AgentAppConfig, AgentApp } from './agent-factory';
+
+// ── Agent 可用工具 ──
 export { createDocumentTools } from './tools/document-tools.js';
+export { createDocumentToolsV2 } from './tools/document-tools-v2.js';
 export { createKanbanTools, setKanbanDatabase } from './tools/kanban-tools.js';

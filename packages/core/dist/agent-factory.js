@@ -1,53 +1,86 @@
+/**
+ * Agent App — 基于 @open-multi-agent/core 的 HTTP API 层
+ *
+ * 职责：
+ * - 提供 OpenAI 兼容的 /v1/chat/completions 端点
+ * - 会话持久化（SessionManager + SQLite）
+ * - 健康检查
+ * - 委托 TeamOrchestrator 处理所有 Agent 编排
+ */
 import os from 'node:os';
 import path from 'node:path';
-import express from 'express';
-import Database from 'better-sqlite3';
-import { v4 as uuidv4 } from 'uuid';
-import { SessionManager } from './session/SessionManager';
-import { MemoryStore } from './memory/MemoryStore';
-import { ContextCompressor } from './context/ContextCompressor';
-import { RegistryClient } from './bus/RegistryClient';
-import { AgentBus } from './bus/AgentBus';
-import { MessageType } from './bus/types';
 import { mkdirSync } from 'node:fs';
-export function createAgentApp(config) {
-    const dataDir = process.env.AGENT_DB_PATH || path.join(os.homedir(), '.dev-agent/data');
+import express from 'express';
+import { SessionManager } from './session/SessionManager';
+import { WorkflowStateManager } from './session/WorkflowStateManager';
+import { TokenBudgetManager } from './telemetry/TokenBudgetManager';
+import { createDevTeamOrchestrator } from './team/TeamOrchestrator';
+import { setKanbanDatabase, createKanbanTools } from './tools/kanban-tools.js';
+import { createDocumentTools } from './tools/document-tools.js';
+import { createDocumentToolsV2 } from './tools/document-tools-v2.js';
+import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
+import { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
+import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
+import { getGlobalDocumentManager } from './knowledge/DocumentManager.js';
+// 从 AgentRunResult 中提取格式化输出（兼容 content 为 string 或 block[]）
+function extractOutput(agentResult) {
+    const allText = [];
+    for (const msg of agentResult.messages) {
+        if (msg.role === 'assistant') {
+            if (typeof msg.content === 'string') {
+                allText.push(msg.content);
+            }
+            else {
+                for (const block of msg.content) {
+                    if ((block.type === 'text' || block.type === 'reasoning') && block.text) {
+                        allText.push(block.text);
+                    }
+                }
+            }
+        }
+    }
+    const combined = allText.join('\n').trim();
+    const parts = [];
+    if (combined)
+        parts.push(combined);
+    if (agentResult.toolCalls.length > 0) {
+        const toolNames = [...new Set(agentResult.toolCalls.map((tc) => tc.toolName))];
+        parts.push(`\n📊 执行了 ${agentResult.toolCalls.length} 个操作 (${toolNames.join(', ')})`);
+    }
+    return parts.join('\n') || (agentResult.success ? '✅ 任务完成' : '❌ 任务失败');
+}
+// ============================================================================
+// Factory
+// ============================================================================
+export async function createAgentApp(config = {}) {
+    const dataDir = config.dataDir || process.env.AGENT_DB_PATH || path.join(os.homedir(), '.dev-agent/data');
     mkdirSync(dataDir, { recursive: true });
-    const dbPath = path.join(dataDir, `${config.id.replace('dev-', '')}.db`);
-    const db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    const dbPath = path.join(dataDir, 'sessions.db');
     const sessionManager = new SessionManager(dbPath);
-    const memoryStore = new MemoryStore(dbPath);
-    const compressor = new ContextCompressor();
-    const selfReg = {
-        id: config.id,
-        label: config.label,
-        host: '127.0.0.1',
-        port: config.port,
-        capabilities: config.tags,
-        healthEndpoint: `http://127.0.0.1:${config.port}/health`,
-        messageEndpoint: `http://127.0.0.1:${config.port}/agent/message`,
-    };
-    const registry = new RegistryClient(selfReg);
-    const agentBus = new AgentBus(registry);
+    const workflowStateManager = new WorkflowStateManager(sessionManager.getDb());
+    const tokenBudgetManager = new TokenBudgetManager({
+        defaultMaxTokens: parseInt(process.env.DEFAULT_TOKEN_BUDGET || '5000000', 10),
+        defaultAlertThreshold: 0.9,
+    });
+    // 初始化看板工具的数据库连接
+    setKanbanDatabase(sessionManager.getDb());
+    const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools()];
+    const orchestrator = createDevTeamOrchestrator({
+        onProgress: config.onProgress,
+        workflowStateManager,
+        tokenBudgetManager,
+        extraCustomTools,
+    });
+    // 创建知识中心与文档管理器
+    const knowledgeCenter = getGlobalKnowledgeCenter({ dbPath: path.join(dataDir, 'knowledge.db') });
+    const documentManager = getGlobalDocumentManager({ dbPath: path.join(dataDir, 'documents.db') });
+    console.log(`[AgentApp] KnowledgeCenter 已初始化: ${dataDir}/knowledge.db`);
+    console.log(`[AgentApp] DocumentManager V2 已初始化: ${dataDir}/documents.db`);
+    // 创建 Pipeline 编排器（注入知识中心与 V2 文档管理器）
+    const pipelineOrchestrator = createPipelineOrchestrator(orchestrator, workflowStateManager, knowledgeCenter, documentManager);
+    pipelineOrchestrator.loadPipeline(DEV_TEAM_MINIMUM_LOOP_PIPELINE);
     const app = express();
     app.use(express.json({ limit: '1mb' }));
-    // ── Health ──
-    app.get('/health', (_req, res) => {
-        res.json({
-            status: 'ok',
-            agent: config.id,
-            label: config.label,
-            port: config.port,
-            hermesPort: config.hermesPort,
-            skills: config.skills.length,
-            capabilities: config.tags,
-            sessionCount: sessionManager.getSessionCount(),
-            messagesProcessed: sessionManager.getTotalMessageCount(),
-            uptime: process.uptime(),
-            peers: registry.getAllAgents().map((a) => ({ id: a.id, label: a.label })),
-        });
-    });
     // Per-session concurrency lock
     const sessionLocks = new Map();
     async function withSessionLock(sessionId, fn) {
@@ -56,193 +89,147 @@ export function createAgentApp(config) {
         sessionLocks.set(sessionId, next.then(() => { }, () => { }));
         await next;
     }
-    // ── Chat Completions ──
+    // ── Health ──
+    app.get('/health', (_req, res) => {
+        const status = orchestrator.getStatus();
+        res.json({
+            status: 'ok',
+            framework: '@open-multi-agent/core',
+            agents: status.teamAgents.length,
+            sharedMemory: status.sharedMemory,
+            sessionCount: sessionManager.getSessionCount(),
+            messagesProcessed: sessionManager.getTotalMessageCount(),
+            uptime: process.uptime(),
+        });
+    });
+    // ── Chat Completions（OpenAI 兼容）──
     app.post('/v1/chat/completions', async (req, res) => {
         try {
-            const { messages, sessionId: clientSessionId } = req.body;
+            const { messages, sessionId: clientSessionId, mode } = req.body;
+            if (!messages || !Array.isArray(messages) || messages.length === 0) {
+                res.status(400).json({ error: 'messages is required' });
+                return;
+            }
+            // 会话管理
             let sessionId = clientSessionId || '';
             if (!sessionId || !sessionManager.getSession(sessionId)) {
                 sessionId = sessionManager.createSession('', clientSessionId || '');
             }
-            const messagesArr = (messages || []);
+            const messagesArr = messages;
+            const lastUserMsg = [...messagesArr].reverse().find((m) => m.role === 'user');
+            const userContent = lastUserMsg?.content;
+            if (!userContent) {
+                res.status(400).json({ error: 'No user message found' });
+                return;
+            }
+            const userText = typeof userContent === 'string' ? userContent : JSON.stringify(userContent);
+            // 保存用户消息
             await withSessionLock(sessionId, async () => {
-                const lastUserMsg = [...messagesArr].reverse().find((m) => m.role === 'user');
-                if (lastUserMsg) {
-                    // 兼容 OpenAI content 格式（string | array）
-                    const contentStr = typeof lastUserMsg.content === 'string'
-                        ? lastUserMsg.content
-                        : JSON.stringify(lastUserMsg.content);
-                    const existingMessages = sessionManager.getAllMessages(sessionId);
-                    const lastStored = existingMessages
-                        .filter((m) => m.role === 'user')
-                        .pop();
-                    if (!lastStored || lastStored.content !== contentStr) {
-                        sessionManager.addMessage(sessionId, 'user', contentStr, 'user');
-                    }
+                const existingMessages = sessionManager.getAllMessages(sessionId);
+                const lastStored = existingMessages.filter((m) => m.role === 'user').pop();
+                if (!lastStored || lastStored.content !== userText) {
+                    sessionManager.addMessage(sessionId, 'user', userText, 'user');
                 }
             });
-            // Build context from DB + current request
-            const allMessages = sessionManager
-                .getAllMessages(sessionId)
-                .map((m) => ({ role: m.role, content: m.content }));
-            const baseSystemPrompt = config.buildSystemPrompt();
-            const peerInfo = buildPeerAwarenessPrompt(config);
-            const fullSystemPrompt = peerInfo ? `${baseSystemPrompt}\n\n${peerInfo}` : baseSystemPrompt;
-            const { systemMessages, chatMessages, compressedCount } = compressor.buildContext(allMessages, fullSystemPrompt);
-            // MiMo-V2.5-Pro 使用标准 Anthropic/OAI 协议，不需要 thinking 过滤
-            const hermesPayload = [
-                ...systemMessages.map((c) => ({ role: 'system', content: c })),
-                ...chatMessages.map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                })),
-            ];
-            const content = await callHermes(config.hermesPort, hermesPayload);
-            await withSessionLock(sessionId, async () => {
-                sessionManager.addMessage(sessionId, 'assistant', content, config.id);
-                if (compressedCount > 0) {
-                    sessionManager.updateSession(sessionId, {
-                        title: sessionManager.getSession(sessionId)?.title || '',
-                    });
+            // 设置会话标题（第一条消息）
+            const totalUserMessages = sessionManager.getMessages(sessionId).filter((m) => m.role === 'user').length;
+            if (totalUserMessages === 1) {
+                sessionManager.updateSession(sessionId, { title: userText.substring(0, 100) });
+            }
+            // 委托给 TeamOrchestrator — 智能路由（自动决策协作模式）
+            let result;
+            // 支持显式 mode（客户端可覆盖），否则走智能路由
+            if (mode === 'team') {
+                // 多 Agent 协同模式（显式指定）
+                const teamResult = await orchestrator.runTeam(userText);
+                const parts = [];
+                const coordinatorResult = teamResult.agentResults.get('coordinator');
+                if (coordinatorResult) {
+                    const coordinatorOutput = extractOutput(coordinatorResult);
+                    if (coordinatorOutput)
+                        parts.push(coordinatorOutput);
                 }
-                // Set title from first user message
-                const totalUserMessages = sessionManager
-                    .getMessages(sessionId)
-                    .filter((m) => m.role === 'user').length;
-                if (totalUserMessages === 1 && messagesArr.length > 0) {
-                    const firstUser = messagesArr.find((m) => m.role === 'user');
-                    if (firstUser?.content) {
-                        const titleText = typeof firstUser.content === 'string'
-                            ? firstUser.content
-                            : JSON.stringify(firstUser.content);
-                        sessionManager.updateSession(sessionId, {
-                            title: titleText.substring(0, 100),
-                        });
+                for (const [name, agentResult] of teamResult.agentResults) {
+                    if (name !== 'coordinator') {
+                        const agentOutput = extractOutput(agentResult);
+                        if (agentOutput) {
+                            parts.push(`\n---\n## ${name}\n${agentOutput}`);
+                        }
                     }
                 }
+                const output = parts.length > 0
+                    ? parts.join('\n')
+                    : JSON.stringify({ success: teamResult.success, totalTokenUsage: teamResult.totalTokenUsage });
+                result = { output, agent: 'team' };
+            }
+            else if (mode === 'meeting') {
+                // 圆桌会议模式（显式指定）
+                const meetingResult = await orchestrator.runMeeting(userText);
+                const meetingParts = [];
+                meetingParts.push(`# 🎙️ 会议讨论\n`);
+                for (const [name, agentResult] of meetingResult.agentResults) {
+                    const agentOutput = extractOutput(agentResult);
+                    if (agentOutput) {
+                        const agentConfig = orchestrator.getStatus().teamAgents.find((a) => a.name === name);
+                        const roleLabel = agentConfig ? `（${agentConfig.model}）` : '';
+                        meetingParts.push(`\n---\n## 🧑‍💼 ${name}${roleLabel}\n${agentOutput}`);
+                    }
+                }
+                const meetingOutput = meetingParts.length > 1
+                    ? meetingParts.join('\n')
+                    : JSON.stringify({ success: meetingResult.success, totalTokenUsage: meetingResult.totalTokenUsage });
+                result = { output: meetingOutput, agent: 'meeting' };
+            }
+            else {
+                // 智能路由模式 — 由 IntentRouter 自动决策
+                const teamResult = await orchestrator.handleRequest(userText);
+                const decision = orchestrator.getLastRoutingDecision();
+                // 构建结构化输出
+                const parts = [];
+                if (decision) {
+                    parts.push(`🎯 路由决策: ${decision.strategy} | 复杂度: ${decision.complexity}\n理由: ${decision.reasoning}\n`);
+                }
+                for (const [name, agentResult] of teamResult.agentResults) {
+                    const agentOutput = extractOutput(agentResult);
+                    if (agentOutput) {
+                        parts.push(`\n---\n## ${name}\n${agentOutput}`);
+                    }
+                }
+                const output = parts.join('\n');
+                const agentName = decision?.primaryAgent || decision?.involvedAgents?.[0] || 'team';
+                result = { output, agent: agentName };
+            }
+            // 保存助手回复
+            await withSessionLock(sessionId, async () => {
+                sessionManager.addMessage(sessionId, 'assistant', result.output, result.agent);
             });
             res.json({
                 id: `chatcmpl-${Date.now()}`,
                 sessionId,
                 object: 'chat.completion',
                 created: Math.floor(Date.now() / 1000),
-                model: config.id,
+                model: result.agent,
                 choices: [
                     {
                         index: 0,
-                        message: { role: 'assistant', content },
+                        message: { role: 'assistant', content: result.output },
                         finish_reason: 'stop',
                     },
                 ],
-                usage: {
-                    prompt_tokens: hermesPayload.reduce((s, m) => s + compressor.estimateTokens(m.content), 0),
-                    completion_tokens: compressor.estimateTokens(content),
-                },
+                instance: result.agent,
+                routedBy: 'intent-router',
             });
         }
         catch (error) {
-            console.error(`[${config.id}] Chat error:`, error);
-            res.status(500).json({ error: 'Internal server error' });
+            console.error('[agent-app] Chat error:', error);
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
         }
     });
-    // ── Inter-Agent Message ──
-    const handleInterAgentMessage = async (envelope, sendResponse) => {
-        switch (envelope.type) {
-            case MessageType.TASK: {
-                const prompt = envelope.payload?.prompt || '';
-                const basePrompt = config.buildSystemPrompt();
-                const peerInfo = buildPeerAwarenessPrompt(config);
-                const systemPrompt = peerInfo ? `${basePrompt}\n\n${peerInfo}` : basePrompt;
-                const hermesPayload = [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: `以下任务来自 Agent "${envelope.from}" 的委托：\n\n${prompt}` },
-                ];
-                const output = await callHermes(config.hermesPort, hermesPayload);
-                sendResponse({
-                    id: uuidv4(),
-                    from: config.id,
-                    to: envelope.from,
-                    sessionId: envelope.sessionId,
-                    type: MessageType.RESULT,
-                    payload: { output },
-                    timestamp: Date.now(),
-                    correlationId: envelope.correlationId,
-                });
-                break;
-            }
-            case MessageType.STATUS: {
-                sendResponse({
-                    id: uuidv4(),
-                    from: config.id,
-                    to: envelope.from,
-                    sessionId: envelope.sessionId,
-                    type: MessageType.RESPONSE,
-                    payload: { status: 'ok', agent: config.id },
-                    timestamp: Date.now(),
-                    correlationId: envelope.correlationId,
-                });
-                break;
-            }
-            default: {
-                sendResponse({
-                    id: uuidv4(),
-                    from: config.id,
-                    to: envelope.from,
-                    sessionId: envelope.sessionId,
-                    type: MessageType.RESPONSE,
-                    payload: { received: true },
-                    timestamp: Date.now(),
-                    correlationId: envelope.correlationId,
-                });
-            }
-        }
-    };
-    app.post('/agent/message', async (req, res) => {
-        try {
-            const envelope = req.body;
-            // 跨 Agent 转发（to 不是自己）
-            if (envelope.to && envelope.to !== config.id && registry.getAgent(envelope.to)) {
-                try {
-                    const result = await agentBus.sendAndWait(envelope.to, {
-                        from: config.id,
-                        to: envelope.to,
-                        sessionId: envelope.sessionId,
-                        type: envelope.type,
-                        payload: envelope.payload,
-                    });
-                    res.json(result);
-                    return;
-                }
-                catch (err) {
-                    res.status(502).json({ error: `Agent "${envelope.to}" unreachable: ${err instanceof Error ? err.message : 'unknown'}` });
-                    return;
-                }
-            }
-            // 本地处理（发给自己的消息）
-            await handleInterAgentMessage(envelope, (response) => {
-                res.json(response);
-            });
-        }
-        catch (error) {
-            res.status(500).json({ error: 'Message processing failed' });
-        }
+    // ── Agent List ──
+    app.get('/agents', (_req, res) => {
+        res.json({ agents: orchestrator.getStatus().teamAgents });
     });
-    // ── Peer Registration ──
-    app.post('/agent/register', (req, res) => {
-        const peer = req.body;
-        if (peer?.id && peer?.messageEndpoint) {
-            registry.addPeer(peer);
-            res.json(selfReg);
-        }
-        else {
-            res.status(400).json({ error: 'Invalid registration' });
-        }
-    });
-    // ── List Peers ──
-    app.get('/agent/peers', (_req, res) => {
-        res.json({ peers: registry.getAllAgents() });
-    });
-    // ── Session Info ──
+    // ── Session Endpoints ──
     app.get('/v1/sessions', (_req, res) => {
         const sessions = sessionManager.listSessions();
         res.json({ sessions });
@@ -256,110 +243,11 @@ export function createAgentApp(config) {
         const messages = sessionManager.getAllMessages(req.params.id);
         res.json({ session, messages });
     });
-    return {
-        app,
-        sessionManager,
-        memoryStore,
-        agentBus,
-        compressor,
-        config,
-        handleInterAgentMessage,
+    // ── Close ──
+    const close = async () => {
+        await orchestrator.shutdown();
+        sessionManager.close();
     };
-}
-const PEER_ROLES = {
-    'dev-frontend': '前端开发专家 (React/Vue/TypeScript/CSS)',
-    'dev-backend': '后端开发专家 (Python/Node.js/Go/API/数据库)',
-    'dev-testing': '测试专家 (pytest/Jest/Playwright/E2E)',
-    'dev-devops': 'DevOps 专家 (Docker/K8s/CI-CD/部署)',
-    'dev-pm': '产品经理 (PRD/需求分析/用户故事)',
-};
-function buildPeerAwarenessPrompt(config) {
-    const peers = config.peers;
-    if (!peers || peers.length === 0)
-        return '';
-    const peerList = peers.map((p) => {
-        const role = PEER_ROLES[p.id] || p.id;
-        return `- **${p.id}** (${role}) — 端口 ${p.port}`;
-    }).join('\n');
-    return `## 团队协作 — 可用 Agent 成员
-
-你是多 Agent 开发团队的一员。系统内还有以下 Agent 可以协作：
-
-${peerList}
-
-### 如何委托任务给其他 Agent
-
-当你需要其他 Agent 的专业能力时，可以通过 HTTP API 委托任务：
-
-\`\`\`
-POST http://127.0.0.1:${config.port}/agent/message
-Content-Type: application/json
-
-{
-  "from": "${config.id}",
-  "to": "<目标agent-id>",
-  "sessionId": "<当前会话id>",
-  "type": "TASK",
-  "payload": { "prompt": "<你要委托的任务描述>" }
-}
-\`\`\`
-
-目标 Agent 的 id 可选值：${peers.map((p) => p.id).join('、')}
-
-收到委托结果后，将其整合到你的回答中。如果用户的问题涉及其他 Agent 的专业领域，**主动建议或委托**给对应的 Agent。`;
-}
-async function callHermes(hermesPort, messages, retries = 5) {
-    // 优先使用直连 API（如果配置了 MODEL_BASE_URL 和 API_KEY）
-    const directUrl = process.env.MODEL_BASE_URL;
-    const directKey = process.env.API_KEY;
-    const directModel = process.env.MODEL_NAME || 'deepseek-v4-pro';
-    const useDirect = !!(directUrl && directKey);
-    let lastError = '';
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            const apiUrl = useDirect
-                ? `${directUrl}/chat/completions`
-                : `http://127.0.0.1:${hermesPort}/v1/chat/completions`;
-            const headers = { 'Content-Type': 'application/json' };
-            if (useDirect) {
-                headers['Authorization'] = `Bearer ${directKey}`;
-            }
-            const body = {
-                model: useDirect ? directModel : 'hermes-agent',
-                messages,
-                max_tokens: 8192,
-            };
-            if (!useDirect) {
-                body.thinking = { type: 'disabled' };
-            }
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(body),
-                signal: AbortSignal.timeout(180000),
-            });
-            if (response.ok) {
-                const data = (await response.json());
-                const content = data.choices?.[0]?.message?.content;
-                if (content)
-                    return content;
-                lastError = '模型返回空内容';
-            }
-            else if (response.status >= 500) {
-                lastError = `服务异常 (HTTP ${response.status})`;
-            }
-            else {
-                return `请求参数错误 (HTTP ${response.status})`;
-            }
-        }
-        catch (error) {
-            lastError = `连接失败: ${error instanceof Error ? error.message : '未知错误'}`;
-        }
-        if (attempt < retries) {
-            // 指数退避: 2s, 4s, 8s, 16s, 32s
-            await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt + 1)));
-        }
-    }
-    return `模型调用失败 (已重试 ${retries} 次): ${lastError}`;
+    return { app, sessionManager, orchestrator, tokenBudgetManager, pipelineOrchestrator, knowledgeCenter, documentManager, close };
 }
 //# sourceMappingURL=agent-factory.js.map

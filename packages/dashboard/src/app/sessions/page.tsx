@@ -52,7 +52,7 @@ export default function SessionsPage() {
   const viewSession = (session: Session) => {
     setSelectedSession(session)
     setLoadingMessages(true)
-    fetch(`http://localhost:8202/v1/sessions/${session.id}`)
+    fetch(`http://127.0.0.1:8400/v1/sessions/${session.id}`)
       .then((r) => r.json())
       .then((data) => setMessages(data.messages || []))
       .catch(() => {})
@@ -74,7 +74,7 @@ export default function SessionsPage() {
     return (
       <ErrorState
         title="No sessions available"
-        message="Start the backend agent and send some messages to create sessions."
+        message="Start the Gateway and send some messages to create sessions."
         onRetry={fetchSessions}
       />
     )

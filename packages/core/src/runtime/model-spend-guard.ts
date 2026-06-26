@@ -14,7 +14,7 @@ export function modelSpendGuardMessage(agentId?: string): string {
   return [
     `${target} blocked by MODEL_SPEND_GUARD.`,
     'External model calls are disabled to avoid provider spend.',
-    'Use Codex to generate the result, then backfill artifacts into the framework data stores.',
+    'Use Codex to generate the result, then run scripts/codex-backfill-legal-team.mjs or another Codex backfill script to persist artifacts.',
   ].join(' ');
 }
 
@@ -29,10 +29,10 @@ export function createGuardedAgentResult(agentId: string): AgentRunResult {
   };
 }
 
-export function createGuardedRoutingDecision(defaultAgentId: string, reason?: string): RoutingDecision {
+export function createGuardedRoutingDecision(reason?: string): RoutingDecision {
   return {
     strategy: 'single',
-    primaryAgent: defaultAgentId,
+    primaryAgent: 'dev-backend',
     reasoning: reason || modelSpendGuardMessage(),
     complexity: 'medium',
   };

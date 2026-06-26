@@ -118,6 +118,11 @@ export class TokenBudgetManager {
   }
 
   /**
+   * 消费 Token（trackUsage 的别名，兼容旧版 API）
+   */
+  consumeTokens = this.trackUsage.bind(this);
+
+  /**
    * 获取预算状态
    */
   getBudgetStatus(sessionId: string): TokenBudget | null {

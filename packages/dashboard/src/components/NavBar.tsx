@@ -1,36 +1,40 @@
 'use client';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { NAV_ITEMS } from '@/lib/constants';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
+import { useI18n } from '@/lib/i18n';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 export function NavBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { stats } = useAgentHealth();
   const systemOnline = stats.onlineCount > 0;
+  const { t } = useI18n();
 
   return (
     <>
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/82 backdrop-blur-2xl">
+        <div className="mx-auto max-w-[1540px] px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white text-xl">🧠</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-[#111820] shadow-[7px_7px_0_rgba(255,92,31,0.18)]">
+                <span className="text-sm font-black tracking-tight text-white">DT</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  DEV-Agent-Teams
+                <h1 className="text-sm font-black uppercase tracking-[0.24em] text-[#111820] sm:text-base">
+                  Open-Agent-Teams
                 </h1>
-                <p className="text-xs text-gray-500">API Gateway + Hermes Agents (Open-Agent-Teams 集成)</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{t('nav.brandSubtitle')}</p>
               </div>
             </Link>
             <div className="flex items-center space-x-4">
               <div
-                className={`hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-full ${
-                  systemOnline ? 'bg-green-50' : 'bg-red-50'
+                className={`hidden items-center space-x-2 rounded-md border px-3 py-1.5 md:flex ${
+                  systemOnline
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-red-200 bg-red-50'
                 }`}
               >
                 <div
@@ -41,8 +45,8 @@ export function NavBar() {
                   }`}
                 ></div>
                 <span
-                  className={`text-sm font-medium ${
-                    systemOnline ? 'text-green-700' : 'text-red-700'
+                  className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                    systemOnline ? 'text-emerald-700' : 'text-red-700'
                   }`}
                 >
                   {systemOnline
@@ -50,9 +54,9 @@ export function NavBar() {
                     : 'No Agents'}
                 </span>
               </div>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button className="rounded-md border border-slate-200 bg-white/70 p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-[#111820]">
                 <svg
-                  className="w-5 h-5 text-gray-500"
+                  className="h-5 w-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -65,18 +69,16 @@ export function NavBar() {
                   />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                Z
-              </div>
+              <LanguageSwitcher />
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white/50 backdrop-blur-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-1">
+      <nav className="border-b border-slate-200 bg-white/58 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1540px] px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto">
             {NAV_ITEMS.map((item) => {
               const isActive =
                 item.href === '/'
@@ -86,13 +88,13 @@ export function NavBar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+                  className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] transition-colors ${
                     isActive
-                      ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-500'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      ? 'border-[#ff5c1f] bg-[#ff5c1f]/8 text-[#111820]'
+                      : 'border-transparent text-slate-500 hover:bg-white/80 hover:text-[#111820]'
                   }`}
                 >
-                  {item.icon} {item.label}
+                  {item.icon} {t(item.labelKey, item.label)}
                 </Link>
               );
             })}

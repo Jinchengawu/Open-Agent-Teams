@@ -1,0 +1,168 @@
+# Pipeline 示例：股票基本面分析系统
+# 基于"一体多面"哲学：每个 Agent 是一个"面"，有明确的输入/输出契约
+
+id: stock-analysis-system
+name: 股票基本面分析系统
+version: "1.0"
+
+context:
+  description: 基于AI的股票基本面深度尽调分析系统
+  cache:
+    compression: true
+    retention: "7d"
+    maxContextLength: 8000
+
+# ============================================================================
+# 面定义
+# ============================================================================
+
+surfaces:
+  # 需求面 — PD
+  - id: pd
+    name: 需求分析
+    agent: dev-pm
+    output:
+      artifacts: [prd, user_stories, wireframes]
+      format: markdown
+      description: 产品需求文档
+    workflow:
+      goal: "分析股票基本面分析系统的需求，产出完整的PRD文档"
+      steps:
+        - 需求分析：明确用户群体、核心场景
+        - 竞品分析：分析现有竞品的功能和优缺点
+        - 用户故事：编写用户故事和验收标准
+        - 编写PRD：产出结构化的产品需求文档
+        - 使用 create_document 工具沉淀 PRD 到 docs/prd/stock-analysis.md
+    gate:
+      type: auto
+
+  # 前端面 — FE
+  - id: fe
+    name: 前端开发
+    agent: dev-frontend
+    input:
+      required: [prd]
+      from: pd
+    output:
+      artifacts: [frontend_code, components, styles]
+      format: code
+      description: 前端可部署代码
+    workflow:
+      goal: "基于PRD实现股票基本面分析系统的前端"
+      steps:
+        - AI-DEV：实现前端组件和页面
+        - AI-E2E：编写前端测试
+        - AI-CR：Code Review
+        - AI-PR：提交PR
+        - AI-Publish：发布前端
+    gate:
+      type: check
+      condition: "测试通过率 >= 70%"
+
+  # 后端面 — BE
+  - id: be
+    name: 后端开发
+    agent: dev-backend
+    input:
+      required: [prd]
+      from: pd
+    output:
+      artifacts: [api, database, service]
+      format: code
+      description: 后端API和数据库
+    workflow:
+      goal: "基于PRD实现股票基本面分析系统的后端API"
+      steps:
+        - API设计：设计RESTful API
+        - 数据库设计：设计数据模型
+        - 实现：编写后端代码
+        - 测试：编写单元测试
+
+  # E2E测试面
+  - id: e2e
+    name: E2E测试
+    agent: dev-testing
+    input:
+      required: [output]
+      from: fe
+    output:
+      artifacts: [test_report, coverage_report]
+      format: markdown
+      description: 端到端测试报告
+    workflow:
+      goal: "对股票基本面分析系统进行端到端测试"
+      steps:
+        - 用例设计：设计E2E测试用例
+        - 执行：执行测试
+        - 报告：生成测试报告
+    gate:
+      type: check
+      condition: "E2E测试通过率 >= 80%"
+
+  # Code Review面
+  - id: cr
+    name: Code Review
+    agent: dev-backend
+    input:
+      required: [output]
+      from: fe
+    output:
+      artifacts: [review_report, merged_code]
+      format: code
+      description: 通过Code Review的代码
+    workflow:
+      goal: "对股票基本面分析系统的代码进行Code Review"
+      steps:
+        - 本地提交：提交代码到本地分支
+        - Git hooks：执行pre-commit hooks
+        - 评审：进行Code Review
+        - 合并：合并到主分支
+    gate:
+      type: approve
+      approvers: [dev-backend]
+      rollback: true
+
+  # 质量控制面
+  - id: qc
+    name: 质量控制
+    agent: project-admin
+    input:
+      required: [output]
+      from: cr
+    output:
+      artifacts: [release_package]
+      format: package
+      description: 发布包
+    workflow:
+      goal: "对股票基本面分析系统进行最终质量控制"
+      steps:
+        - 前置检查：执行前置hooks
+        - 质量评估：评估整体质量
+        - 发布准备：准备发布包
+
+# ============================================================================
+# 编排：面与面的连接
+# ============================================================================
+
+edges:
+  # 需求面完成后，前端和后端同时开始（并联）
+  - from: pd
+    to: [fe, be]
+    description: "PRD完成后，FE和BE并行开发"
+
+  # 前端完成后，E2E测试和Code Review同时开始（并联）
+  - from: fe
+    to: [e2e, cr]
+    description: "前端完成后，E2E和CR并行"
+
+  # E2E测试完成后，Code Review才能继续（串联）
+  # 这里 E2E 和 CR 已经是并联的，但 CR 需要 E2E 通过
+  # 简化：假设 CR 面内部会检查 E2E 结果
+  - from: e2e
+    to: cr
+    description: "E2E通过后，CR才能继续"
+
+  # Code Review完成后，质量控制开始
+  - from: cr
+    to: qc
+    description: "CR完成后，进行质量控制"

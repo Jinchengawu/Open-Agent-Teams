@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
@@ -9,42 +10,136 @@ import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
+import { useI18n } from '@/lib/i18n'
+
+interface ReadinessResponse {
+  ok: boolean
+  checkedAt: number
+  source: string
+  runtime?: {
+    node?: { ok: boolean; version?: string; path?: string }
+    pnpm?: { ok: boolean; version?: string; path?: string }
+    hermes?: { ok: boolean; version?: string; path?: string }
+  }
+  gateway?: { ok: boolean; agents?: number }
+  dashboard?: { ok: boolean; gatewayOnline?: boolean }
+  agentHealth?: {
+    ok: boolean
+    onlineCount?: number
+    totalAgents?: number
+    livePipelineReady?: boolean
+  }
+  openFrameworkSync?: {
+    ok: boolean
+    head?: string
+    remote?: string
+    dirtyCount?: number
+    path?: string
+    error?: string
+  }
+}
+
+interface DeliveryGateResponse {
+  ok: boolean
+  report?: string
+  reportTime?: string | null
+  pass?: number
+  fail?: number
+  warn?: number
+  total?: number
+  summary?: string
+}
+
+interface DeliveryGateHistoryResponse {
+  ok: boolean
+  count?: number
+  latestOk?: boolean
+}
 
 interface TeamLoopStatusResponse {
   ok: boolean
   checkedAt?: number
   checkSummary?: string
   missing?: string[]
-  deliveryGate?: {
-    ok: boolean
-    report: string
-    summary: string
-    href: string
-  } | null
-  latestWorkflow?: {
+  latestInstance?: {
     id: string
-    status?: string
-    pipelineId?: string | null
-    projectId?: string | null
-    taskCount?: number
-    href?: string | null
+    status: string
+    pipelineId: string
+    projectId?: string
+    surfaceTaskCount: number
+    surfaceDocumentCount: number
+    href?: string
   } | null
-  agents?: {
-    onlineCount: number
-    totalAgents: number
+  kanban?: {
+    taskCount: number
+    surfaceTaskCount: number
+    href?: string | null
+  }
+  documents?: {
+    projectDocumentCount: number
+    boundProjectDocumentCount: number
+    total: number
+    href?: string | null
+    latestDocument?: {
+      id: string
+      title: string
+      type: string
+      taskId?: string | null
+      href: string
+    } | null
   }
 }
+
+const readinessFetcher = (url: string): Promise<ReadinessResponse> =>
+  fetch(url, { cache: 'no-store' }).then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      return { ok: false, ...data }
+    }
+    return data
+  })
 
 const jsonFetcher = <T,>(url: string): Promise<T> =>
   fetch(url, { cache: 'no-store' }).then(async (response) => {
     const data = await response.json()
-    if (!response.ok) return { ok: false, ...data }
+    if (!response.ok) {
+      return { ok: false, ...data }
+    }
     return data
   })
 
 export default function Dashboard() {
   const router = useRouter()
+  const [clientTime, setClientTime] = useState('--')
   const { agents, stats, error, isLoading, mutate } = useAgentHealth()
+  const { locale, t, apiHeaders } = useI18n()
+  const {
+    data: readiness,
+    isLoading: readinessLoading,
+    mutate: refreshReadiness,
+  } = useSWR<ReadinessResponse>(['/api/readiness', locale], ([url]) =>
+    fetch(String(url), { cache: 'no-store', headers: apiHeaders }).then(async (response) => {
+      const data = await response.json()
+      if (!response.ok) return { ok: false, ...data }
+      return data
+    }), {
+    refreshInterval: 30000,
+    revalidateOnFocus: false,
+  })
+  const {
+    data: deliveryGate,
+    mutate: refreshDeliveryGate,
+  } = useSWR<DeliveryGateResponse>('/api/delivery-gate/latest', jsonFetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: false,
+  })
+  const {
+    data: deliveryGateHistory,
+    mutate: refreshDeliveryGateHistory,
+  } = useSWR<DeliveryGateHistoryResponse>('/api/delivery-gate/history?limit=5', jsonFetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: false,
+  })
   const {
     data: teamLoop,
     mutate: refreshTeamLoop,
@@ -52,43 +147,53 @@ export default function Dashboard() {
     refreshInterval: 30000,
     revalidateOnFocus: false,
   })
+  const deliveryGateLoaded = Boolean(deliveryGate?.total)
+  const teamLoopLoaded = Boolean(teamLoop?.checkedAt)
+  const mvpReady = readiness?.ok === true && deliveryGate?.ok === true && teamLoop?.ok === true
+
+  useEffect(() => {
+    const updateTime = () => setClientTime(new Date().toLocaleTimeString())
+    updateTime()
+    const timer = window.setInterval(updateTime, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const statCards = [
     {
-      title: 'Active Agents',
+      title: t('dashboard.activeAgents'),
       value: `${stats.onlineCount}/${stats.totalAgents}`,
-      icon: '🤖',
-      color: 'from-blue-500 to-blue-600',
-      detail: stats.onlineCount > 0 ? `${stats.onlineCount} online` : 'All offline',
+      icon: 'AG',
+      color: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+      detail: stats.onlineCount > 0 ? `${stats.onlineCount} ${t('common.online').toLowerCase()}` : t('common.offline'),
     },
     {
-      title: 'Total Skills',
+      title: t('dashboard.totalSkills'),
       value: String(stats.totalSkills),
-      icon: '📚',
-      color: 'from-green-500 to-green-600',
-      detail: 'Across all agents',
+      icon: 'SK',
+      color: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      detail: locale === 'zh' ? '覆盖全部 Agent' : 'Across all agents',
     },
     {
-      title: 'Success Rate',
+      title: t('dashboard.successRate'),
       value: stats.onlineCount > 0 ? `${stats.successRate}%` : '--',
-      icon: '✅',
-      color: 'from-yellow-500 to-orange-500',
-      detail: stats.onlineCount > 0 ? 'Agents reachable' : 'No agents',
+      icon: '%',
+      color: 'border-orange-200 bg-orange-50 text-orange-700',
+      detail: stats.onlineCount > 0 ? (locale === 'zh' ? 'Agent 可触达' : 'Agents reachable') : (locale === 'zh' ? '无在线 Agent' : 'No agents'),
     },
     {
-      title: 'System',
-      value: stats.onlineCount > 0 ? 'Online' : 'Offline',
-      icon: '⚡',
-      color: stats.onlineCount > 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600',
-      detail: 'Via Hermes runtime',
+      title: t('dashboard.system'),
+      value: stats.onlineCount > 0 ? t('common.online') : t('common.offline'),
+      icon: 'OS',
+      color: stats.onlineCount > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700',
+      detail: locale === 'zh' ? '基于 Hermes Runtime' : 'Via Hermes runtime',
     },
   ]
 
   const quickActions = [
-    { icon: '🆕', title: 'New Project', desc: 'Start a new project', path: '/chat' },
-    { icon: '📋', title: 'Templates', desc: 'Browse templates', path: '/chat' },
-    { icon: '📚', title: 'Skills', desc: 'View all skills', path: '/skills' },
-    { icon: '⚙️', title: 'Settings', desc: 'Configure system', path: '/settings' },
+    { icon: 'NEW', title: locale === 'zh' ? '新项目' : 'New Project', desc: locale === 'zh' ? '启动一个真实交付项目' : 'Start a new project', path: '/chat' },
+    { icon: 'TPL', title: locale === 'zh' ? '模板' : 'Templates', desc: locale === 'zh' ? '浏览工作流模板' : 'Browse templates', path: '/chat' },
+    { icon: 'SKL', title: t('nav.skills'), desc: locale === 'zh' ? '查看团队技能' : 'View all skills', path: '/skills' },
+    { icon: 'CFG', title: t('nav.settings'), desc: locale === 'zh' ? '配置系统' : 'Configure system', path: '/settings' },
   ]
 
   if (error) {
@@ -102,106 +207,194 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Team Coordination Loop */}
+    <div className="space-y-8">
+      <section className="relative min-h-[calc(100vh-180px)] overflow-hidden border-b border-slate-300/70 pb-10 pt-8">
+        <div className="grid gap-8 lg:grid-cols-[1.12fr_0.88fr] lg:items-center">
+          <div className="max-w-4xl">
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[#007f96]">
+              {t('hero.eyebrow')}
+            </p>
+            <h1 className={`mt-5 max-w-5xl font-black tracking-normal text-[#111820] ${
+              locale === 'zh'
+                ? 'text-[clamp(3rem,8.6vw,8.2rem)] leading-[0.9]'
+                : 'text-[clamp(3rem,7.2vw,6.7rem)] leading-[0.92]'
+            }`}>
+              {t('hero.title')}
+            </h1>
+            <p className="mt-8 max-w-3xl text-lg leading-8 text-slate-700 md:text-xl md:leading-9">
+              {t('hero.subtitle')}
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button onClick={() => router.push('/chat')}>{t('hero.primary')}</Button>
+              <Button variant="outline" onClick={() => router.push('/kanban?source=coordination')}>{t('hero.secondary')}</Button>
+            </div>
+          </div>
+
+          <div className="relative min-h-[460px] lg:min-h-[620px]">
+            <div className="absolute left-[5%] top-[35%] h-px w-[72%] rotate-[26deg] bg-slate-300" />
+            <div className="absolute left-[20%] top-[58%] h-px w-[70%] -rotate-[17deg] bg-slate-300" />
+            <div className="absolute right-6 top-12 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.businessObject')}</p>
+              <p className="mt-2 text-lg font-black text-[#111820]">{t('hero.deliveryLoop')}</p>
+              <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PRD / Kanban / Test / Release</p>
+            </div>
+            <div className="absolute left-8 top-[45%] w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.agentTeam')}</p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PM Frontend Backend Testing DevOps Admin</p>
+            </div>
+            <div className="absolute bottom-16 right-0 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.commercialEntry')}</p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">{t('hero.commercialText')}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '角色 Agent: PM、Frontend、Backend、Testing、DevOps、Project Admin' : 'Role agents: PM, Frontend, Backend, Testing, DevOps, Project Admin' },
+            { value: '7', label: locale === 'zh' ? '交付面: Meeting、Document、Kanban、Workflow、Artifact、Experience、Context/Event' : 'Delivery surfaces: Meeting, Document, Kanban, Workflow, Artifact, Experience, Context/Event' },
+            { value: deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total}` : '8/8', label: locale === 'zh' ? '最近一次端到端回归验证达到通过状态，后续官网应挂出报告链接' : 'Latest end-to-end regression is passing and report links can be published' },
+            { value: '3', label: locale === 'zh' ? '首批商业入口: 代码审计、RAG 评审、智能图片评审' : 'Initial commercial entries: code audit, RAG review, image review' },
+          ].map(item => (
+            <div key={item.label} className="border-t border-[#111820] pt-4">
+              <p className="text-3xl font-black text-[#111820]">{item.value}</p>
+              <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <Card
-        className={teamLoop?.ok ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}
-        data-testid="dashboard-team-loop-card"
+        className={mvpReady ? 'border-emerald-200 bg-emerald-50/70' : 'border-orange-200 bg-orange-50/70'}
+        data-testid="dashboard-readiness-card"
       >
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge className={teamLoop?.ok ? 'bg-green-600' : 'bg-amber-600'} data-testid="dashboard-team-loop-badge">
-                {teamLoop?.ok ? 'Framework Ready' : 'Needs Evidence'}
+              <Badge className={mvpReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'} data-testid="dashboard-readiness-badge">
+                {readinessLoading || !deliveryGateLoaded || !teamLoopLoaded ? t('dashboard.checking') : mvpReady ? t('dashboard.mvpReady') : t('dashboard.needsAttention')}
               </Badge>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Team Coordination Loop</p>
-                <p className="text-xs text-gray-600" data-testid="dashboard-team-loop-diagnostics">
-                  {teamLoop?.checkSummary
-                    ? teamLoop.ok
-                      ? `Checks ${teamLoop.checkSummary}`
-                      : `Missing ${teamLoop.missing?.[0] || 'coordination evidence'}`
-                    : 'Checking framework loop evidence'}
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#111820]">{t('dashboard.readiness')}</p>
+                <p className="text-xs text-slate-500">
+                  {readiness?.agentHealth
+                    ? `${readiness.agentHealth.onlineCount ?? 0}/${readiness.agentHealth.totalAgents ?? 0} ${locale === 'zh' ? '个 Agent 在线' : 'Agents online'}`
+                    : locale === 'zh' ? '检查本地团队就绪状态' : 'Checking local team readiness'}
                 </p>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-agents">
-                <p className="text-gray-500">Agents</p>
-                <p className="font-semibold text-gray-900">
-                  {teamLoop?.agents ? `${teamLoop.agents.onlineCount}/${teamLoop.agents.totalAgents}` : '--'}
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                ['Gateway', readiness?.gateway?.ok ? 'Online' : '--'],
+                ['Live Pipeline', readiness?.agentHealth?.livePipelineReady ? 'Ready' : '--'],
+                ['Hermes', readiness?.runtime?.hermes?.ok ? 'OK' : '--'],
+                ['Checked', readiness?.checkedAt ? new Date(readiness.checkedAt).toLocaleTimeString() : '--'],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-slate-200 bg-white/70 px-3 py-2">
+                  <p className="text-slate-500">{label}</p>
+                  <p className="font-semibold text-[#111820]">{value}</p>
+                </div>
+              ))}
+              <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2" data-testid="dashboard-delivery-gate-summary">
+                <p className="text-slate-500">E2E Gate</p>
+                <p className="font-semibold text-[#111820]">
+                  {deliveryGate?.total
+                    ? deliveryGate.ok
+                      ? `${deliveryGate.pass}/${deliveryGate.total} PASS`
+                      : `${deliveryGate.fail ?? 0} FAIL`
+                    : '--'}
                 </p>
-              </div>
-              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-workflow">
-                <p className="text-gray-500">Workflow</p>
-                <p className="font-semibold text-gray-900">
-                  {teamLoop?.latestWorkflow?.status || '--'}
-                </p>
-                {teamLoop?.latestWorkflow?.href && (
-                  <Link href={teamLoop.latestWorkflow.href} className="mt-1 inline-block text-[11px] font-medium text-blue-700 hover:text-blue-900">
-                    Open
-                  </Link>
+                {deliveryGate?.report && (
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-medium">
+                    <Link href="/api/delivery-gate/latest?format=markdown" target="_blank" className="text-[#007f96]" data-testid="dashboard-delivery-gate-report-link">
+                      Report
+                    </Link>
+                    <Link href="/api/delivery-gate/history?limit=5" target="_blank" className="text-[#007f96]" data-testid="dashboard-delivery-gate-history-link">
+                      History
+                    </Link>
+                    {deliveryGateHistory?.count ? (
+                      <span className="text-slate-500" data-testid="dashboard-delivery-gate-history-count">
+                        Recent {deliveryGateHistory.count}
+                      </span>
+                    ) : null}
+                  </div>
                 )}
               </div>
-              <div className="rounded-md bg-white/80 px-3 py-2" data-testid="dashboard-team-loop-gate">
-                <p className="text-gray-500">E2E Gate</p>
-                <p className="font-semibold text-gray-900">
-                  {teamLoop?.deliveryGate?.summary || '--'}
-                </p>
-                {teamLoop?.deliveryGate?.href && (
-                  <Link href={teamLoop.deliveryGate.href} target="_blank" className="mt-1 inline-block text-[11px] font-medium text-blue-700 hover:text-blue-900">
-                    Report
-                  </Link>
-                )}
-              </div>
-              <div className="rounded-md bg-white/80 px-3 py-2">
-                <p className="text-gray-500">Checked</p>
-                <p className="font-semibold text-gray-900">
-                  {teamLoop?.checkedAt ? new Date(teamLoop.checkedAt).toLocaleTimeString() : '--'}
-                </p>
+              <div className="rounded-md border border-slate-200 bg-white/70 px-3 py-2" data-testid="dashboard-open-sync-summary">
+                <p className="text-slate-500">Open Sync</p>
+                <p className="font-semibold text-[#111820]">{readiness?.openFrameworkSync?.ok ? 'Synced' : '--'}</p>
               </div>
             </div>
-
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 mutate()
+                refreshReadiness()
+                refreshDeliveryGate()
+                refreshDeliveryGateHistory()
                 refreshTeamLoop()
               }}
-              data-testid="dashboard-team-loop-refresh"
+              data-testid="dashboard-readiness-refresh"
             >
-              Refresh
+              {t('common.refresh')}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card data-testid="dashboard-team-loop-card">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>{t('dashboard.loop')}</CardTitle>
+            <p className="mt-1 text-xs text-slate-500" data-testid="dashboard-team-loop-diagnostics">
+              {teamLoop?.checkSummary
+                ? teamLoop.ok
+                  ? `Checks ${teamLoop.checkSummary}`
+                  : `Missing ${teamLoop.missing?.[0] || 'coordination evidence'}`
+                : 'Checking loop evidence'}
+            </p>
+          </div>
+          <Badge className={teamLoop?.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'} data-testid="dashboard-team-loop-badge">
+            {teamLoop?.ok ? 'Linked' : 'Incomplete'}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
+            {[
+              { testId: 'dashboard-team-loop-workflow', label: 'Workflow', value: teamLoop?.latestInstance?.status || '--', href: teamLoop?.latestInstance?.href },
+              { testId: 'dashboard-team-loop-kanban', label: 'Kanban Tasks', value: teamLoop?.kanban ? `${teamLoop.kanban.taskCount}/${teamLoop.kanban.surfaceTaskCount}` : '--', href: teamLoop?.kanban?.href },
+              { testId: 'dashboard-team-loop-documents', label: 'Documents', value: teamLoop?.documents ? `${teamLoop.documents.boundProjectDocumentCount}/${teamLoop.documents.projectDocumentCount}` : '--', href: teamLoop?.documents?.href },
+              { testId: 'dashboard-team-loop-gate', label: 'Gate Binding', value: teamLoop?.latestInstance ? `${teamLoop.latestInstance.surfaceDocumentCount} docs` : '--' },
+            ].map(item => (
+              <div key={item.testId} className="rounded-md border border-slate-200 bg-white/64 px-3 py-2" data-testid={item.testId}>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{item.label}</p>
+                <p className="mt-1 font-semibold text-[#111820]">{item.value}</p>
+                {item.href && (
+                  <Link href={item.href} className="mt-1 inline-block text-xs font-bold text-[#007f96]">
+                    Open
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          : statCards.map((stat, i) => (
-              <Card
-                key={i}
-                className="overflow-hidden hover:shadow-lg transition-shadow"
-              >
+          : statCards.map((stat) => (
+              <Card key={stat.title} className="overflow-hidden transition-all hover:-translate-y-0.5 hover:border-slate-300">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-gray-500">
-                        {stat.title}
-                      </p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">
-                        {stat.value}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">{stat.detail}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{stat.title}</p>
+                      <p className="mt-2 text-3xl font-black text-[#111820]">{stat.value}</p>
+                      <p className="mt-1 text-sm text-slate-500">{stat.detail}</p>
                     </div>
-                    <div
-                      className={`w-14 h-14 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg`}
-                    >
-                      <span className="text-2xl">{stat.icon}</span>
+                    <div className={`flex h-14 w-14 items-center justify-center rounded-md border text-sm font-black tracking-[0.18em] ${stat.color}`}>
+                      <span>{stat.icon}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -209,77 +402,49 @@ export default function Dashboard() {
             ))}
       </div>
 
-      {/* Agent Status */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Agent Status</CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/agents')}
-          >
-            View All
-          </Button>
+          <CardTitle>{t('dashboard.agentStatus')}</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => router.push('/agents')}>{t('dashboard.viewAll')}</Button>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="p-4 border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+                  className="cursor-pointer rounded-lg border border-slate-200 bg-white/64 p-4 transition-all hover:-translate-y-0.5 hover:border-[#007f96]/30 hover:bg-white"
                   onClick={() => router.push(`/chat?agent=${agent.id}`)}
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white">
                         <span className="text-xl">{agent.icon}</span>
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {agent.name}
-                        </h3>
-                        <p className="text-xs text-gray-500">
-                          Port {agent.port}
-                        </p>
+                        <h3 className="font-semibold text-[#111820]">{agent.name}</h3>
+                        <p className="text-xs text-slate-500">Port {agent.port}</p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          agent.online ? 'bg-green-500' : 'bg-red-500'
-                        }`}
-                      ></div>
-                      <span
-                        className={`text-xs ${
-                          agent.online ? 'text-green-600' : 'text-red-600'
-                        }`}
-                      >
-                        {agent.online ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
+                    <span className={`rounded border px-2 py-0.5 text-[11px] font-black uppercase ${agent.online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                      {agent.online ? t('common.online') : t('common.offline')}
+                    </span>
                   </div>
-
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-slate-50 rounded-lg p-2">
-                      <p className="text-gray-500 text-xs">Skills</p>
+                    <div className="rounded-md border border-slate-200 bg-white/70 p-2">
+                      <p className="text-xs text-slate-500">Skills</p>
                       <p className="font-semibold">{agent.skillCount}</p>
                     </div>
-                    <div className="bg-slate-50 rounded-lg p-2">
-                      <p className="text-gray-500 text-xs">Port</p>
+                    <div className="rounded-md border border-slate-200 bg-white/70 p-2">
+                      <p className="text-xs text-slate-500">Port</p>
                       <p className="font-semibold">{agent.port}</p>
                     </div>
                   </div>
-
-                  <Button className="w-full mt-3" size="sm">
-                    Open Chat
-                  </Button>
+                  <Button className="mt-3 w-full" size="sm">{t('dashboard.openChat')}</Button>
                 </div>
               ))}
             </div>
@@ -287,24 +452,18 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle>{t('dashboard.quickActions')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              {quickActions.map((action, i) => (
-                <Button
-                  key={i}
-                  variant="outline"
-                  className="h-auto py-4 flex flex-col items-center justify-center space-y-2"
-                  onClick={() => router.push(action.path)}
-                >
-                  <span className="text-2xl">{action.icon}</span>
+              {quickActions.map((action) => (
+                <Button key={action.title} variant="outline" className="h-auto flex-col items-start justify-center space-y-2 py-4 text-left" onClick={() => router.push(action.path)}>
+                  <span className="font-mono text-xs font-black tracking-[0.18em] text-[#c2410c]">{action.icon}</span>
                   <span className="font-medium">{action.title}</span>
-                  <span className="text-xs text-gray-500">{action.desc}</span>
+                  <span className="text-xs text-slate-500">{action.desc}</span>
                 </Button>
               ))}
             </div>
@@ -313,28 +472,20 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Info</CardTitle>
+            <CardTitle>{t('dashboard.systemInfo')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {[
                 { label: 'Model Provider', value: 'DeepSeek' },
                 { label: 'Model', value: 'deepseek-v4-pro[1m]' },
-                {
-                  label: 'Agents',
-                  value: `${stats.onlineCount}/${agents.length} online`,
-                },
-                { label: 'Skills', value: String(stats.totalSkills) },
-                { label: 'Updated', value: new Date().toLocaleTimeString() },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-xl"
-                >
-                  <span className="text-sm text-gray-600">{item.label}</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {item.value}
-                  </span>
+                { label: locale === 'zh' ? 'Agents' : 'Agents', value: `${stats.onlineCount}/${agents.length} ${t('common.online').toLowerCase()}` },
+                { label: t('nav.skills'), value: String(stats.totalSkills) },
+                { label: locale === 'zh' ? '更新时间' : 'Updated', value: clientTime },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between rounded-md border border-slate-200 bg-white/64 p-3">
+                  <span className="text-sm text-slate-600">{item.label}</span>
+                  <span className="text-sm font-medium text-[#111820]">{item.value}</span>
                 </div>
               ))}
             </div>

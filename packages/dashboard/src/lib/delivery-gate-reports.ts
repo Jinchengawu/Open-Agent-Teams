@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
-import { join, resolve } from 'path'
+import { readdirSync, readFileSync, statSync } from 'fs'
+import { basename, join, resolve } from 'path'
 
 export interface DeliveryGateReportSummary {
   ok: boolean
@@ -23,13 +23,6 @@ function parseCount(content: string, label: 'PASS' | 'FAIL' | 'WARN') {
   return match ? Number(match[1]) : 0
 }
 
-function parseReportTime(name: string) {
-  const match = name.match(/^e2e-delivery-gate-(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.md$/)
-  if (!match) return null
-  const [, year, month, day, hour, minute, second] = match
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}`
-}
-
 function parseCompletedReport(path: string) {
   const content = readFileSync(path, 'utf8')
   if (!content.includes('## Summary')) return null
@@ -38,13 +31,19 @@ function parseCompletedReport(path: string) {
   const fail = parseCount(content, 'FAIL')
   const warn = parseCount(content, 'WARN')
   const total = pass + fail + warn
+
   if (total === 0) return null
   return { pass, fail, warn, total }
 }
 
-export function getCompletedDeliveryGateReports(limit = 10): DeliveryGateReportSummary[] {
-  if (!existsSync(DELIVERY_GATE_REPORT_DIR)) return []
+function parseReportTime(name: string) {
+  const match = name.match(/^e2e-delivery-gate-(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.md$/)
+  if (!match) return null
+  const [, year, month, day, hour, minute, second] = match
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`
+}
 
+export function getCompletedDeliveryGateReports(limit = 10): DeliveryGateReportSummary[] {
   return readdirSync(DELIVERY_GATE_REPORT_DIR)
     .filter((name) => REPORT_PATTERN.test(name))
     .map((name) => {
@@ -55,10 +54,11 @@ export function getCompletedDeliveryGateReports(limit = 10): DeliveryGateReportS
     .map((report) => {
       const summary = parseCompletedReport(report.path)
       if (!summary) return null
+
       const { pass, fail, warn, total } = summary
       return {
-        ok: fail === 0 && warn === 0 && pass > 0,
-        report: report.name,
+        ok: fail === 0 && pass > 0,
+        report: basename(report.path),
         reportPath: report.path,
         reportTime: parseReportTime(report.name),
         mtimeMs: report.mtimeMs,

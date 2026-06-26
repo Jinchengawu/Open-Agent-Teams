@@ -131,6 +131,16 @@ export interface PipelineContext {
   tools?: string[];
   /** 缓存配置 */
   cache?: CacheConfig;
+  /** 执行配置 */
+  execution?: PipelineExecutionConfig;
+}
+
+/** Pipeline 执行配置 */
+export interface PipelineExecutionConfig {
+  /** 每个 Surface 默认超时（毫秒） */
+  surfaceTimeoutMs?: number;
+  /** 是否禁止仓库写入类副作用 */
+  dryRun?: boolean;
 }
 
 /** 缓存配置 */
@@ -148,10 +158,10 @@ export interface CacheConfig {
 // ============================================================================
 
 /** Pipeline 执行状态 */
-export type PipelineStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'rolled_back';
+export type PipelineStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'rolled_back';
 
 /** 面执行状态 */
-export type SurfaceStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'skipped';
+export type SurfaceStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'skipped';
 
 /** 面执行结果 */
 export interface SurfaceResult {
@@ -191,6 +201,24 @@ export interface PipelineInstance {
   completedAt?: number;
   /** 错误信息 */
   error?: string;
+  /** 持久化工作流 ID（通常等于实例 ID） */
+  workflowStateId?: string;
+  /** 项目/任务/文档绑定投影，用于 Dashboard 展示协作脉络 */
+  coordination?: {
+    projectId: string;
+    taskIdsBySurface: Record<string, string>;
+    documentIdsBySurface: Record<string, string>;
+  };
+}
+
+/** Pipeline 执行选项 */
+export interface PipelineExecuteOptions {
+  /** 外部取消信号 */
+  signal?: AbortSignal;
+  /** 本次执行是否禁止仓库写入类副作用 */
+  dryRun?: boolean;
+  /** Surface 默认超时（毫秒） */
+  surfaceTimeoutMs?: number;
 }
 
 // ============================================================================
@@ -227,10 +255,18 @@ export interface PipelineEvent {
 export interface IPipelineOrchestrator {
   /** 加载 Pipeline 定义 */
   loadPipeline(def: PipelineDefinition): void;
+  /** 卸载 Pipeline 定义 */
+  unloadPipeline(pipelineId: string): boolean;
   /** 从 YAML 加载 */
-  loadFromYaml(yamlPath: string): Promise<void>;
+  loadFromYaml(yamlPath: string): Promise<PipelineDefinition>;
+  /** 从 YAML 文本加载 */
+  loadFromYamlContent(yamlContent: string, source?: string): PipelineDefinition;
   /** 执行 Pipeline */
-  execute(pipelineId: string, initialInput?: Record<string, any>): Promise<PipelineInstance>;
+  execute(pipelineId: string, initialInput?: Record<string, any>, options?: PipelineExecuteOptions): Promise<PipelineInstance>;
+  /** 后台启动 Pipeline */
+  start(pipelineId: string, initialInput?: Record<string, any>, options?: PipelineExecuteOptions): PipelineInstance;
+  /** 取消 Pipeline */
+  cancel(instanceId: string, reason?: string): Promise<void>;
   /** 获取 Pipeline 状态 */
   getStatus(instanceId: string): PipelineInstance | null;
   /** 列出所有 Pipeline */

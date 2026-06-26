@@ -80,6 +80,7 @@ export class MessageBus {
 
   /**
    * 发送消息给指定 Agent（异步，不阻塞）
+   * 别名: sendMessage
    */
   async send(to: string, message: Omit<AgentMessage, 'id' | 'metadata'> & { metadata?: Partial<AgentMessage['metadata']> }): Promise<void> {
     const msg: AgentMessage = {
@@ -116,6 +117,9 @@ export class MessageBus {
       })
     ));
   }
+
+  // 别名：sendMessage 兼容旧版 API
+  sendMessage = this.send.bind(this);
 
   /**
    * 广播消息给所有 Agent（异步并行）

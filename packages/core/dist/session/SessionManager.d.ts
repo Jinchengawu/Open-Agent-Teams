@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 export interface Session {
     id: string;
     title: string;
@@ -16,6 +17,7 @@ export interface Message {
 }
 export declare class SessionManager {
     private db;
+    getDb(): Database.Database;
     constructor(dbPath: string);
     createSession(title?: string, clientId?: string): string;
     getSession(sessionId: string): Session | null;

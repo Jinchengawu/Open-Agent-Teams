@@ -12,18 +12,9 @@ import type {
   TaskDefinition,
   OrchestratorStatus,
   MeetingProgressEvent,
-  RoutingDecision,
 } from './types.js';
 
 export interface IOrchestrator {
-  // ── 智能入口 ──
-
-  /** 智能路由入口：自动决策协作策略并执行 */
-  handleRequest(userQuery: string): Promise<TeamRunResult>;
-
-  /** 获取最后一次路由决策（用于审计和调试） */
-  getLastRoutingDecision(): RoutingDecision | null;
-
   // ── 核心执行模式 ──
 
   /** 自动编排：目标 → DAG 分解 → 并行执行 → 汇总 */
@@ -43,6 +34,16 @@ export interface IOrchestrator {
     goal: string,
     onProgress: (event: MeetingProgressEvent) => void,
   ): Promise<TeamRunResult>;
+
+  // ── 智能路由入口（新增）──
+
+  /** 智能路由入口 — 自动决策协作模式
+   * 由 IntentRouter 分析用户意图，自动选择 single/team/meeting 策略
+   */
+  handleRequest(userQuery: string): Promise<TeamRunResult>;
+
+  /** 获取最后一次路由决策（用于调试和审计） */
+  getLastRoutingDecision(): import('./types.js').RoutingDecision | null;
 
   // ── 通信 ──
 

@@ -11,6 +11,12 @@ export interface TeamAgentConfig {
     model: string;
     apiKey: string;
     baseUrl: string;
+    /** 专长领域列表（用于路由匹配） */
+    expertise: string[];
+    /** 可用工具列表 */
+    tools: string[];
+    /** 典型任务示例（帮助 LLM 理解 Agent 能力边界） */
+    typicalTasks: string[];
 }
 export interface TokenUsage {
     input_tokens: number;
@@ -109,5 +115,39 @@ export interface TeamOrchestratorConfig {
     maxConcurrency?: number;
     maxDelegationDepth?: number;
     onProgress?: (event: OrchestratorEvent) => void;
+    /** 工作流状态管理器（可选 — 用于断点续传） */
+    workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
+    /** Token 预算管理器（可选 — 用于成本控制） */
+    tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
+    /** 额外的自定义工具（如文档工具、看板工具） */
+    extraCustomTools?: any[];
+}
+/**
+ * 路由决策结果 — LLM 输出的结构化决策
+ */
+export interface RoutingDecision {
+    /** 协作策略 */
+    strategy: 'single' | 'team' | 'meeting';
+    /** 主 Agent ID（single 模式下） */
+    primaryAgent?: string;
+    /** 参与 Agent ID 列表（team/meeting 模式下） */
+    involvedAgents?: string[];
+    /** 路由决策理由（可审计） */
+    reasoning: string;
+    /** 复杂度评估 */
+    complexity: 'low' | 'medium' | 'high';
+}
+/**
+ * IntentRouter 配置
+ */
+export interface IntentRouterConfig {
+    /** LLM 模型名 */
+    model: string;
+    /** LLM baseURL */
+    baseURL: string;
+    /** LLM apiKey */
+    apiKey: string;
+    /** 超时时间（毫秒），默认 10000 */
+    timeoutMs?: number;
 }
 //# sourceMappingURL=types.d.ts.map

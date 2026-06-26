@@ -1,69 +1,91 @@
 /**
- * TeamOrchestrator — 基于 open-multi-agent 的多 Agent 协作编排器
+ * TeamOrchestrator — 基于 Hermes Agent 集群的多 Agent 协作编排器
  *
- * 核心能力：
- * - runTeam(): 自动拆解目标 → 并行分配 → 结果汇总
- * - 内置 delegateToAgentTool: Agent 可主动委托其他 Agent
- * - MessageBus: Agent 间消息传递
- * - SharedMemory: 团队共享上下文
+ * 重构说明：
+ * - 移除对 @open-multi-agent/core 的依赖
+ * - 使用 HermesAgentClient 通过 HTTP 调用 Hermes 实例（端口 8201-8205）
+ * - Hermes 已自带工具、记忆、RAG，平台层只负责编排和通信
  */
-import { type TeamRunResult, type AgentRunResult } from '@open-multi-agent/core';
-export interface TeamAgentConfig {
-    id: string;
-    name: string;
-    role: string;
-    systemPrompt: string;
-    model: string;
-    apiKey: string;
-    baseUrl: string;
-}
-export interface TeamOrchestratorConfig {
-    agents: TeamAgentConfig[];
-    defaultModel: string;
-    apiKey: string;
-    baseUrl: string;
-}
-export declare class TeamOrchestrator {
-    private omAgent;
-    private team;
+import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
+import type { TeamAgentConfig, TeamOrchestratorConfig, TeamRunResult, AgentRunResult, TaskDefinition, OrchestratorStatus, MeetingProgressEvent, OrchestratorEvent, RoutingDecision } from '../orchestrator/types.js';
+export type { TeamAgentConfig, TeamOrchestratorConfig, MeetingProgressEvent, OrchestratorEvent } from '../orchestrator/types.js';
+export declare class TeamOrchestrator implements IOrchestrator {
+    private hermesClient;
     private agentConfigs;
+    private intentRouter;
+    private lastRoutingDecision;
+    private workflowStateManager?;
+    private tokenBudgetManager?;
+    private extraCustomTools;
+    private maxConcurrency;
+    private maxDelegationDepth;
+    private onProgress?;
     constructor(config: TeamOrchestratorConfig);
     /**
-     * runTeam — 自动编排多 Agent 协作
-     * 协调员分析目标 → 拆解任务 → delegate 给各 Agent → 汇总结果
-     */
-    runTeam(goal: string): Promise<TeamRunResult>;
-    /**
      * runAgent — 单 Agent 执行
+     * 直接调用 Hermes Agent 实例，让 Hermes 处理工具、记忆、RAG
      */
-    runAgent(agentId: string, goal: string): Promise<AgentRunResult>;
+    runAgent(agentId: string, goal: string, sessionId?: string, options?: {
+        signal?: AbortSignal;
+        timeoutMs?: number;
+        maxTokens?: number;
+    }): Promise<AgentRunResult>;
+    /**
+     * runTeam — 多 Agent 协作执行
+     * 由 IntentRouter 分析目标，决定哪些 Agent 参与，然后并行/串行调用 Hermes
+     */
+    runTeam(goal: string, options?: {
+        maxRounds?: number;
+        sessionId?: string;
+    }): Promise<TeamRunResult>;
+    /**
+     * runTasks — 显式任务列表（串行执行）
+     */
+    runTasks(tasks: TaskDefinition[]): Promise<TeamRunResult>;
     /**
      * runMeeting — 圆桌会议模式
      * 所有 Agent 顺序执行，共享上下文，每人从自己的专业角度发表意见
      */
-    runMeeting(goal: string): Promise<TeamRunResult>;
+    runMeeting(goal: string, sessionId?: string): Promise<TeamRunResult>;
+    /**
+     * runMeetingWithProgress — 带实时进度的圆桌会议（并发控制 + 重试）
+     */
+    runMeetingWithProgress(goal: string, onProgress: (event: MeetingProgressEvent) => void): Promise<TeamRunResult>;
+    /**
+     * resumeWorkflow — 从断点续传工作流
+     */
+    resumeWorkflow(workflowId: string): Promise<TeamRunResult>;
+    listWorkflows(limit?: number, offset?: number): import("../index.js").WorkflowState[];
+    getRunningWorkflows(): import("../index.js").WorkflowState[];
+    private checkBudget;
+    private trackTokenUsage;
     /**
      * 获取 Agent 间消息历史
      */
-    getMessages(agentName?: string): unknown[];
+    getMessages(agentName?: string): any[];
     /**
-     * 获取团队状态
+     * 广播消息给所有 Agent（同步 + 异步）
      */
-    getStatus(): {
-        teamAgents: {
-            name: string;
-            model: string;
-        }[];
-        coordinator: string;
-        sharedMemory: boolean;
-    };
+    broadcast(from: string, content: string): void;
+    /**
+     * 异步广播 — 仅使用 MessageBus
+     */
+    asyncBroadcast(from: string, content: string): Promise<void>;
+    getStatus(): OrchestratorStatus;
+    /**
+     * 关闭编排器
+     */
+    shutdown(): Promise<void>;
+    handleRequest(userQuery: string, sessionId?: string): Promise<TeamRunResult>;
+    getLastRoutingDecision(): RoutingDecision | null;
 }
-/**
- * 便捷工厂 — 用 DEV-Agent-Teams 的 Agent 配置创建编排器
- */
-export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?: string): TeamOrchestrator;
-/**
- * 从环境变量创建 DEV-Agent-Teams 标准团队
- */
-export declare function createDevTeamOrchestrator(): TeamOrchestrator;
+export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?: string, options?: {
+    onProgress?: (event: OrchestratorEvent) => void;
+}): TeamOrchestrator;
+export declare function createDevTeamOrchestrator(options?: {
+    onProgress?: (event: OrchestratorEvent) => void;
+    workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
+    tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
+    extraCustomTools?: any[];
+}): TeamOrchestrator;
 //# sourceMappingURL=TeamOrchestrator.d.ts.map

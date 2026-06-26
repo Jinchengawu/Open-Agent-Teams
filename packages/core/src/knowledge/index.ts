@@ -11,3 +11,20 @@ export type {
   KnowledgeResult,
   KnowledgeCenterConfig,
 } from './KnowledgeCenter.js';
+
+// DocumentManager — 增强版文档管理
+export {
+  DocumentManager,
+  createDocumentManager,
+  getGlobalDocumentManager,
+  resetGlobalDocumentManager,
+} from './DocumentManager.js';
+
+export type {
+  DocumentManagerConfig,
+  DocumentV2,
+  DocumentComment,
+  DocumentQuery,
+  Project,
+  Task,
+} from './DocumentManager.js';

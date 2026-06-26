@@ -1,112 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Agent 消息端点映射
-const AGENT_PORTS: Record<string, number> = {
-  frontend: 8201,
-  backend: 8202,
-  testing: 8203,
-  devops: 8204,
-  pm: 8205,
-};
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
 
+/**
+ * /api/collab — 多 Agent 协作端点
+ * POST { message, agents?: string[], mode?: 'team' | 'broadcast' | 'meeting', topicId?: string }
+ *
+ * mode:
+ *   - 'team': 协调员自动拆解任务（默认）
+ *   - 'broadcast': 广播给所有 Agent，并发执行
+ *   - 'meeting': 圆桌会议，顺序发言，共享上下文
+ *
+ * topicId: 会议议题 ID，用于上下文隔离（meeting 模式专用）
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, agents, mode } = body;
+    const { message, mode: bodyMode, topicId } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
-    // 默认全部 Agent
-    const targets = (agents as string[]) || Object.keys(AGENT_PORTS);
-    const validTargets = targets.filter((a) => AGENT_PORTS[a]);
+    const mode = bodyMode || 'team';
 
-    if (validTargets.length === 0) {
-      return NextResponse.json({ error: 'No valid agents specified' }, { status: 400 });
+    // sessionId 策略：meeting 按议题复用，其他模式每次新建
+    const sessionId = (mode === 'meeting' && topicId)
+      ? `meeting-${topicId}`
+      : `${mode}-${Date.now()}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 600000); // 10 分钟超时
+
+    // broadcast 模式映射为 team 模式（Gateway 不区分）
+    const gatewayMode = mode === 'broadcast' ? 'team' : mode;
+
+    const res = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: message }],
+        mode: gatewayMode,
+        sessionId,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      return NextResponse.json(
+        { error: `Gateway returned ${res.status}: ${errBody}` },
+        { status: res.status },
+      );
     }
 
-    if (mode === 'meeting') {
-      // 🎙️ 会议模式 — 所有 Agent 顺序发言，共享上下文
-      const discussion: string[] = [];
-      const responses: { agent: string; role: 'assistant'; content: string }[] = [];
+    const data = await res.json();
 
-      for (const agentId of validTargets) {
-        const port = AGENT_PORTS[agentId];
-        const contextSection = discussion.length > 0
-          ? `\n\n## 会议讨论记录（之前的发言）\n${discussion.join('\n\n')}`
-          : '';
-        const prompt = `## 会议议题\n${message}${contextSection}\n\n请从你的专业角度发表意见。简洁有力，突出重点。`;
-
-        try {
-          const res = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: prompt }],
-              sessionId: `meeting-${Date.now()}-${agentId}`,
-            }),
-            signal: AbortSignal.timeout(300000),
-          });
-
-          const data = await res.json();
-          const content = data.choices?.[0]?.message?.content || 'No response';
-          responses.push({ agent: agentId, role: 'assistant', content });
-          discussion.push(`### ${agentId}\n${content}`);
-        } catch (e) {
-          const content = `Error: ${e instanceof Error ? e.message : 'unknown'}`;
-          responses.push({ agent: agentId, role: 'assistant', content });
-        }
-      }
-
-      return NextResponse.json({ message, mode: 'meeting', responses, timestamp: Date.now() });
-    }
-
-    // 📢 Broadcast 模式 — 并发发送到多个 Agent
-    const results = await Promise.allSettled(
-      validTargets.map(async (agentId) => {
-        const port = AGENT_PORTS[agentId];
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 300000);
-
-        try {
-          const res = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: message }],
-              sessionId: `collab-${Date.now()}-${agentId}`,
-            }),
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeout);
-          const data = await res.json();
-          return {
-            agent: agentId,
-            role: 'assistant' as const,
-            content: data.choices?.[0]?.message?.content || 'No response',
-          };
-        } catch (e) {
-          clearTimeout(timeout);
-          return {
-            agent: agentId,
-            role: 'system' as const,
-            content: `Error: ${e instanceof Error ? e.message : 'unknown'}`,
-          };
-        }
-      })
-    );
-
-    const responses = results.map((r) =>
-      r.status === 'fulfilled' ? r.value : { agent: 'unknown', role: 'system' as const, content: `Error: ${r.reason}` }
-    );
-
-    return NextResponse.json({ message, responses, timestamp: Date.now() });
+    return NextResponse.json({
+      message,
+      mode,
+      content: data.choices?.[0]?.message?.content || 'No response',
+      agent: data.instance || mode,
+      routedBy: data.routedBy || `${mode}-orchestrator`,
+      sessionId: data.sessionId,
+      timestamp: Date.now(),
+    });
   } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('abort')) {
+      return NextResponse.json({ error: 'Collaboration timed out' }, { status: 504 });
+    }
     return NextResponse.json(
-      { error: `Collaboration failed: ${e instanceof Error ? e.message : 'unknown'}` },
-      { status: 500 }
+      { error: `Collaboration failed: ${message}` },
+      { status: 503 },
     );
   }
 }

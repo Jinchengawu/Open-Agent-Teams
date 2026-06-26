@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { initSchema } from './schema';
 export class SessionManager {
     db;
+    getDb() {
+        return this.db;
+    }
     constructor(dbPath) {
         this.db = new Database(dbPath);
         this.db.pragma('journal_mode = WAL');

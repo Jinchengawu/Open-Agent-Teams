@@ -102,6 +102,49 @@ export interface ActionItem {
 }
 
 // ============================================================================
+// 文档事件
+// ============================================================================
+
+export interface DocumentEvent {
+  type:
+    | 'document.created'
+    | 'document.updated'
+    | 'document.linked';
+  source: 'document';
+  timestamp: number;
+  payload: {
+    documentId: string;
+    projectId?: string;
+    taskId?: string;
+    type?: string;
+    title?: string;
+    tags?: string[];
+    relatedTaskIds?: string[];
+    relatedDocIds?: string[];
+    metadata?: Record<string, unknown>;
+  };
+}
+
+// ============================================================================
+// 经验事件
+// ============================================================================
+
+export interface ExperienceEvent {
+  type: 'experience.captured';
+  source: 'experience';
+  timestamp: number;
+  payload: {
+    experienceId: string;
+    workflowId: string;
+    pipelineId?: string;
+    projectId?: string;
+    status?: string;
+    summary?: string;
+    metadata?: Record<string, unknown>;
+  };
+}
+
+// ============================================================================
 // 系统事件
 // ============================================================================
 
@@ -126,6 +169,6 @@ export interface SystemEvent {
 // 通用类型
 // ============================================================================
 
-export type AnyEvent = KanbanEvent | WorkflowEvent | MeetingEvent | SystemEvent;
+export type AnyEvent = KanbanEvent | WorkflowEvent | MeetingEvent | DocumentEvent | ExperienceEvent | SystemEvent;
 
 export type EventHandler<T = AnyEvent> = (event: T) => Promise<void>;

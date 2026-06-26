@@ -23,6 +23,10 @@ export interface Message {
 export class SessionManager {
   private db: Database.Database;
 
+  getDb(): Database.Database {
+    return this.db;
+  }
+
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
