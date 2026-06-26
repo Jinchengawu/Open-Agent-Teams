@@ -143,6 +143,17 @@ export type { WorkflowState, WorkflowStepState, WorkflowContext } from './sessio
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
 export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
 
+// ── 国际化 / 本地化协商 ──
+export {
+  normalizeLocale,
+  negotiateLocale,
+  isSupportedLocale,
+  pickText,
+  localizeAgent,
+  localizeAgents,
+} from './i18n/index.js';
+export type { Locale, LocalizedText } from './i18n/index.js';
+
 // ── 新增工具 ──
 export { createDocumentTools } from './tools/document-tools.js';
 export { createKanbanTools, setKanbanDatabase } from './tools/kanban-tools.js';
