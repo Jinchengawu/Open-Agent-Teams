@@ -39,10 +39,22 @@ export interface Skill {
   agent: string;
 }
 
+export interface ModelProfile {
+  id: string;
+  name: string;
+  provider: string;
+  modelName: string;
+  apiEndpoint: string;
+  apiKey?: string;
+}
+
 export interface AppSettings {
   modelProvider: string;
   modelName: string;
   apiEndpoint: string;
+  modelProfiles: ModelProfile[];
+  defaultModelProfileId: string;
+  agentModelAssignments: Record<string, string>;
   maxTokens: number;
   temperature: number;
   autoRoute: boolean;

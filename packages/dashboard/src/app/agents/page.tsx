@@ -9,7 +9,8 @@ import { SkeletonCard } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 import { useToast } from '@/components/ui/toast'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
-import type { AgentStatus } from '@/lib/types'
+import { useSettings } from '@/hooks/useSettings'
+import type { AgentStatus, ModelProfile } from '@/lib/types'
 
 // ============================================================================
 // Agent 个性配置（拟人化数据）
@@ -32,6 +33,13 @@ interface CustomAgentView {
   role: string
   description: string
   endpoint?: string
+  modelId?: string
+  modelConfig?: {
+    provider: string
+    model: string
+    baseUrl: string
+    apiKey?: string
+  }
   skills: string[]
   tags: string[]
   systemPrompt?: string
@@ -61,6 +69,7 @@ interface CustomAgentForm {
   description: string
   skills: string
   systemPrompt: string
+  modelId: string
 }
 
 const EMPTY_CUSTOM_AGENT_FORM: CustomAgentForm = {
@@ -69,68 +78,69 @@ const EMPTY_CUSTOM_AGENT_FORM: CustomAgentForm = {
   description: '',
   skills: '',
   systemPrompt: '',
+  modelId: '',
 }
 
 const AGENT_PERSONALITIES: Record<string, AgentPersonality> = {
-  'intent-router': {
-    avatar: '🧭',
-    accentColor: 'from-cyan-400 to-blue-500',
-    greeting: '我负责把输入需求路由到合适的协同模式。',
-    signature: '先识别意图，再组织团队',
-    mood: '校准中 🎯',
-    roleDescription: '多模态智能意图路由，判断需求复杂度与处理路径',
-    specialties: ['Intent', 'Routing', 'Triage', 'Complexity', 'Mode Select'],
-    catchphrase: '先分清问题形态。',
+  'dev-frontend': {
+    avatar: '👨‍💻',
+    accentColor: 'from-blue-400 to-cyan-400',
+    greeting: 'Hi! 我是 Frontend，有什么界面需求吗？',
+    signature: '代码如诗，界面如画',
+    mood: '充满灵感 ✨',
+    roleDescription: '前端开发专家，专注 React/Vue/TypeScript',
+    specialties: ['React', 'Vue', 'TypeScript', 'CSS3', 'Tailwind'],
+    catchphrase: '交给我，界面绝对美！',
   },
-  'team-orchestrator': {
-    avatar: '🕸️',
-    accentColor: 'from-indigo-400 to-violet-500',
-    greeting: '我负责召集团队、组织会议与串联协作。',
-    signature: '让多个 Agent 像团队一样工作',
-    mood: '统筹中 🧩',
-    roleDescription: '团队编排中枢，管理会议模式、角色协作与任务分派',
-    specialties: ['Meeting', 'Coordination', 'Delegation', 'Role Binding', 'Events'],
-    catchphrase: '把面组织成系统。',
+  'dev-backend': {
+    avatar: '👨‍🔧',
+    accentColor: 'from-green-400 to-emerald-400',
+    greeting: '后端交给我，API 稳如泰山！',
+    signature: '数据在手，天下我有',
+    mood: '冷静分析 🧠',
+    roleDescription: '后端开发专家，专注 Node.js/Python/Go',
+    specialties: ['Node.js', 'Python', 'Go', 'PostgreSQL', 'Redis'],
+    catchphrase: '接口已经 ready 了！',
   },
-  'workflow-conductor': {
-    avatar: '🔁',
-    accentColor: 'from-emerald-400 to-teal-500',
-    greeting: '我负责把确定流程推进成可恢复的 Pipeline。',
-    signature: '串行执行，状态可控',
-    mood: '推进中 🚦',
-    roleDescription: '工作流执行 Agent，负责 Pipeline、Surface、Gate 与恢复控制',
-    specialties: ['Pipeline', 'Surface', 'Gate', 'Pause/Resume', 'Rollback'],
-    catchphrase: '让流程跑完闭环。',
+  'dev-testing': {
+    avatar: '👩‍🔬',
+    accentColor: 'from-purple-400 to-pink-400',
+    greeting: 'Bug 无所遁形！我来测试！',
+    signature: '找不到 bug 算我输',
+    mood: '虎视眈眈 👀',
+    roleDescription: '测试专家，擅长 pytest/Jest/Playwright',
+    specialties: ['pytest', 'Jest', 'Playwright', 'E2E', '覆盖率'],
+    catchphrase: '这个 case 我早测过了！',
   },
-  'knowledge-steward': {
-    avatar: '🧠',
-    accentColor: 'from-amber-400 to-orange-500',
-    greeting: '我负责把文档、经验和上下文沉淀为组织记忆。',
-    signature: '没有沉淀，就没有组织',
-    mood: '整理中 📚',
-    roleDescription: '知识与文档 Agent，串联文档、任务、工作流与经验资产',
-    specialties: ['Document', 'Knowledge', 'RAG', 'Context', 'Experience'],
-    catchphrase: '把经验留下来。',
+  'dev-devops': {
+    avatar: '👨‍🚀',
+    accentColor: 'from-orange-400 to-red-400',
+    greeting: '基础设施已就绪，随时部署！',
+    signature: 'DevOps 之道，自动化为王',
+    mood: '火力全开 🔥',
+    roleDescription: 'DevOps 专家，负责 CI/CD/监控/部署',
+    specialties: ['Docker', 'K8s', 'CI/CD', 'Terraform', 'Prometheus'],
+    catchphrase: '一键部署，秒级上线！',
   },
-  'recovery-agent': {
-    avatar: '🛠️',
-    accentColor: 'from-rose-400 to-red-500',
-    greeting: '我负责故障自检、诊断、回滚与修复建议。',
-    signature: '系统要能自己站起来',
-    mood: '巡检中 🩺',
-    roleDescription: '系统故障自检修复 Agent，覆盖诊断、恢复和质量门禁',
-    specialties: ['Diagnosis', 'Recovery', 'Rollback', 'Quality Gate', 'Audit'],
-    catchphrase: '先止血，再复盘。',
+  'dev-pm': {
+    avatar: '👩‍💼',
+    accentColor: 'from-amber-400 to-yellow-400',
+    greeting: '来聊聊产品需求吧！',
+    signature: '以用户为中心，数据驱动决策',
+    mood: '热情满满 💡',
+    roleDescription: '产品经理，负责 PRD/需求分析/用户故事',
+    specialties: ['PRD', '用户故事', '竞品分析', '数据埋点', 'A/B 测试'],
+    catchphrase: '这个需求我懂！',
   },
-  'integration-agent': {
-    avatar: '🔌',
-    accentColor: 'from-slate-500 to-gray-700',
-    greeting: '我负责 Hermes、MCP、A2A 与外部工具协议集成。',
-    signature: '边界清晰，协议可靠',
-    mood: '接线中 ⚡',
-    roleDescription: '协议与集成 Agent，管理运行时适配、工具接入与跨系统通信',
-    specialties: ['Hermes', 'MCP', 'A2A', 'Adapters', 'Tools'],
-    catchphrase: '把接口接稳。',
+  'project-admin': {
+    avatar: '🤖',
+    accentColor: 'from-indigo-400 to-violet-400',
+    greeting: '项目进度一切正常，需要协调吗？',
+    signature: '运筹帷幄，决胜千里',
+    mood: '运筹帷幄 🎯',
+    roleDescription: '项目管理员，负责看板/里程碑/进度追踪',
+    specialties: ['看板管理', '里程碑', '进度追踪', '风险管理', '周报'],
+    catchphrase: 'Deadline 就是生产力！',
   },
 }
 
@@ -425,10 +435,16 @@ function AgentCharacterCard({
   agent,
   isSelected,
   onClick,
+  modelProfiles,
+  selectedModelId,
+  onModelChange,
 }: {
   agent: AgentStatus
   isSelected: boolean
   onClick: () => void
+  modelProfiles: ModelProfile[]
+  selectedModelId: string
+  onModelChange: (modelId: string) => void
 }) {
   const personality = AGENT_PERSONALITIES[agent.id] || {
     avatar: '🤖',
@@ -499,7 +515,24 @@ function AgentCharacterCard({
             </div>
 
             {/* 底部状态栏 */}
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+            <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
+              <label className="block" onClick={(event) => event.stopPropagation()}>
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+                  模型
+                </span>
+                <select
+                  value={selectedModelId}
+                  onChange={(event) => onModelChange(event.target.value)}
+                  className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-cyan-500"
+                >
+                  {modelProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name || profile.modelName || profile.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center justify-between">
               <div className="flex items-center gap-4 text-xs text-gray-400">
                 <span>📊 {agent.skillCount} 技能</span>
                 <span>🔌 Port {agent.port}</span>
@@ -509,6 +542,7 @@ function AgentCharacterCard({
                 <span className="text-xs text-gray-400">
                   {agent.online ? '在线' : '离线'}
                 </span>
+              </div>
               </div>
             </div>
           </div>
@@ -520,11 +554,17 @@ function AgentCharacterCard({
 
 function CustomAgentCard({
   agent,
+  modelProfiles,
+  selectedModelId,
+  onModelChange,
   onStart,
   onStop,
   onDelete,
 }: {
   agent: CustomAgentView
+  modelProfiles: ModelProfile[]
+  selectedModelId: string
+  onModelChange: (modelId: string) => void
   onStart: () => void
   onStop: () => void
   onDelete: () => void
@@ -584,6 +624,28 @@ function CustomAgentCard({
             </span>
           </div>
 
+          <label className="mt-3 block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+              运行模型
+            </span>
+            <select
+              value={selectedModelId}
+              onChange={(event) => onModelChange(event.target.value)}
+              className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none focus:border-cyan-500"
+            >
+              {modelProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name || profile.modelName || profile.id}
+                </option>
+              ))}
+            </select>
+            {isRunning && (
+              <span className="mt-1 block text-[11px] text-amber-600">
+                切换后需要重启实例才会应用到 Hermes。
+              </span>
+            )}
+          </label>
+
           <div className="mt-4 flex justify-end gap-2">
             {isRunning ? (
               <Button variant="outline" size="sm" onClick={onStop}>
@@ -609,6 +671,7 @@ export default function AgentsPage() {
   const router = useRouter()
   const { showToast } = useToast()
   const { agents, isLoading, error, mutate } = useAgentHealth()
+  const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings()
   const [selectedAgent, setSelectedAgent] = useState<AgentStatus | null>(null)
   const [customAgents, setCustomAgents] = useState<CustomAgentView[]>([])
   const [customAgentsLoading, setCustomAgentsLoading] = useState(true)
@@ -616,14 +679,72 @@ export default function AgentsPage() {
   const [customAgentForm, setCustomAgentForm] = useState<CustomAgentForm>(EMPTY_CUSTOM_AGENT_FORM)
   const [isSavingCustomAgent, setIsSavingCustomAgent] = useState(false)
 
+  const modelProfiles = settings.modelProfiles.length > 0 ? settings.modelProfiles : []
+  const defaultModelId = settings.defaultModelProfileId || modelProfiles[0]?.id || ''
+  const getAgentModelId = (agentId: string, fallback?: string) =>
+    settings.agentModelAssignments?.[agentId] || fallback || defaultModelId
+  const modelPayloadById = (modelId: string) => {
+    const profile = modelProfiles.find((item) => item.id === modelId) || modelProfiles[0]
+    if (!profile) return null
+    return {
+      provider: profile.provider,
+      model: profile.modelName,
+      baseUrl: profile.apiEndpoint,
+      apiKey: profile.apiKey || '',
+    }
+  }
+
+  function assignBuiltinAgentModel(agentId: string, modelId: string) {
+    updateSettings({
+      ...settings,
+      agentModelAssignments: {
+        ...(settings.agentModelAssignments || {}),
+        [agentId]: modelId,
+      },
+    })
+    showToast('Agent 模型配置已保存', 'success')
+  }
+
+  async function assignCustomAgentModel(agent: CustomAgentView, modelId: string) {
+    const modelConfig = modelPayloadById(modelId)
+    if (!modelConfig) {
+      showToast('请先在 Settings 中配置模型', 'error')
+      return
+    }
+    try {
+      const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-model',
+          modelId,
+          modelConfig,
+        }),
+      })
+      const data = await res.json() as { agent?: CustomAgentView; error?: string }
+      if (!res.ok || !data.agent) throw new Error(data.error || '模型切换失败')
+      setCustomAgents((current) => current.map((item) => item.id === agent.id ? data.agent! : item))
+      updateSettings({
+        ...settings,
+        agentModelAssignments: {
+          ...(settings.agentModelAssignments || {}),
+          [agent.id]: modelId,
+        },
+      })
+      showToast(agent.runtime?.status === 'running' ? '模型已保存，重启 Agent 后生效' : 'Agent 模型已切换', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '模型切换失败', 'error')
+    }
+  }
+
   // 欢迎语动画
   const [greeting, setGreeting] = useState('')
   useEffect(() => {
     const greetings = [
-      '欢迎来到 Agent Teams 框架层！👋',
-      '协作原型 Agent 已就绪！🚀',
-      '6 个框架 Agent 原型随时待命！💪',
-      '点击任意 Agent 查看职责边界！🎯',
+      '欢迎来到 Agent 团队！👋',
+      '你的专属开发团队已就绪！🚀',
+      '6 位 Agent 随时待命！💪',
+      '点击任意 Agent 开始交互！🎯',
     ]
     const idx = Math.floor(Math.random() * greetings.length)
     setGreeting(greetings[idx])
@@ -641,13 +762,19 @@ export default function AgentsPage() {
       showToast('请填写 Agent 名称和角色', 'info')
       return
     }
+    const modelId = customAgentForm.modelId || defaultModelId
+    const modelConfig = modelPayloadById(modelId)
 
     setIsSavingCustomAgent(true)
     try {
       const res = await fetch('/api/agents/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(customAgentForm),
+        body: JSON.stringify({
+          ...customAgentForm,
+          modelId,
+          modelConfig,
+        }),
       })
       const data = await res.json() as { agent?: CustomAgentView; error?: string }
       if (!res.ok || !data.agent) throw new Error(data.error || '创建失败')
@@ -715,7 +842,7 @@ export default function AgentsPage() {
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🤖 Framework Agent 原型</h1>
+          <h1 className="text-2xl font-bold text-gray-900">🤖 Agent 团队</h1>
           <p className="text-sm text-gray-500 mt-1">
             {greeting}
           </p>
@@ -725,7 +852,7 @@ export default function AgentsPage() {
             🟢 {onlineCount}/{agents.length} 在线
           </span>
           <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
-            {totalAgentCount} 个框架角色
+            {totalAgentCount} 个团队角色
           </span>
           <Button onClick={() => setShowCreateForm((current) => !current)}>
             {showCreateForm ? '收起表单' : '添加 Agent'}
@@ -738,23 +865,23 @@ export default function AgentsPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
-                <h2 className="font-bold text-gray-900">新增框架 Agent 原型</h2>
+                <h2 className="font-bold text-gray-900">新增本地 Agent</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  创建可复用 Hermes Agent Profile；保存后可直接启动为真实 Hermes API Server 实例。
+                  创建 Hermes Agent Profile；保存后可直接启动为真实 Hermes API Server 实例。
                 </p>
               </div>
-              <Badge variant="outline">Framework Registry</Badge>
+              <Badge variant="outline">Custom Registry</Badge>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input
                 className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
-                placeholder="Agent 名称，例如 Legal Risk Agent"
+                placeholder="Agent 名称，例如 Legal Review Agent"
                 value={customAgentForm.name}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, name: event.target.value }))}
               />
               <input
                 className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
-                placeholder="角色职责，例如 风险评估与审查"
+                placeholder="角色职责，例如 法律风险评估"
                 value={customAgentForm.role}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, role: event.target.value }))}
               />
@@ -764,15 +891,26 @@ export default function AgentsPage() {
                 value={customAgentForm.skills}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, skills: event.target.value }))}
               />
-              <input
+              <select
                 className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                value={customAgentForm.modelId || defaultModelId}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, modelId: event.target.value }))}
+              >
+                {modelProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name || profile.modelName || profile.id}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="md:col-span-2 h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
                 placeholder="System Prompt，可选；不填则按角色自动生成"
                 value={customAgentForm.systemPrompt}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, systemPrompt: event.target.value }))}
               />
               <textarea
                 className="md:col-span-2 min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
-                placeholder="说明这个 Agent 原型的上下文、边界和交付物"
+                placeholder="说明这个 Agent 的上下文、边界和交付物"
                 value={customAgentForm.description}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, description: event.target.value }))}
               />
@@ -812,6 +950,9 @@ export default function AgentsPage() {
               agent={agent}
               isSelected={selectedAgent?.id === agent.id}
               onClick={() => setSelectedAgent(agent)}
+              modelProfiles={modelProfiles}
+              selectedModelId={getAgentModelId(agent.id)}
+              onModelChange={(modelId) => assignBuiltinAgentModel(agent.id, modelId)}
             />
           ))
         )}
@@ -820,9 +961,9 @@ export default function AgentsPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">自定义 Agent 原型注册表</h2>
+            <h2 className="text-lg font-bold text-gray-900">自定义 Agent 注册表</h2>
             <p className="text-sm text-gray-500 mt-1">
-              用于框架层沉淀可复用角色池；绑定 Endpoint 后可作为下游团队运行时接入对象。
+              用于扩展团队角色池；绑定 Endpoint 后可作为后续真实运行时接入对象。
             </p>
           </div>
           <Badge variant="secondary">{customAgents.length} 个</Badge>
@@ -835,7 +976,7 @@ export default function AgentsPage() {
         ) : customAgents.length === 0 ? (
           <Card className="border-dashed border-gray-300 bg-white/60">
             <CardContent className="p-6 text-center text-gray-500">
-              <p className="text-sm">还没有自定义 Agent 原型。点击右上角“添加 Agent”登记新的框架角色。</p>
+              <p className="text-sm">还没有自定义 Agent。点击右上角“添加 Agent”登记新的团队角色。</p>
             </CardContent>
           </Card>
         ) : (
@@ -844,6 +985,9 @@ export default function AgentsPage() {
               <CustomAgentCard
                 key={agent.id}
                 agent={agent}
+                modelProfiles={modelProfiles}
+                selectedModelId={getAgentModelId(agent.id, agent.modelId)}
+                onModelChange={(modelId) => assignCustomAgentModel(agent, modelId)}
                 onStart={() => handleStartCustomAgent(agent)}
                 onStop={() => handleStopCustomAgent(agent)}
                 onDelete={() => handleDeleteCustomAgent(agent)}

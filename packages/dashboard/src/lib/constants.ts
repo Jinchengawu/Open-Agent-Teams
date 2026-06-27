@@ -1,3 +1,5 @@
+import type { AppSettings } from './types';
+
 export const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', labelKey: 'nav.dashboard', icon: '📊' },
   { href: '/kanban', label: '看板', labelKey: 'nav.kanban', icon: '📋' },
@@ -11,16 +13,28 @@ export const NAV_ITEMS = [
   { href: '/settings', label: 'Settings', labelKey: 'nav.settings', icon: '⚙️' },
 ] as const;
 
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: AppSettings = {
   modelProvider: 'deepseek',
   modelName: 'deepseek-v4-pro[1m]',
   apiEndpoint: 'https://api.deepseek.com/anthropic',
+  modelProfiles: [
+    {
+      id: 'deepseek-v4-pro',
+      name: 'DeepSeek V4 Pro',
+      provider: 'deepseek',
+      modelName: 'deepseek-v4-pro[1m]',
+      apiEndpoint: 'https://api.deepseek.com/anthropic',
+      apiKey: '',
+    },
+  ],
+  defaultModelProfileId: 'deepseek-v4-pro',
+  agentModelAssignments: {},
   maxTokens: 2000,
   temperature: 0.7,
   autoRoute: true,
   logLevel: 'info',
   language: 'zh',
-} as const;
+};
 
 export const SKILL_CATEGORIES = [
   { key: 'frontend', label: 'Frontend', icon: '🎨' },
