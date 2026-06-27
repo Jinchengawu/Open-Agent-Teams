@@ -1,11 +1,12 @@
 /**
  * send_message 自定义工具
  *
- * 让 Agent 可以通过 MessageBus 与其他 Agent 通信。
- * 基于 Hermes Agent 架构，通过 MessageBus 实现 Agent 间异步通信。
+ * 让 Agent 可以通过 A2A transport 与其他 Agent 通信。
+ * MessageBus 仅作为旧处理器兼容层保留。
  */
 
 import { z } from 'zod';
+import { createA2AMessage, getGlobalInProcessA2ATransport } from '../a2a/index.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 
 export function createSendMessageTool() {
@@ -27,20 +28,38 @@ export function createSendMessageTool() {
 
       if (input.to === '*') {
         try {
+          const transport = getGlobalInProcessA2ATransport();
+          await Promise.all(transport.listAgentCards().map((card) => transport.sendMessage(String(card.metadata?.agentId || card.name), {
+            message: createA2AMessage({
+              role: 'agent',
+              text: input.content,
+              metadata: { from, broadcast: true, transport: 'a2a' },
+            }),
+          })));
+        } catch (err) {
+          console.warn('[send_message] A2A 广播失败，回退 MessageBus:', err);
           const bus = getGlobalMessageBus();
           await bus.broadcast({
             from,
             type: 'chat',
             content: input.content,
           });
-        } catch (err) {
-          console.warn('[send_message] MessageBus 广播失败:', err);
         }
 
-        return { data: `已广播给所有 Agent`, isError: false };
+        return { data: '已通过 A2A 广播给所有 Agent', isError: false };
       }
 
       try {
+        const transport = getGlobalInProcessA2ATransport();
+        await transport.sendMessage(input.to, {
+          message: createA2AMessage({
+            role: 'agent',
+            text: input.content,
+            metadata: { from, to: input.to, transport: 'a2a' },
+          }),
+        });
+      } catch (err) {
+        console.warn('[send_message] A2A 发送失败，回退 MessageBus:', err);
         const bus = getGlobalMessageBus();
         await bus.send(input.to, {
           from,
@@ -48,11 +67,9 @@ export function createSendMessageTool() {
           type: 'chat',
           content: input.content,
         });
-      } catch (err) {
-        console.warn('[send_message] MessageBus 发送失败:', err);
       }
 
-      return { data: `已发送给 ${input.to}`, isError: false };
+      return { data: `已通过 A2A 发送给 ${input.to}`, isError: false };
     },
   };
 }

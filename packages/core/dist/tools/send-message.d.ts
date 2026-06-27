@@ -1,8 +1,8 @@
 /**
  * send_message 自定义工具
  *
- * 让 Agent 可以通过 MessageBus 与其他 Agent 通信。
- * 基于 Hermes Agent 架构，通过 MessageBus 实现 Agent 间异步通信。
+ * 让 Agent 可以通过 A2A transport 与其他 Agent 通信。
+ * MessageBus 仅作为旧处理器兼容层保留。
  */
 import { z } from 'zod';
 export declare function createSendMessageTool(): {

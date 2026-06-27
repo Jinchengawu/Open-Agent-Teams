@@ -63,7 +63,7 @@ The first A2A alignment stage is implemented as an internal domain model:
 - `A2AArtifact`
 - `A2ATaskStatus`
 
-The current in-process runtime exposes `InProcessA2ATransport`, and the legacy `MessageBus` can still carry A2A messages for compatibility. Hermes role agents can be wrapped with `HermesA2AAgentAdapter`.
+The current in-process runtime exposes `InProcessA2ATransport`, and the legacy `MessageBus` can still carry A2A messages for compatibility. Hermes role agents can be wrapped with `HermesA2AAgentAdapter`. Agent tools should prefer A2A transport; `send_message` now uses A2A first and only falls back to MessageBus for compatibility.
 
 Next architecture steps:
 
@@ -87,4 +87,5 @@ Remaining next steps:
 
 - align the HTTP route names with the external A2A JSON-RPC profile when the
   protocol binding is finalized for this project
-- migrate remaining MessageBus call sites onto `A2ATransport`
+- migrate TeamOrchestrator legacy `send`, `broadcast`, and `asyncBroadcast`
+  helpers onto `A2ATransport`

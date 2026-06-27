@@ -18,6 +18,7 @@ import { createOpenTeamOrchestrator } from './team/TeamOrchestrator.js';
 import { setKanbanDatabase, createKanbanTools } from './tools/kanban-tools.js';
 import { createDocumentTools } from './tools/document-tools.js';
 import { createDocumentToolsV2 } from './tools/document-tools-v2.js';
+import { createSendMessageTool } from './tools/send-message.js';
 import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE } from './team-profile/index.js';
 import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
@@ -91,7 +92,7 @@ export async function createAgentApp(config = {}) {
     });
     // 初始化看板工具的数据库连接
     setKanbanDatabase(sessionManager.getDb());
-    const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools()];
+    const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools(), createSendMessageTool()];
     const orchestrator = createOpenTeamOrchestrator({
         onProgress: config.onProgress,
         workflowStateManager,
