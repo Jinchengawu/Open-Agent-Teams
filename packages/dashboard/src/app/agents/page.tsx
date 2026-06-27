@@ -26,6 +26,33 @@ interface AgentPersonality {
   catchphrase: string
 }
 
+interface CustomAgentView {
+  id: string
+  name: string
+  role: string
+  description: string
+  endpoint?: string
+  skills: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomAgentForm {
+  name: string
+  role: string
+  description: string
+  endpoint: string
+  skills: string
+}
+
+const EMPTY_CUSTOM_AGENT_FORM: CustomAgentForm = {
+  name: '',
+  role: '',
+  description: '',
+  endpoint: '',
+  skills: '',
+}
+
 const AGENT_PERSONALITIES: Record<string, AgentPersonality> = {
   'intent-router': {
     avatar: '🧭',
@@ -87,6 +114,13 @@ const AGENT_PERSONALITIES: Record<string, AgentPersonality> = {
     specialties: ['Hermes', 'MCP', 'A2A', 'Adapters', 'Tools'],
     catchphrase: '把接口接稳。',
   },
+}
+
+async function fetchCustomAgents(): Promise<CustomAgentView[]> {
+  const res = await fetch('/api/agents/custom', { cache: 'no-store' })
+  if (!res.ok) throw new Error('Failed to load custom agents')
+  const data = await res.json() as { agents?: CustomAgentView[] }
+  return data.agents || []
 }
 
 // 状态映射
@@ -466,6 +500,66 @@ function AgentCharacterCard({
   )
 }
 
+function CustomAgentCard({
+  agent,
+  onDelete,
+}: {
+  agent: CustomAgentView
+  onDelete: () => void
+}) {
+  return (
+    <Card className="overflow-hidden border border-dashed border-gray-300 bg-white/85 shadow-sm">
+      <CardContent className="p-0">
+        <div className="h-2 bg-gradient-to-r from-gray-700 via-cyan-500 to-orange-500" />
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-gray-900 truncate">{agent.name}</h3>
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                  本地注册
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-600">{agent.role}</p>
+              <p className="text-xs text-gray-500 mt-2 line-clamp-2">{agent.description}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-red-200 text-red-600 hover:bg-red-50"
+              onClick={onDelete}
+            >
+              删除
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {agent.skills.length === 0 ? (
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-400">未配置 skills</span>
+            ) : (
+              agent.skills.slice(0, 5).map((skill) => (
+                <span key={skill} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">
+                  {skill}
+                </span>
+              ))
+            )}
+            {agent.skills.length > 5 && (
+              <span className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-400">
+                +{agent.skills.length - 5}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+            <span>{agent.endpoint ? `Endpoint ${agent.endpoint}` : '尚未绑定运行时 Endpoint'}</span>
+            <span>Framework Custom</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ============================================================================
 // 主页面
 // ============================================================================
@@ -475,6 +569,11 @@ export default function AgentsPage() {
   const { showToast } = useToast()
   const { agents, isLoading, error, mutate } = useAgentHealth()
   const [selectedAgent, setSelectedAgent] = useState<AgentStatus | null>(null)
+  const [customAgents, setCustomAgents] = useState<CustomAgentView[]>([])
+  const [customAgentsLoading, setCustomAgentsLoading] = useState(true)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [customAgentForm, setCustomAgentForm] = useState<CustomAgentForm>(EMPTY_CUSTOM_AGENT_FORM)
+  const [isSavingCustomAgent, setIsSavingCustomAgent] = useState(false)
 
   // 欢迎语动画
   const [greeting, setGreeting] = useState('')
@@ -489,6 +588,50 @@ export default function AgentsPage() {
     setGreeting(greetings[idx])
   }, [])
 
+  useEffect(() => {
+    fetchCustomAgents()
+      .then(setCustomAgents)
+      .catch(() => showToast('自定义 Agent 加载失败', 'error'))
+      .finally(() => setCustomAgentsLoading(false))
+  }, [showToast])
+
+  async function handleCreateCustomAgent() {
+    if (!customAgentForm.name.trim() || !customAgentForm.role.trim()) {
+      showToast('请填写 Agent 名称和角色', 'info')
+      return
+    }
+
+    setIsSavingCustomAgent(true)
+    try {
+      const res = await fetch('/api/agents/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customAgentForm),
+      })
+      const data = await res.json() as { agent?: CustomAgentView; error?: string }
+      if (!res.ok || !data.agent) throw new Error(data.error || '创建失败')
+      setCustomAgents((current) => [data.agent!, ...current])
+      setCustomAgentForm(EMPTY_CUSTOM_AGENT_FORM)
+      setShowCreateForm(false)
+      showToast('自定义 Agent 已添加', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '自定义 Agent 创建失败', 'error')
+    } finally {
+      setIsSavingCustomAgent(false)
+    }
+  }
+
+  async function handleDeleteCustomAgent(agent: CustomAgentView) {
+    try {
+      const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('删除失败')
+      setCustomAgents((current) => current.filter((item) => item.id !== agent.id))
+      showToast('自定义 Agent 已删除', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '自定义 Agent 删除失败', 'error')
+    }
+  }
+
   if (error) {
     return (
       <ErrorState
@@ -500,6 +643,7 @@ export default function AgentsPage() {
   }
 
   const onlineCount = agents.filter((a) => a.online).length
+  const totalAgentCount = agents.length + customAgents.length
 
   return (
     <div className="space-y-6">
@@ -515,8 +659,76 @@ export default function AgentsPage() {
           <span className="px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium">
             🟢 {onlineCount}/{agents.length} 在线
           </span>
+          <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
+            {totalAgentCount} 个框架角色
+          </span>
+          <Button onClick={() => setShowCreateForm((current) => !current)}>
+            {showCreateForm ? '收起表单' : '添加 Agent'}
+          </Button>
         </div>
       </div>
+
+      {showCreateForm && (
+        <Card className="border-gray-200 bg-white/90 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="font-bold text-gray-900">新增框架 Agent 原型</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  用于沉淀可复用团队角色、职责、skills 和可选 Endpoint；不会自动启动运行时进程。
+                </p>
+              </div>
+              <Badge variant="outline">Framework Registry</Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                placeholder="Agent 名称，例如 Legal Risk Agent"
+                value={customAgentForm.name}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, name: event.target.value }))}
+              />
+              <input
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                placeholder="角色职责，例如 风险评估与审查"
+                value={customAgentForm.role}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, role: event.target.value }))}
+              />
+              <input
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                placeholder="Endpoint，可选，例如 http://127.0.0.1:8701"
+                value={customAgentForm.endpoint}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, endpoint: event.target.value }))}
+              />
+              <input
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                placeholder="Skills，逗号分隔，例如 contract,risk,review"
+                value={customAgentForm.skills}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, skills: event.target.value }))}
+              />
+              <textarea
+                className="md:col-span-2 min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
+                placeholder="说明这个 Agent 原型的上下文、边界和交付物"
+                value={customAgentForm.description}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, description: event.target.value }))}
+              />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCustomAgentForm(EMPTY_CUSTOM_AGENT_FORM)
+                  setShowCreateForm(false)
+                }}
+              >
+                取消
+              </Button>
+              <Button onClick={handleCreateCustomAgent} disabled={isSavingCustomAgent}>
+                {isSavingCustomAgent ? '保存中...' : '保存 Agent'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Agent 角色卡片网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -537,6 +749,40 @@ export default function AgentsPage() {
               onClick={() => setSelectedAgent(agent)}
             />
           ))
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">自定义 Agent 原型注册表</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              用于框架层沉淀可复用角色池；绑定 Endpoint 后可作为下游团队运行时接入对象。
+            </p>
+          </div>
+          <Badge variant="secondary">{customAgents.length} 个</Badge>
+        </div>
+
+        {customAgentsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : customAgents.length === 0 ? (
+          <Card className="border-dashed border-gray-300 bg-white/60">
+            <CardContent className="p-6 text-center text-gray-500">
+              <p className="text-sm">还没有自定义 Agent 原型。点击右上角“添加 Agent”登记新的框架角色。</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {customAgents.map((agent) => (
+              <CustomAgentCard
+                key={agent.id}
+                agent={agent}
+                onDelete={() => handleDeleteCustomAgent(agent)}
+              />
+            ))}
+          </div>
         )}
       </div>
 
