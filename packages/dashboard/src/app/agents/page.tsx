@@ -27,65 +27,65 @@ interface AgentPersonality {
 }
 
 const AGENT_PERSONALITIES: Record<string, AgentPersonality> = {
-  'dev-frontend': {
-    avatar: '👨‍💻',
-    accentColor: 'from-blue-400 to-cyan-400',
-    greeting: 'Hi! 我是 Frontend，有什么界面需求吗？',
-    signature: '代码如诗，界面如画',
-    mood: '充满灵感 ✨',
-    roleDescription: '前端开发专家，专注 React/Vue/TypeScript',
-    specialties: ['React', 'Vue', 'TypeScript', 'CSS3', 'Tailwind'],
-    catchphrase: '交给我，界面绝对美！',
+  'intent-router': {
+    avatar: '🧭',
+    accentColor: 'from-cyan-400 to-blue-500',
+    greeting: '我负责把输入需求路由到合适的协同模式。',
+    signature: '先识别意图，再组织团队',
+    mood: '校准中 🎯',
+    roleDescription: '多模态智能意图路由，判断需求复杂度与处理路径',
+    specialties: ['Intent', 'Routing', 'Triage', 'Complexity', 'Mode Select'],
+    catchphrase: '先分清问题形态。',
   },
-  'dev-backend': {
-    avatar: '👨‍🔧',
-    accentColor: 'from-green-400 to-emerald-400',
-    greeting: '后端交给我，API 稳如泰山！',
-    signature: '数据在手，天下我有',
-    mood: '冷静分析 🧠',
-    roleDescription: '后端开发专家，专注 Node.js/Python/Go',
-    specialties: ['Node.js', 'Python', 'Go', 'PostgreSQL', 'Redis'],
-    catchphrase: '接口已经 ready 了！',
+  'team-orchestrator': {
+    avatar: '🕸️',
+    accentColor: 'from-indigo-400 to-violet-500',
+    greeting: '我负责召集团队、组织会议与串联协作。',
+    signature: '让多个 Agent 像团队一样工作',
+    mood: '统筹中 🧩',
+    roleDescription: '团队编排中枢，管理会议模式、角色协作与任务分派',
+    specialties: ['Meeting', 'Coordination', 'Delegation', 'Role Binding', 'Events'],
+    catchphrase: '把面组织成系统。',
   },
-  'dev-testing': {
-    avatar: '👩‍🔬',
-    accentColor: 'from-purple-400 to-pink-400',
-    greeting: 'Bug 无所遁形！我来测试！',
-    signature: '找不到 bug 算我输',
-    mood: '虎视眈眈 👀',
-    roleDescription: '测试专家，擅长 pytest/Jest/Playwright',
-    specialties: ['pytest', 'Jest', 'Playwright', 'E2E', '覆盖率'],
-    catchphrase: '这个 case 我早测过了！',
+  'workflow-conductor': {
+    avatar: '🔁',
+    accentColor: 'from-emerald-400 to-teal-500',
+    greeting: '我负责把确定流程推进成可恢复的 Pipeline。',
+    signature: '串行执行，状态可控',
+    mood: '推进中 🚦',
+    roleDescription: '工作流执行 Agent，负责 Pipeline、Surface、Gate 与恢复控制',
+    specialties: ['Pipeline', 'Surface', 'Gate', 'Pause/Resume', 'Rollback'],
+    catchphrase: '让流程跑完闭环。',
   },
-  'dev-devops': {
-    avatar: '👨‍🚀',
-    accentColor: 'from-orange-400 to-red-400',
-    greeting: '基础设施已就绪，随时部署！',
-    signature: 'DevOps 之道，自动化为王',
-    mood: '火力全开 🔥',
-    roleDescription: 'DevOps 专家，负责 CI/CD/监控/部署',
-    specialties: ['Docker', 'K8s', 'CI/CD', 'Terraform', 'Prometheus'],
-    catchphrase: '一键部署，秒级上线！',
+  'knowledge-steward': {
+    avatar: '🧠',
+    accentColor: 'from-amber-400 to-orange-500',
+    greeting: '我负责把文档、经验和上下文沉淀为组织记忆。',
+    signature: '没有沉淀，就没有组织',
+    mood: '整理中 📚',
+    roleDescription: '知识与文档 Agent，串联文档、任务、工作流与经验资产',
+    specialties: ['Document', 'Knowledge', 'RAG', 'Context', 'Experience'],
+    catchphrase: '把经验留下来。',
   },
-  'dev-pm': {
-    avatar: '👩‍💼',
-    accentColor: 'from-amber-400 to-yellow-400',
-    greeting: '来聊聊产品需求吧！',
-    signature: '以用户为中心，数据驱动决策',
-    mood: '热情满满 💡',
-    roleDescription: '产品经理，负责 PRD/需求分析/用户故事',
-    specialties: ['PRD', '用户故事', '竞品分析', '数据埋点', 'A/B 测试'],
-    catchphrase: '这个需求我懂！',
+  'recovery-agent': {
+    avatar: '🛠️',
+    accentColor: 'from-rose-400 to-red-500',
+    greeting: '我负责故障自检、诊断、回滚与修复建议。',
+    signature: '系统要能自己站起来',
+    mood: '巡检中 🩺',
+    roleDescription: '系统故障自检修复 Agent，覆盖诊断、恢复和质量门禁',
+    specialties: ['Diagnosis', 'Recovery', 'Rollback', 'Quality Gate', 'Audit'],
+    catchphrase: '先止血，再复盘。',
   },
-  'project-admin': {
-    avatar: '🤖',
-    accentColor: 'from-indigo-400 to-violet-400',
-    greeting: '项目进度一切正常，需要协调吗？',
-    signature: '运筹帷幄，决胜千里',
-    mood: '运筹帷幄 🎯',
-    roleDescription: '项目管理员，负责看板/里程碑/进度追踪',
-    specialties: ['看板管理', '里程碑', '进度追踪', '风险管理', '周报'],
-    catchphrase: 'Deadline 就是生产力！',
+  'integration-agent': {
+    avatar: '🔌',
+    accentColor: 'from-slate-500 to-gray-700',
+    greeting: '我负责 Hermes、MCP、A2A 与外部工具协议集成。',
+    signature: '边界清晰，协议可靠',
+    mood: '接线中 ⚡',
+    roleDescription: '协议与集成 Agent，管理运行时适配、工具接入与跨系统通信',
+    specialties: ['Hermes', 'MCP', 'A2A', 'Adapters', 'Tools'],
+    catchphrase: '把接口接稳。',
   },
 }
 
@@ -480,10 +480,10 @@ export default function AgentsPage() {
   const [greeting, setGreeting] = useState('')
   useEffect(() => {
     const greetings = [
-      '欢迎来到 Agent 团队！👋',
-      '你的专属开发团队已就绪！🚀',
-      '6 位 Agent 随时待命！💪',
-      '点击任意 Agent 开始交互！🎯',
+      '欢迎来到 Agent Teams 框架层！👋',
+      '协作原型 Agent 已就绪！🚀',
+      '6 个框架 Agent 原型随时待命！💪',
+      '点击任意 Agent 查看职责边界！🎯',
     ]
     const idx = Math.floor(Math.random() * greetings.length)
     setGreeting(greetings[idx])
@@ -506,7 +506,7 @@ export default function AgentsPage() {
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🤖 Agent 团队</h1>
+          <h1 className="text-2xl font-bold text-gray-900">🤖 Framework Agent 原型</h1>
           <p className="text-sm text-gray-500 mt-1">
             {greeting}
           </p>

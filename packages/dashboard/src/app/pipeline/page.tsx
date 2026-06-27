@@ -109,13 +109,13 @@ const HISTORY_STATUS_OPTIONS = [
   { label: '已取消', value: 'cancelled' },
   { label: '完成', value: 'completed' },
 ];
-const YAML_DRAFT = `id: custom-dev-loop
-name: Custom Dev Loop
+const YAML_DRAFT = `id: custom-agent-team-loop
+name: Custom Agent Team Loop
 version: "0.1.0"
 surfaces:
   - id: discovery
     name: Discovery
-    agent: dev-pm
+    agent: team-orchestrator
     workflow:
       goal: Clarify the request and produce a concise plan.
 edges: []
@@ -340,7 +340,7 @@ export default function PipelinePage() {
       } else {
         await fetchPipelines();
       }
-      setYamlDraft(YAML_DRAFT.replace('custom-dev-loop', `custom-dev-loop-${Date.now()}`));
+      setYamlDraft(YAML_DRAFT.replace('custom-agent-team-loop', `custom-agent-team-loop-${Date.now()}`));
       showToast(`Pipeline imported: ${data.pipeline.id}`, 'success');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';

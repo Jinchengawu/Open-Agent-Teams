@@ -240,7 +240,7 @@ export default function Dashboard() {
             </div>
             <div className="absolute left-8 top-[45%] w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.agentTeam')}</p>
-              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PM Frontend Backend Testing DevOps Admin</p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">Router Orchestrator Workflow Knowledge Recovery Integration</p>
             </div>
             <div className="absolute bottom-16 right-0 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.commercialEntry')}</p>
@@ -251,7 +251,7 @@ export default function Dashboard() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '角色 Agent: PM、Frontend、Backend、Testing、DevOps、Project Admin' : 'Role agents: PM, Frontend, Backend, Testing, DevOps, Project Admin' },
+            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '框架 Agent: Intent Router、Orchestrator、Workflow、Knowledge、Recovery、Integration' : 'Framework agents: Intent Router, Orchestrator, Workflow, Knowledge, Recovery, Integration' },
             { value: '7', label: locale === 'zh' ? '交付面: Meeting、Document、Kanban、Workflow、Artifact、Experience、Context/Event' : 'Delivery surfaces: Meeting, Document, Kanban, Workflow, Artifact, Experience, Context/Event' },
             { value: deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total}` : '8/8', label: locale === 'zh' ? '最近一次端到端回归验证达到通过状态，后续官网应挂出报告链接' : 'Latest end-to-end regression is passing and report links can be published' },
             { value: '3', label: locale === 'zh' ? '首批商业入口: 代码审计、RAG 评审、智能图片评审' : 'Initial commercial entries: code audit, RAG review, image review' },

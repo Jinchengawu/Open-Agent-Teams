@@ -79,12 +79,12 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const AGENT_NAMES: Record<string, string> = {
-  'dev-frontend': 'Frontend',
-  'dev-backend': 'Backend',
-  'dev-testing': 'Testing',
-  'dev-devops': 'DevOps',
-  'dev-pm': 'PM',
-  'project-admin': 'Admin',
+  'intent-router': 'Intent Router',
+  'team-orchestrator': 'Team Orchestrator',
+  'workflow-conductor': 'Workflow Conductor',
+  'knowledge-steward': 'Knowledge Steward',
+  'recovery-agent': 'Recovery Agent',
+  'integration-agent': 'Integration Agent',
 };
 
 // ── Component ──

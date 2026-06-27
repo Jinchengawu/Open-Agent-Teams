@@ -74,7 +74,7 @@ async function checkGateway(request: Request): Promise<{
       livePipelineReady: false,
       modelSpendGuard: false,
       codexBackfillReady: false,
-      agents: ['dev-frontend', 'dev-backend', 'dev-testing', 'dev-devops', 'dev-pm', 'project-admin'].map(id => ({
+      agents: ['intent-router', 'team-orchestrator', 'workflow-conductor', 'knowledge-steward', 'recovery-agent', 'integration-agent'].map(id => ({
         id,
         online: false,
         error: e instanceof Error ? e.message : 'Gateway offline',

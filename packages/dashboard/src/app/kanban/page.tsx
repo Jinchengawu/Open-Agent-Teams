@@ -62,22 +62,22 @@ const PRIORITY_COLORS = {
 } as const
 
 const AGENT_ICONS: Record<string, string> = {
-  'dev-frontend': '🎨',
-  'dev-backend': '⚙️',
-  'dev-testing': '🧪',
-  'dev-devops': '🚀',
-  'dev-pm': '📋',
-  'project-admin': '📊',
+  'intent-router': '🧭',
+  'team-orchestrator': '🕸️',
+  'workflow-conductor': '🔁',
+  'knowledge-steward': '🧠',
+  'recovery-agent': '🛠️',
+  'integration-agent': '🔌',
 }
 
 const AGENT_FILTERS = [
   { value: 'all', label: '全部负责人' },
-  { value: 'dev-frontend', label: 'Frontend' },
-  { value: 'dev-backend', label: 'Backend' },
-  { value: 'dev-testing', label: 'Testing' },
-  { value: 'dev-devops', label: 'DevOps' },
-  { value: 'dev-pm', label: 'PM' },
-  { value: 'project-admin', label: 'Project Admin' },
+  { value: 'intent-router', label: 'Intent Router' },
+  { value: 'team-orchestrator', label: 'Team Orchestrator' },
+  { value: 'workflow-conductor', label: 'Workflow Conductor' },
+  { value: 'knowledge-steward', label: 'Knowledge Steward' },
+  { value: 'recovery-agent', label: 'Recovery Agent' },
+  { value: 'integration-agent', label: 'Integration Agent' },
 ]
 
 const SOURCE_FILTERS = [
@@ -92,7 +92,7 @@ export default function KanbanPage() {
   const [data, setData] = useState<KanbanData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [newTask, setNewTask] = useState({ title: '', description: '', assignee: 'dev-frontend', priority: 'medium' })
+  const [newTask, setNewTask] = useState({ title: '', description: '', assignee: 'team-orchestrator', priority: 'medium' })
   const [sourceFilter, setSourceFilter] = useState('all')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [urlFiltersLoaded, setUrlFiltersLoaded] = useState(false)
@@ -143,7 +143,7 @@ export default function KanbanPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTask),
     })
-    setNewTask({ title: '', description: '', assignee: 'dev-frontend', priority: 'medium' })
+    setNewTask({ title: '', description: '', assignee: 'team-orchestrator', priority: 'medium' })
     setShowCreate(false)
     fetchKanban()
   }
@@ -264,12 +264,12 @@ export default function KanbanPage() {
               onChange={e => setNewTask({...newTask, assignee: e.target.value})}
               className="rounded-md border border-slate-200 bg-white/80 px-3 py-2 text-sm"
             >
-              <option value="dev-frontend">🎨 Frontend</option>
-              <option value="dev-backend">⚙️ Backend</option>
-              <option value="dev-testing">🧪 Testing</option>
-              <option value="dev-devops">🚀 DevOps</option>
-              <option value="dev-pm">📋 PM</option>
-              <option value="project-admin">📊 Project Admin</option>
+              <option value="intent-router">🧭 Intent Router</option>
+              <option value="team-orchestrator">🕸️ Team Orchestrator</option>
+              <option value="workflow-conductor">🔁 Workflow Conductor</option>
+              <option value="knowledge-steward">🧠 Knowledge Steward</option>
+              <option value="recovery-agent">🛠️ Recovery Agent</option>
+              <option value="integration-agent">🔌 Integration Agent</option>
             </select>
             <div className="flex gap-2">
               <select

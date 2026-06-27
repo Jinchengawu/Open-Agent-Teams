@@ -1,53 +1,53 @@
 import { AgentInfo } from './types';
 
 export const AGENTS: Record<string, AgentInfo> = {
-  'dev-frontend': {
-    id: 'dev-frontend',
-    name: 'Frontend Agent',
-    label: '前端开发 Agent',
-    icon: '🎨',
-    color: 'from-blue-500 to-blue-600',
-    tags: ['react', 'vue', 'component', 'ui', 'css', 'typescript', 'frontend', '前端'],
+  'intent-router': {
+    id: 'intent-router',
+    name: 'Intent Router',
+    label: '智能意图路由 Agent',
+    icon: '🧭',
+    color: 'from-cyan-500 to-blue-600',
+    tags: ['intent', 'route', 'triage', 'router', '意图', '路由', '分流'],
   },
-  'dev-backend': {
-    id: 'dev-backend',
-    name: 'Backend Agent',
-    label: '后端开发 Agent',
-    icon: '⚙️',
-    color: 'from-green-500 to-green-600',
-    tags: ['api', 'database', 'server', 'python', 'node', 'go', 'backend', '后端'],
+  'team-orchestrator': {
+    id: 'team-orchestrator',
+    name: 'Team Orchestrator',
+    label: '团队编排 Agent',
+    icon: '🕸️',
+    color: 'from-indigo-500 to-violet-600',
+    tags: ['orchestrator', 'meeting', 'coordination', 'team', '编排', '会议', '协同'],
   },
-  'dev-testing': {
-    id: 'dev-testing',
-    name: 'Testing Agent',
-    label: '测试开发 Agent',
-    icon: '🧪',
-    color: 'from-yellow-500 to-orange-500',
-    tags: ['test', 'unit', 'e2e', 'coverage', 'jest', 'pytest', 'testing', '测试'],
+  'workflow-conductor': {
+    id: 'workflow-conductor',
+    name: 'Workflow Conductor',
+    label: '工作流执行 Agent',
+    icon: '🔁',
+    color: 'from-emerald-500 to-teal-600',
+    tags: ['workflow', 'pipeline', 'surface', 'gate', '工作流', '流水线', '交付面'],
   },
-  'dev-devops': {
-    id: 'dev-devops',
-    name: 'DevOps Agent',
-    label: 'DevOps Agent',
-    icon: '🚀',
-    color: 'from-purple-500 to-purple-600',
-    tags: ['docker', 'k8s', 'kubernetes', 'deploy', 'ci/cd', 'devops', '运维'],
+  'knowledge-steward': {
+    id: 'knowledge-steward',
+    name: 'Knowledge Steward',
+    label: '知识与文档 Agent',
+    icon: '🧠',
+    color: 'from-amber-500 to-orange-500',
+    tags: ['knowledge', 'document', 'rag', 'memory', '知识', '文档', '记忆'],
   },
-  'dev-pm': {
-    id: 'dev-pm',
-    name: 'PM Agent',
-    label: '产品经理 Agent',
-    icon: '📋',
-    color: 'from-red-500 to-pink-600',
-    tags: ['prd', 'requirement', 'product', 'strategy', 'user-story', 'pm', '产品', '需求'],
+  'recovery-agent': {
+    id: 'recovery-agent',
+    name: 'Recovery Agent',
+    label: '系统自检修复 Agent',
+    icon: '🛠️',
+    color: 'from-rose-500 to-red-600',
+    tags: ['recovery', 'debug', 'repair', 'rollback', '自检', '修复', '回滚'],
   },
-  'project-admin': {
-    id: 'project-admin',
-    name: 'Project Admin',
-    label: '项目管理员 Agent',
-    icon: '📊',
-    color: 'from-indigo-500 to-indigo-600',
-    tags: ['project', 'admin', 'kanban', 'milestone', 'progress', 'task', '管理', '进度', '里程碑'],
+  'integration-agent': {
+    id: 'integration-agent',
+    name: 'Integration Agent',
+    label: '协议与集成 Agent',
+    icon: '🔌',
+    color: 'from-slate-500 to-gray-700',
+    tags: ['integration', 'adapter', 'mcp', 'a2a', 'hermes', '集成', '协议', '适配'],
   },
 };
 
@@ -66,5 +66,5 @@ export function detectAgent(message: string): string {
       }
     }
   }
-  return 'dev-backend';
+  return 'team-orchestrator';
 }
