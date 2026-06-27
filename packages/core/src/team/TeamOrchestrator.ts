@@ -75,6 +75,24 @@ export class TeamOrchestrator implements IOrchestrator {
 
     // 初始化 Hermes Agent Client
     this.hermesClient = new HermesAgentClient();
+    for (const instance of this.hermesClient.getInstances()) {
+      if (this.agentConfigs.has(instance.id)) continue;
+      this.agentConfigs.set(instance.id, {
+        id: instance.id,
+        name: instance.label,
+        role: instance.role || instance.description || `${instance.label} — Dashboard-created Hermes Agent`,
+        systemPrompt:
+          instance.system_prompt ||
+          `You are ${instance.label}. Your responsibility is: ${instance.role || instance.description || 'complete professional deliverables for the user goal'}. Keep boundaries clear and produce executable outputs.`,
+        model: config.defaultModel,
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        expertise: instance.tags.length > 0 ? instance.tags : instance.skills,
+        tools: instance.skills,
+        typicalTasks: [instance.description || instance.role || `${instance.label} professional task`],
+      });
+    }
+    const activeAgents = Array.from(this.agentConfigs.values());
 
     // 初始化 IntentRouter（用于路由决策）
     this.intentRouter = new IntentRouter(
@@ -84,14 +102,14 @@ export class TeamOrchestrator implements IOrchestrator {
         apiKey: config.apiKey,
         defaultAgentId: this.defaultAgentId,
       },
-      config.agents,
+      activeAgents,
     );
 
     // 初始化 MessageBus
     const messageBus = getGlobalMessageBus({ verbose: true });
 
     // 注册所有 Agent 到 MessageBus
-    for (const agent of config.agents) {
+    for (const agent of activeAgents) {
       messageBus.registerAgent(agent.id, async (msg) => {
         console.log(`[MessageBus] ${msg.from} → ${msg.to}: ${msg.content.substring(0, 50)}...`);
       });

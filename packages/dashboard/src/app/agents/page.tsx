@@ -33,6 +33,15 @@ interface CustomAgentView {
   description: string
   endpoint?: string
   skills: string[]
+  tags: string[]
+  systemPrompt?: string
+  hermes?: {
+    homeDir: string
+    port?: number
+    timeoutMs: number
+    configPath: string
+    source: 'dashboard'
+  }
   runtime?: {
     status: 'stopped' | 'starting' | 'running' | 'error'
     pid?: number
@@ -50,16 +59,16 @@ interface CustomAgentForm {
   name: string
   role: string
   description: string
-  endpoint: string
   skills: string
+  systemPrompt: string
 }
 
 const EMPTY_CUSTOM_AGENT_FORM: CustomAgentForm = {
   name: '',
   role: '',
   description: '',
-  endpoint: '',
   skills: '',
+  systemPrompt: '',
 }
 
 const AGENT_PERSONALITIES: Record<string, AgentPersonality> = {
@@ -532,7 +541,7 @@ function CustomAgentCard({
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-bold text-gray-900 truncate">{agent.name}</h3>
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                  本地注册
+                  Hermes Profile
                 </span>
               </div>
               <p className="text-sm font-medium text-gray-600">{agent.role}</p>
@@ -566,7 +575,10 @@ function CustomAgentCard({
           </div>
 
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-            <span>{agent.runtime?.endpoint || agent.endpoint ? `Endpoint ${agent.runtime?.endpoint || agent.endpoint}` : '尚未绑定运行时 Endpoint'}</span>
+            <span>
+              {agent.hermes?.port ? `Hermes :${agent.hermes.port}` : 'Hermes profile pending'}
+              {agent.hermes?.homeDir ? ` · ${agent.hermes.homeDir}` : ''}
+            </span>
             <span className={isRunning ? 'text-green-600' : 'text-gray-400'}>
               {isRunning ? `Running${agent.runtime?.pid ? ` #${agent.runtime.pid}` : ''}` : 'Stopped'}
             </span>
@@ -728,7 +740,7 @@ export default function AgentsPage() {
               <div>
                 <h2 className="font-bold text-gray-900">新增框架 Agent 原型</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  用于沉淀可复用团队角色、职责、skills 和可选 Endpoint；不会自动启动运行时进程。
+                  创建可复用 Hermes Agent Profile；保存后可直接启动为真实 Hermes API Server 实例。
                 </p>
               </div>
               <Badge variant="outline">Framework Registry</Badge>
@@ -748,15 +760,15 @@ export default function AgentsPage() {
               />
               <input
                 className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
-                placeholder="Endpoint，可选，例如 http://127.0.0.1:8701"
-                value={customAgentForm.endpoint}
-                onChange={(event) => setCustomAgentForm((form) => ({ ...form, endpoint: event.target.value }))}
-              />
-              <input
-                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
                 placeholder="Skills，逗号分隔，例如 contract,risk,review"
                 value={customAgentForm.skills}
                 onChange={(event) => setCustomAgentForm((form) => ({ ...form, skills: event.target.value }))}
+              />
+              <input
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+                placeholder="System Prompt，可选；不填则按角色自动生成"
+                value={customAgentForm.systemPrompt}
+                onChange={(event) => setCustomAgentForm((form) => ({ ...form, systemPrompt: event.target.value }))}
               />
               <textarea
                 className="md:col-span-2 min-h-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
