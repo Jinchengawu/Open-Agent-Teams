@@ -594,7 +594,7 @@ export class TeamOrchestrator implements IOrchestrator {
   }
 
   // ============================================================================
-  // 通信（基于 MessageBus）
+  // 通信（A2A 优先，MessageBus 兼容）
   // ============================================================================
 
   /**
@@ -614,29 +614,35 @@ export class TeamOrchestrator implements IOrchestrator {
   }
 
   /**
-   * 广播消息给所有 Agent（同步 + 异步）
+   * 广播消息给所有 Agent（fire-and-forget）
    */
   broadcast(from: string, content: string) {
-    const messageBus = getGlobalMessageBus();
-    messageBus.broadcast({
-      from,
-      type: 'chat',
-      content,
-    }).catch((err) => {
-      console.warn('[TeamOrchestrator] MessageBus 广播失败:', err);
+    this.asyncBroadcast(from, content).catch((err) => {
+      console.warn('[TeamOrchestrator] A2A 广播失败:', err);
     });
   }
 
   /**
-   * 异步广播 — 仅使用 MessageBus
+   * 异步广播 — 优先使用 A2A transport，失败时回退 MessageBus。
    */
   async asyncBroadcast(from: string, content: string): Promise<void> {
-    const messageBus = getGlobalMessageBus();
-    await messageBus.broadcast({
-      from,
-      type: 'chat',
-      content,
+    const message = createA2AMessage({
+      role: 'agent',
+      text: content,
+      metadata: { from, broadcast: true, transport: 'a2a' },
     });
+
+    try {
+      await this.broadcastA2AMessage(message, from);
+    } catch (error) {
+      console.warn('[TeamOrchestrator] A2A 广播失败，回退 MessageBus:', error);
+      const messageBus = getGlobalMessageBus();
+      await messageBus.broadcast({
+        from,
+        type: 'chat',
+        content,
+      });
+    }
   }
 
   async sendA2AMessage(toAgentId: string, request: A2ASendMessageRequest): Promise<A2ASendMessageResult> {

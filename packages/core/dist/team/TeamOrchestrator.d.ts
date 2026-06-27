@@ -71,11 +71,11 @@ export declare class TeamOrchestrator implements IOrchestrator {
      */
     getMessages(agentName?: string): any[];
     /**
-     * 广播消息给所有 Agent（同步 + 异步）
+     * 广播消息给所有 Agent（fire-and-forget）
      */
     broadcast(from: string, content: string): void;
     /**
-     * 异步广播 — 仅使用 MessageBus
+     * 异步广播 — 优先使用 A2A transport，失败时回退 MessageBus。
      */
     asyncBroadcast(from: string, content: string): Promise<void>;
     sendA2AMessage(toAgentId: string, request: A2ASendMessageRequest): Promise<A2ASendMessageResult>;

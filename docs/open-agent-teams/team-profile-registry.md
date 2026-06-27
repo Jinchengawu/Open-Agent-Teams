@@ -87,5 +87,5 @@ Remaining next steps:
 
 - align the HTTP route names with the external A2A JSON-RPC profile when the
   protocol binding is finalized for this project
-- migrate TeamOrchestrator legacy `send`, `broadcast`, and `asyncBroadcast`
-  helpers onto `A2ATransport`
+- migrate historical message inspection APIs from legacy MessageBus history to
+  A2A transport history
