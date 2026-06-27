@@ -6,6 +6,7 @@
  *
  * 当前版本为进程内总线，后续可替换为 NATS/Redis 而不改接口。
  */
+import type { A2AMessage } from '../a2a/types.js';
 export interface AgentMessage {
     id: string;
     from: string;
@@ -51,11 +52,20 @@ export declare class MessageBus {
         metadata?: Partial<AgentMessage["metadata"]>;
     }) => Promise<void>;
     /**
+     * A2A-compatible send.
+     *
+     * MessageBus is an in-process transport. The protocol semantics are carried
+     * by A2AMessage, then adapted to the legacy handler shape until handlers are
+     * fully migrated.
+     */
+    sendA2AMessage(to: string, message: A2AMessage, from?: string): Promise<void>;
+    /**
      * 广播消息给所有 Agent（异步并行）
      */
     broadcast(message: Omit<AgentMessage, 'id' | 'to' | 'metadata'> & {
         metadata?: Partial<AgentMessage['metadata']>;
     }): Promise<void>;
+    broadcastA2AMessage(message: A2AMessage, from?: string): Promise<void>;
     /**
      * 请求-响应模式（同步等待）
      */
@@ -78,6 +88,7 @@ export declare class MessageBus {
      * 获取 Agent 的消息历史
      */
     getHistory(agentId: string): AgentMessage[];
+    getA2AHistory(agentId: string): A2AMessage[];
     /**
      * 清空所有注册
      */

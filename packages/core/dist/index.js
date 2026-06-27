@@ -42,6 +42,8 @@ export { KnowledgeCenter, getGlobalKnowledgeCenter, resetGlobalKnowledgeCenter, 
 // ── 增强文档管理（新增 — 支持项目/任务/Agent关联、评论、版本）──
 export { DocumentManager, createDocumentManager, getGlobalDocumentManager, resetGlobalDocumentManager, } from './knowledge/DocumentManager.js';
 export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus';
+// ── A2A 语义模型（内部统一 Agent 通信语言）──
+export { a2aMessageToAgentMessage, agentMessageToA2AMessage, createA2ADataPart, createA2AMessage, createA2ATextPart, isA2ATask, isTerminalA2ATaskState, partsToText, pipelineInstanceToA2ATask, pipelineStatusToA2AState, surfaceResultToA2AArtifact, surfaceStatusToA2AState, teamProfileAgentToA2AAgentCard, teamProfileToA2AAgentCards, } from './a2a/index.js';
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager';
 // ── 国际化（新增 — 全栈中英展示协商）──

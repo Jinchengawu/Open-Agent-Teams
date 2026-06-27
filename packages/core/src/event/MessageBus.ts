@@ -9,6 +9,8 @@
 
 import { EventEmitter } from 'events';
 import type { KanbanEvent, WorkflowEvent, MeetingEvent, SystemEvent } from '../event/types.js';
+import { a2aMessageToAgentMessage, agentMessageToA2AMessage } from '../a2a/converters.js';
+import type { A2AMessage } from '../a2a/types.js';
 
 export interface AgentMessage {
   id: string;
@@ -122,6 +124,17 @@ export class MessageBus {
   sendMessage = this.send.bind(this);
 
   /**
+   * A2A-compatible send.
+   *
+   * MessageBus is an in-process transport. The protocol semantics are carried
+   * by A2AMessage, then adapted to the legacy handler shape until handlers are
+   * fully migrated.
+   */
+  async sendA2AMessage(to: string, message: A2AMessage, from = 'team-orchestrator'): Promise<void> {
+    await this.send(to, a2aMessageToAgentMessage(message, { from, to }));
+  }
+
+  /**
    * 广播消息给所有 Agent（异步并行）
    */
   async broadcast(message: Omit<AgentMessage, 'id' | 'to' | 'metadata'> & { metadata?: Partial<AgentMessage['metadata']> }): Promise<void> {
@@ -139,6 +152,10 @@ export class MessageBus {
         })
       )
     );
+  }
+
+  async broadcastA2AMessage(message: A2AMessage, from = 'team-orchestrator'): Promise<void> {
+    await this.broadcast(a2aMessageToAgentMessage(message, { from, to: 'broadcast' }));
   }
 
   /**
@@ -196,6 +213,10 @@ export class MessageBus {
    */
   getHistory(agentId: string): AgentMessage[] {
     return this.messageHistory.get(agentId) || [];
+  }
+
+  getA2AHistory(agentId: string): A2AMessage[] {
+    return this.getHistory(agentId).map((message) => agentMessageToA2AMessage(message));
   }
 
   /**

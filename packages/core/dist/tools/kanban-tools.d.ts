@@ -9,11 +9,11 @@ export declare function setKanbanDatabase(db: Database): void;
 export declare function createKanbanTools(): (import("@open-multi-agent/core").ToolDefinition<{
     title: string;
     description?: string | undefined;
+    tags?: string | undefined;
     assignee?: string | undefined;
     priority?: "low" | "medium" | "high" | "critical" | undefined;
     task_type?: "feature" | "bug" | "refactor" | "test" | "deploy" | "doc" | undefined;
     parent_id?: string | undefined;
-    tags?: string | undefined;
     due_date?: string | undefined;
 }> | import("@open-multi-agent/core").ToolDefinition<{
     status: "done" | "todo" | "in_progress" | "review" | "blocked";

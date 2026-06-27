@@ -7,6 +7,7 @@
  * 当前版本为进程内总线，后续可替换为 NATS/Redis 而不改接口。
  */
 import { EventEmitter } from 'events';
+import { a2aMessageToAgentMessage, agentMessageToA2AMessage } from '../a2a/converters.js';
 /**
  * 轻量级消息总线 — 基于 EventEmitter
  */
@@ -82,6 +83,16 @@ export class MessageBus {
     // 别名：sendMessage 兼容旧版 API
     sendMessage = this.send.bind(this);
     /**
+     * A2A-compatible send.
+     *
+     * MessageBus is an in-process transport. The protocol semantics are carried
+     * by A2AMessage, then adapted to the legacy handler shape until handlers are
+     * fully migrated.
+     */
+    async sendA2AMessage(to, message, from = 'team-orchestrator') {
+        await this.send(to, a2aMessageToAgentMessage(message, { from, to }));
+    }
+    /**
      * 广播消息给所有 Agent（异步并行）
      */
     async broadcast(message) {
@@ -93,6 +104,9 @@ export class MessageBus {
         await Promise.all(allAgentIds.map((agentId) => this.send(agentId, { ...message, to: agentId }).catch((err) => {
             console.error(`[MessageBus] 广播给 ${agentId} 失败:`, err);
         })));
+    }
+    async broadcastA2AMessage(message, from = 'team-orchestrator') {
+        await this.broadcast(a2aMessageToAgentMessage(message, { from, to: 'broadcast' }));
     }
     /**
      * 请求-响应模式（同步等待）
@@ -141,6 +155,9 @@ export class MessageBus {
      */
     getHistory(agentId) {
         return this.messageHistory.get(agentId) || [];
+    }
+    getA2AHistory(agentId) {
+        return this.getHistory(agentId).map((message) => agentMessageToA2AMessage(message));
     }
     /**
      * 清空所有注册

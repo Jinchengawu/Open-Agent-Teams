@@ -53,4 +53,14 @@ Older exports such as `createDevTeamOrchestrator` and `DEV_TEAM_MINIMUM_LOOP_PIP
 
 ## Next Step
 
-The next architecture step is to align internal Agent communication with A2A domain semantics. Team Profile provides the stable source of Agent cards, task defaults, arbitration ownership, and runtime adapter selection.
+Team Profile now provides the stable source for A2A Agent Card generation, task defaults, arbitration ownership, and runtime adapter selection.
+
+The first A2A alignment stage is implemented as an internal domain model:
+
+- `A2AAgentCard`
+- `A2AMessage`
+- `A2ATask`
+- `A2AArtifact`
+- `A2ATaskStatus`
+
+The current in-process `MessageBus` can carry A2A messages, but it is still an in-process transport. The next architecture step is to replace transport-specific call sites with an `InProcessA2ATransport` and then add HTTP A2A client/server adapters.

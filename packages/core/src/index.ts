@@ -186,6 +186,41 @@ export type {
 export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus';
 export type { AgentMessage, MessageBusOptions } from './event/MessageBus';
 
+// ── A2A 语义模型（内部统一 Agent 通信语言）──
+export {
+  a2aMessageToAgentMessage,
+  agentMessageToA2AMessage,
+  createA2ADataPart,
+  createA2AMessage,
+  createA2ATextPart,
+  isA2ATask,
+  isTerminalA2ATaskState,
+  partsToText,
+  pipelineInstanceToA2ATask,
+  pipelineStatusToA2AState,
+  surfaceResultToA2AArtifact,
+  surfaceStatusToA2AState,
+  teamProfileAgentToA2AAgentCard,
+  teamProfileToA2AAgentCards,
+} from './a2a/index.js';
+export type {
+  A2AAgentCapabilities,
+  A2AAgentCard,
+  A2AAgentSkill,
+  A2AArtifact,
+  A2AEvent,
+  A2AMessage,
+  A2APart,
+  A2ARole,
+  A2ASendMessageRequest,
+  A2ASendMessageResult,
+  A2ATask,
+  A2ATaskArtifactUpdateEvent,
+  A2ATaskState,
+  A2ATaskStatus,
+  A2ATaskStatusUpdateEvent,
+} from './a2a/index.js';
+
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager';
 export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager';
