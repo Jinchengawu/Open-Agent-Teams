@@ -63,4 +63,10 @@ The first A2A alignment stage is implemented as an internal domain model:
 - `A2AArtifact`
 - `A2ATaskStatus`
 
-The current in-process `MessageBus` can carry A2A messages, but it is still an in-process transport. The next architecture step is to replace transport-specific call sites with an `InProcessA2ATransport` and then add HTTP A2A client/server adapters.
+The current in-process runtime exposes `InProcessA2ATransport`, and the legacy `MessageBus` can still carry A2A messages for compatibility. Hermes role agents can be wrapped with `HermesA2AAgentAdapter`.
+
+Next architecture steps:
+
+- add HTTP A2A client/server adapters
+- migrate remaining MessageBus call sites onto `A2ATransport`
+- expose Agent Cards, Tasks, Messages, and Artifacts through Gateway routes

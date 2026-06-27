@@ -18,6 +18,18 @@ export {
   isTerminalA2ATaskState,
 } from './types.js';
 
+export {
+  getAgentIdFromCard,
+  getGlobalInProcessA2ATransport,
+  InProcessA2ATransport,
+  resetGlobalInProcessA2ATransport,
+} from './transport.js';
+
+export {
+  createHermesA2AAdapters,
+  HermesA2AAgentAdapter,
+} from './hermes-adapter.js';
+
 export type {
   A2AAgentCapabilities,
   A2AAgentCard,
@@ -35,3 +47,8 @@ export type {
   A2ATaskStatus,
   A2ATaskStatusUpdateEvent,
 } from './types.js';
+
+export type {
+  A2ATransport,
+  A2ATransportHandler,
+} from './transport.js';

@@ -13,8 +13,10 @@ import { eventBus } from '../event/EventBus.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE, materializeTeamAgents } from '../team-profile/index.js';
+import { createA2AMessage, getGlobalInProcessA2ATransport, teamProfileAgentToA2AAgentCard } from '../a2a/index.js';
 import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
-import type { TeamProfile } from '../team-profile/index.js';
+import type { TeamProfile, TeamProfileAgentDefinition } from '../team-profile/index.js';
+import type { A2AMessage, A2ASendMessageRequest, A2ASendMessageResult } from '../a2a/index.js';
 import type {
   TeamAgentConfig,
   TeamOrchestratorConfig,
@@ -50,6 +52,7 @@ export class TeamOrchestrator implements IOrchestrator {
   private profileName: string;
   private defaultAgentId: string;
   private arbitrationAgentId: string;
+  private profile?: TeamProfile;
   private onProgress?: (event: OrchestratorEvent) => void;
 
   constructor(config: TeamOrchestratorConfig) {
@@ -64,6 +67,7 @@ export class TeamOrchestrator implements IOrchestrator {
     this.maxDelegationDepth = config.maxDelegationDepth ?? 3;
     this.profileId = config.profileId || 'custom';
     this.profileName = config.profileName || 'Custom Agent Team';
+    this.profile = config.profile;
     this.defaultAgentId = this.resolveAgentId(config.defaultAgentId);
     this.arbitrationAgentId = this.resolveAgentId(config.arbitrationAgentId || this.defaultAgentId);
     this.onProgress = config.onProgress as ((event: OrchestratorEvent) => void) | undefined;
@@ -92,6 +96,8 @@ export class TeamOrchestrator implements IOrchestrator {
         console.log(`[MessageBus] ${msg.from} → ${msg.to}: ${msg.content.substring(0, 50)}...`);
       });
     }
+
+    this.registerA2AAgents();
 
     console.log(`[TeamOrchestrator] 已注册 ${config.agents.length} 个 Agent 到 MessageBus`);
     console.log(`[TeamOrchestrator] 使用 Hermes Agent Client (端口 8201-8205)`);
@@ -633,6 +639,36 @@ export class TeamOrchestrator implements IOrchestrator {
     });
   }
 
+  async sendA2AMessage(toAgentId: string, request: A2ASendMessageRequest): Promise<A2ASendMessageResult> {
+    const transport = getGlobalInProcessA2ATransport();
+    return transport.sendMessage(toAgentId, request);
+  }
+
+  async broadcastA2AMessage(message: A2AMessage, from = this.defaultAgentId): Promise<void> {
+    const transport = getGlobalInProcessA2ATransport();
+    await Promise.all(
+      Array.from(this.agentConfigs.keys()).map((agentId) =>
+        transport.sendMessage(agentId, {
+          message: {
+            ...message,
+            metadata: {
+              ...message.metadata,
+              from,
+              to: agentId,
+              broadcast: true,
+            },
+          },
+        }),
+      ),
+    );
+  }
+
+  getA2AMessages(agentId?: string): A2AMessage[] {
+    const transport = getGlobalInProcessA2ATransport();
+    if (agentId) return transport.getMessageHistory(agentId);
+    return Array.from(this.agentConfigs.keys()).flatMap((id) => transport.getMessageHistory(id));
+  }
+
   // ============================================================================
   // 状态查询
   // ============================================================================
@@ -705,6 +741,42 @@ export class TeamOrchestrator implements IOrchestrator {
     if (candidate && this.agentConfigs.has(candidate)) return candidate;
     return ids[0] || 'team-orchestrator';
   }
+
+  private registerA2AAgents(): void {
+    if (!this.profile) return;
+    const transport = getGlobalInProcessA2ATransport();
+    const definitionsById = new Map(this.profile.agents.map((agent) => [agent.id, agent]));
+
+    for (const agent of this.agentConfigs.values()) {
+      const definition = definitionsById.get(agent.id) || this.toProfileAgentDefinition(agent);
+      const card = teamProfileAgentToA2AAgentCard(this.profile, definition);
+      transport.registerAgent(card, async (request) => {
+        const response = createA2AMessage({
+          role: 'agent',
+          contextId: request.message.contextId,
+          taskId: request.message.taskId,
+          text: `A2A message received by ${agent.id}.`,
+          metadata: {
+            agentId: agent.id,
+            transport: 'in-process',
+          },
+        });
+        return response;
+      });
+    }
+  }
+
+  private toProfileAgentDefinition(agent: TeamAgentConfig): TeamProfileAgentDefinition {
+    return {
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      systemPrompt: agent.systemPrompt,
+      expertise: agent.expertise,
+      tools: agent.tools,
+      typicalTasks: agent.typicalTasks,
+    };
+  }
 }
 
 // ============================================================================
@@ -720,6 +792,7 @@ export function createTeamOrchestrator(
     profileName?: string;
     defaultAgentId?: string;
     arbitrationAgentId?: string;
+    profile?: TeamProfile;
   },
 ): TeamOrchestrator {
   return new TeamOrchestrator({
@@ -732,6 +805,7 @@ export function createTeamOrchestrator(
     profileName: options?.profileName,
     defaultAgentId: options?.defaultAgentId,
     arbitrationAgentId: options?.arbitrationAgentId,
+    profile: options?.profile,
   });
 }
 
@@ -754,6 +828,7 @@ export function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
     baseUrl,
     profileId: profile.id,
     profileName: profile.name,
+    profile,
     defaultAgentId: profile.defaultAgentId,
     arbitrationAgentId: profile.arbitrationAgentId,
     onProgress: options?.onProgress,

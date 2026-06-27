@@ -16,7 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { config } from 'dotenv';
-import { createAgentApp, createHermesAgentClient, isModelSpendGuardEnabled, localizeAgents, negotiateLocale } from '@open-agent-teams/core';
+import { createA2AMessage, createAgentApp, createHermesAgentClient, isModelSpendGuardEnabled, localizeAgents, negotiateLocale } from '@open-agent-teams/core';
 import type { OrchestratorEvent, MeetingProgressEvent } from '@open-agent-teams/core';
 import Busboy from 'busboy';
 import { randomUUID } from 'node:crypto';
@@ -865,7 +865,19 @@ async function main(): Promise<void> {
           }
           agentApp.sessionManager.addMessage(sid, 'user', message, 'user');
 
-          sendEvent({ type: 'start', sessionId: sid });
+          sendEvent({
+            type: 'start',
+            sessionId: sid,
+            a2aMessage: createA2AMessage({
+              role: 'user',
+              contextId: sid,
+              text: message,
+              metadata: {
+                kind: 'meeting.started',
+                topicId,
+              },
+            }),
+          });
 
           const meetingResult = await agentApp.orchestrator.runMeetingWithProgress(
             message,
@@ -891,6 +903,16 @@ async function main(): Promise<void> {
             type: 'complete',
             output: finalOutput,
             sessionId: sid,
+            a2aMessage: createA2AMessage({
+              role: 'agent',
+              contextId: sid,
+              text: finalOutput,
+              metadata: {
+                kind: 'meeting.completed',
+                participants: Array.from(meetingResult.agentResults.keys()),
+                tokenUsage: meetingResult.totalTokenUsage,
+              },
+            }),
           });
         } catch (err) {
           sendEvent({

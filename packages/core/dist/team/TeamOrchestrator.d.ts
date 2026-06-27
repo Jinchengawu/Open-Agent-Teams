@@ -8,6 +8,7 @@
  */
 import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
 import type { TeamProfile } from '../team-profile/index.js';
+import type { A2AMessage, A2ASendMessageRequest, A2ASendMessageResult } from '../a2a/index.js';
 import type { TeamAgentConfig, TeamOrchestratorConfig, TeamRunResult, AgentRunResult, TaskDefinition, OrchestratorStatus, MeetingProgressEvent, OrchestratorEvent, RoutingDecision } from '../orchestrator/types.js';
 export type { TeamAgentConfig, TeamOrchestratorConfig, MeetingProgressEvent, OrchestratorEvent } from '../orchestrator/types.js';
 export declare class TeamOrchestrator implements IOrchestrator {
@@ -24,6 +25,7 @@ export declare class TeamOrchestrator implements IOrchestrator {
     private profileName;
     private defaultAgentId;
     private arbitrationAgentId;
+    private profile?;
     private onProgress?;
     constructor(config: TeamOrchestratorConfig);
     /**
@@ -76,6 +78,9 @@ export declare class TeamOrchestrator implements IOrchestrator {
      * 异步广播 — 仅使用 MessageBus
      */
     asyncBroadcast(from: string, content: string): Promise<void>;
+    sendA2AMessage(toAgentId: string, request: A2ASendMessageRequest): Promise<A2ASendMessageResult>;
+    broadcastA2AMessage(message: A2AMessage, from?: string): Promise<void>;
+    getA2AMessages(agentId?: string): A2AMessage[];
     getStatus(): OrchestratorStatus;
     /**
      * 关闭编排器
@@ -86,6 +91,8 @@ export declare class TeamOrchestrator implements IOrchestrator {
     getDefaultAgentId(): string;
     getArbitrationAgentId(): string;
     private resolveAgentId;
+    private registerA2AAgents;
+    private toProfileAgentDefinition;
 }
 export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?: string, options?: {
     onProgress?: (event: OrchestratorEvent) => void;
@@ -93,6 +100,7 @@ export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?
     profileName?: string;
     defaultAgentId?: string;
     arbitrationAgentId?: string;
+    profile?: TeamProfile;
 }): TeamOrchestrator;
 export declare function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
     onProgress?: (event: OrchestratorEvent) => void;

@@ -9,6 +9,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { OPEN_FRAMEWORK_TEAM_PROFILE } from '../team-profile/open-framework-profile.js';
+import { createA2AMessage, partsToText } from '../a2a/converters.js';
+import type { A2AMessage, A2ASendMessageRequest, A2ATask } from '../a2a/types.js';
 
 // yaml 包类型声明（避免安装 @types/yaml）
 declare module 'yaml' {
@@ -202,6 +204,65 @@ export class HermesAgentClient {
       clearTimeout(timeout);
       options?.signal?.removeEventListener('abort', onAbort);
     }
+  }
+
+  async sendA2AMessage(agentId: string, request: A2ASendMessageRequest, options?: {
+    systemPrompt?: string;
+    maxTokens?: number;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  }): Promise<A2ATask> {
+    const message = request.message;
+    const contextId = message.contextId || `ctx-${Date.now()}`;
+    const taskId = message.taskId || `task-${agentId}-${Date.now()}`;
+    const goal = partsToText(message.parts);
+    const result = await this.callAgent(agentId, goal, {
+      systemPrompt: options?.systemPrompt,
+      maxTokens: options?.maxTokens,
+      sessionId: contextId,
+      signal: options?.signal,
+      timeoutMs: options?.timeoutMs,
+    });
+
+    const responseMessage: A2AMessage = createA2AMessage({
+      role: 'agent',
+      contextId,
+      taskId,
+      text: result.output,
+      metadata: {
+        agentId,
+        success: result.success,
+        tokenUsage: result.tokenUsage,
+        toolCalls: result.toolCalls,
+      },
+    });
+
+    return {
+      id: taskId,
+      contextId,
+      status: {
+        state: result.success ? 'completed' : 'failed',
+        message: responseMessage,
+        timestamp: new Date().toISOString(),
+      },
+      history: [message, responseMessage],
+      artifacts: result.output
+        ? [{
+            artifactId: `artifact-${taskId}-output`,
+            name: 'agent-output',
+            description: `Output from ${agentId}`,
+            parts: [{ kind: 'text', text: result.output }],
+            metadata: {
+              agentId,
+              tokenUsage: result.tokenUsage,
+            },
+          }]
+        : [],
+      metadata: {
+        agentId,
+        transport: 'hermes-http',
+      },
+    };
   }
 
   /**

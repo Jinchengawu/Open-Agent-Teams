@@ -5,6 +5,7 @@
  * 每个 Hermes 实例运行在独立端口（如 8201-8205），已自带工具、记忆、RAG。
  * 平台层只负责调用，不重复实现单 Agent 能力。
  */
+import type { A2ASendMessageRequest, A2ATask } from '../a2a/types.js';
 declare module 'yaml' {
     function parse(content: string): any;
 }
@@ -67,6 +68,12 @@ export declare class HermesAgentClient {
         signal?: AbortSignal;
         timeoutMs?: number;
     }): Promise<HermesAgentResult>;
+    sendA2AMessage(agentId: string, request: A2ASendMessageRequest, options?: {
+        systemPrompt?: string;
+        maxTokens?: number;
+        signal?: AbortSignal;
+        timeoutMs?: number;
+    }): Promise<A2ATask>;
     /**
      * 批量调用多个 Agent（并行）
      */

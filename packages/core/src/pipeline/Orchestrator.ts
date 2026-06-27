@@ -19,6 +19,7 @@ import { eventBus } from '../event/EventBus.js';
 import type { TeamOrchestrator } from '../team/TeamOrchestrator.js';
 import type { WorkflowState, WorkflowStateManager } from '../session/WorkflowStateManager.js';
 import { Surface, createSurface } from './Surface.js';
+import { pipelineInstanceToA2ATask } from '../a2a/converters.js';
 import type {
   PipelineDefinition,
   PipelineInstance,
@@ -471,6 +472,7 @@ export class PipelineOrchestrator {
       ...instance,
       surfaceResults,
       coordination: this.serializeCoordinationBinding(instance.id) ?? instance.coordination,
+      a2aTask: pipelineInstanceToA2ATask(instance),
     };
   }
 

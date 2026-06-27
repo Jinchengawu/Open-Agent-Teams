@@ -190,9 +190,14 @@ export type { AgentMessage, MessageBusOptions } from './event/MessageBus';
 export {
   a2aMessageToAgentMessage,
   agentMessageToA2AMessage,
+  createHermesA2AAdapters,
   createA2ADataPart,
   createA2AMessage,
   createA2ATextPart,
+  getAgentIdFromCard,
+  getGlobalInProcessA2ATransport,
+  HermesA2AAgentAdapter,
+  InProcessA2ATransport,
   isA2ATask,
   isTerminalA2ATaskState,
   partsToText,
@@ -202,6 +207,7 @@ export {
   surfaceStatusToA2AState,
   teamProfileAgentToA2AAgentCard,
   teamProfileToA2AAgentCards,
+  resetGlobalInProcessA2ATransport,
 } from './a2a/index.js';
 export type {
   A2AAgentCapabilities,
@@ -219,6 +225,8 @@ export type {
   A2ATaskState,
   A2ATaskStatus,
   A2ATaskStatusUpdateEvent,
+  A2ATransport,
+  A2ATransportHandler,
 } from './a2a/index.js';
 
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──

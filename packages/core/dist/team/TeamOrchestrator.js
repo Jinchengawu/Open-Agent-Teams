@@ -12,6 +12,7 @@ import { eventBus } from '../event/EventBus.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE, materializeTeamAgents } from '../team-profile/index.js';
+import { createA2AMessage, getGlobalInProcessA2ATransport, teamProfileAgentToA2AAgentCard } from '../a2a/index.js';
 // ============================================================================
 // Orchestrator
 // ============================================================================
@@ -29,6 +30,7 @@ export class TeamOrchestrator {
     profileName;
     defaultAgentId;
     arbitrationAgentId;
+    profile;
     onProgress;
     constructor(config) {
         this.agentConfigs = new Map();
@@ -41,6 +43,7 @@ export class TeamOrchestrator {
         this.maxDelegationDepth = config.maxDelegationDepth ?? 3;
         this.profileId = config.profileId || 'custom';
         this.profileName = config.profileName || 'Custom Agent Team';
+        this.profile = config.profile;
         this.defaultAgentId = this.resolveAgentId(config.defaultAgentId);
         this.arbitrationAgentId = this.resolveAgentId(config.arbitrationAgentId || this.defaultAgentId);
         this.onProgress = config.onProgress;
@@ -62,6 +65,7 @@ export class TeamOrchestrator {
                 console.log(`[MessageBus] ${msg.from} → ${msg.to}: ${msg.content.substring(0, 50)}...`);
             });
         }
+        this.registerA2AAgents();
         console.log(`[TeamOrchestrator] 已注册 ${config.agents.length} 个 Agent 到 MessageBus`);
         console.log(`[TeamOrchestrator] 使用 Hermes Agent Client (端口 8201-8205)`);
         console.log(`[TeamOrchestrator] Team Profile: ${this.profileName} (${this.profileId}), default=${this.defaultAgentId}`);
@@ -528,6 +532,30 @@ export class TeamOrchestrator {
             content,
         });
     }
+    async sendA2AMessage(toAgentId, request) {
+        const transport = getGlobalInProcessA2ATransport();
+        return transport.sendMessage(toAgentId, request);
+    }
+    async broadcastA2AMessage(message, from = this.defaultAgentId) {
+        const transport = getGlobalInProcessA2ATransport();
+        await Promise.all(Array.from(this.agentConfigs.keys()).map((agentId) => transport.sendMessage(agentId, {
+            message: {
+                ...message,
+                metadata: {
+                    ...message.metadata,
+                    from,
+                    to: agentId,
+                    broadcast: true,
+                },
+            },
+        })));
+    }
+    getA2AMessages(agentId) {
+        const transport = getGlobalInProcessA2ATransport();
+        if (agentId)
+            return transport.getMessageHistory(agentId);
+        return Array.from(this.agentConfigs.keys()).flatMap((id) => transport.getMessageHistory(id));
+    }
     // ============================================================================
     // 状态查询
     // ============================================================================
@@ -590,6 +618,40 @@ export class TeamOrchestrator {
             return candidate;
         return ids[0] || 'team-orchestrator';
     }
+    registerA2AAgents() {
+        if (!this.profile)
+            return;
+        const transport = getGlobalInProcessA2ATransport();
+        const definitionsById = new Map(this.profile.agents.map((agent) => [agent.id, agent]));
+        for (const agent of this.agentConfigs.values()) {
+            const definition = definitionsById.get(agent.id) || this.toProfileAgentDefinition(agent);
+            const card = teamProfileAgentToA2AAgentCard(this.profile, definition);
+            transport.registerAgent(card, async (request) => {
+                const response = createA2AMessage({
+                    role: 'agent',
+                    contextId: request.message.contextId,
+                    taskId: request.message.taskId,
+                    text: `A2A message received by ${agent.id}.`,
+                    metadata: {
+                        agentId: agent.id,
+                        transport: 'in-process',
+                    },
+                });
+                return response;
+            });
+        }
+    }
+    toProfileAgentDefinition(agent) {
+        return {
+            id: agent.id,
+            name: agent.name,
+            role: agent.role,
+            systemPrompt: agent.systemPrompt,
+            expertise: agent.expertise,
+            tools: agent.tools,
+            typicalTasks: agent.typicalTasks,
+        };
+    }
 }
 // ============================================================================
 // 便捷工厂
@@ -605,6 +667,7 @@ export function createTeamOrchestrator(agents, model, options) {
         profileName: options?.profileName,
         defaultAgentId: options?.defaultAgentId,
         arbitrationAgentId: options?.arbitrationAgentId,
+        profile: options?.profile,
     });
 }
 export function createProfileTeamOrchestrator(profile, options) {
@@ -620,6 +683,7 @@ export function createProfileTeamOrchestrator(profile, options) {
         baseUrl,
         profileId: profile.id,
         profileName: profile.name,
+        profile,
         defaultAgentId: profile.defaultAgentId,
         arbitrationAgentId: profile.arbitrationAgentId,
         onProgress: options?.onProgress,

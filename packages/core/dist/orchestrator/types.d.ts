@@ -115,6 +115,8 @@ export interface TeamOrchestratorConfig {
     /** Team profile id/name for framework-level runtime identity */
     profileId?: string;
     profileName?: string;
+    /** Full Team Profile, used to derive A2A Agent Cards and runtime metadata */
+    profile?: import('../team-profile/types.js').TeamProfile;
     /** Default Role Agent used when routing cannot confidently pick one */
     defaultAgentId?: string;
     /** Role Agent used for arbitration or conflict resolution */
