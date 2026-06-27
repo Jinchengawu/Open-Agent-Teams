@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { RegistryClient } from './RegistryClient';
-import type { AgentMessageEnvelope, AgentRegistration } from './types';
-import { MessageType } from './types';
+import type { RegistryClient } from './RegistryClient.js';
+import type { AgentMessageEnvelope, AgentRegistration } from './types.js';
+import { MessageType } from './types.js';
 
 export class AgentBus {
   private registry: RegistryClient;

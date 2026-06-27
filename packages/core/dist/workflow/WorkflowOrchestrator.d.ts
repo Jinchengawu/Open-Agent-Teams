@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
-import { AgentBus } from '../bus/AgentBus';
-import type { SessionManager } from '../session/SessionManager';
-import type { WorkflowTemplate, WorkflowRecord, WorkflowStepRecord } from './types';
+import { AgentBus } from '../bus/AgentBus.js';
+import type { SessionManager } from '../session/SessionManager.js';
+import type { WorkflowTemplate, WorkflowRecord, WorkflowStepRecord } from './types.js';
 export declare class WorkflowOrchestrator {
     private db;
     private agentBus;

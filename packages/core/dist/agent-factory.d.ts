@@ -8,9 +8,9 @@
  * - 委托 TeamOrchestrator 处理所有 Agent 编排
  */
 import express from 'express';
-import { SessionManager } from './session/SessionManager';
-import { TokenBudgetManager } from './telemetry/TokenBudgetManager';
-import { TeamOrchestrator } from './team/TeamOrchestrator';
+import { SessionManager } from './session/SessionManager.js';
+import { TokenBudgetManager } from './telemetry/TokenBudgetManager.js';
+import { TeamOrchestrator } from './team/TeamOrchestrator.js';
 import type { OrchestratorEvent } from './orchestrator/types.js';
 export interface AgentAppConfig {
     /** 数据库目录，默认 ~/.open-agent-teams/data */

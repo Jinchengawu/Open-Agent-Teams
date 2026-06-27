@@ -1,5 +1,5 @@
-import type { RegistryClient } from './RegistryClient';
-import type { AgentMessageEnvelope } from './types';
+import type { RegistryClient } from './RegistryClient.js';
+import type { AgentMessageEnvelope } from './types.js';
 export declare class AgentBus {
     private registry;
     private timeoutMs;

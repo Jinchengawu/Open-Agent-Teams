@@ -13,32 +13,32 @@ export type {
 } from './hermes/index.js';
 
 // ── 会话管理 ──
-export { SessionManager } from './session/SessionManager';
-export { initSchema } from './session/schema';
-export { WorkflowStateManager } from './session/WorkflowStateManager';
-export type { WorkflowState, WorkflowStepState, WorkflowContext } from './session/WorkflowStateManager';
-export { RollbackManager } from './session/rollback';
-export type { SessionSnapshot } from './session/rollback';
+export { SessionManager } from './session/SessionManager.js';
+export { initSchema } from './session/schema.js';
+export { WorkflowStateManager } from './session/WorkflowStateManager.js';
+export type { WorkflowState, WorkflowStepState, WorkflowContext } from './session/WorkflowStateManager.js';
+export { RollbackManager } from './session/rollback.js';
+export type { SessionSnapshot } from './session/rollback.js';
 
 // ── 记忆、上下文与 Agent 通信基础设施 ──
-export { MemoryStore } from './memory/MemoryStore';
-export { ProjectMemory } from './memory/project-memory';
-export type { MemoryEntry, MemoryQuery } from './memory/project-memory';
-export { CollaborationMemory } from './memory/collaboration-memory';
-export type { CollaborationSession, CollaborationComment, CollaborationSnapshot } from './memory/collaboration-memory';
-export { MemoryBridge } from './memory/memory-bridge';
-export type { ProfileMemoryEntry, ProfileSkill, SharedStateEntry, MemoryBridgeConfig } from './memory/memory-bridge';
-export { ContextCompressor } from './context/ContextCompressor';
-export type { CompressionConfig } from './context/ContextCompressor';
-export { RegistryClient } from './bus/RegistryClient';
-export { AgentBus } from './bus/AgentBus';
-export { MessageType } from './bus/types';
-export type { AgentMessageEnvelope, AgentRegistration } from './bus/types';
+export { MemoryStore } from './memory/MemoryStore.js';
+export { ProjectMemory } from './memory/project-memory.js';
+export type { MemoryEntry, MemoryQuery } from './memory/project-memory.js';
+export { CollaborationMemory } from './memory/collaboration-memory.js';
+export type { CollaborationSession, CollaborationComment, CollaborationSnapshot } from './memory/collaboration-memory.js';
+export { MemoryBridge } from './memory/memory-bridge.js';
+export type { ProfileMemoryEntry, ProfileSkill, SharedStateEntry, MemoryBridgeConfig } from './memory/memory-bridge.js';
+export { ContextCompressor } from './context/ContextCompressor.js';
+export type { CompressionConfig } from './context/ContextCompressor.js';
+export { RegistryClient } from './bus/RegistryClient.js';
+export { AgentBus } from './bus/AgentBus.js';
+export { MessageType } from './bus/types.js';
+export type { AgentMessageEnvelope, AgentRegistration } from './bus/types.js';
 
 // ── 模板化工作流 ──
-export { WorkflowOrchestrator } from './workflow/WorkflowOrchestrator';
-export { BUILTIN_TEMPLATES } from './workflow/templates';
-export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types';
+export { WorkflowOrchestrator } from './workflow/WorkflowOrchestrator.js';
+export { BUILTIN_TEMPLATES } from './workflow/templates.js';
+export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types.js';
 
 // ── 编排器（核心）──
 export {
@@ -47,10 +47,10 @@ export {
   createProfileTeamOrchestrator,
   createOpenTeamOrchestrator,
   createDevTeamOrchestrator,
-} from './team/TeamOrchestrator';
+} from './team/TeamOrchestrator.js';
 
 // ── 编排器抽象层（解耦 @open-multi-agent/core）──
-export type { IOrchestrator } from './orchestrator/IOrchestrator';
+export type { IOrchestrator } from './orchestrator/IOrchestrator.js';
 export type {
   TeamAgentConfig,
   TeamOrchestratorConfig,
@@ -63,10 +63,10 @@ export type {
   TokenUsage,
   RoutingDecision,
   IntentRouterConfig,
-} from './orchestrator/types';
+} from './orchestrator/types.js';
 
 // ── 意图路由（新增）──
-export { IntentRouter } from './intent/IntentRouter';
+export { IntentRouter } from './intent/IntentRouter.js';
 
 // ── 模型消耗保护（Codex 回填模式）──
 export {
@@ -77,16 +77,16 @@ export {
 } from './runtime/model-spend-guard.js';
 
 // ── 质量评估与遥测 ──
-export { OutputJudge } from './quality/judge';
-export type { EvaluationResult, EvaluationRequest, EvaluationDimension, LLMCaller } from './quality/judge';
-export { EventBus as TelemetryEventBus, createEvent, generateEventId } from './telemetry/events';
-export type { TelemetryEvent, EventType, EventLevel, EventHandler as TelemetryEventHandler } from './telemetry/events';
-export { TokenTracker } from './telemetry/token-tracker';
-export type { TokenUsageRecord, ModelPricing } from './telemetry/token-tracker';
+export { OutputJudge } from './quality/judge.js';
+export type { EvaluationResult, EvaluationRequest, EvaluationDimension, LLMCaller } from './quality/judge.js';
+export { EventBus as TelemetryEventBus, createEvent, generateEventId } from './telemetry/events.js';
+export type { TelemetryEvent, EventType, EventLevel, EventHandler as TelemetryEventHandler } from './telemetry/events.js';
+export { TokenTracker } from './telemetry/token-tracker.js';
+export type { TokenUsageRecord, ModelPricing } from './telemetry/token-tracker.js';
 
 // ── 事件总线（新增 — Phase 1: 打通孤岛）──
-export { EventBus, eventBus } from './event/EventBus';
-export type { AnyEvent } from './event/EventBus';
+export { EventBus, eventBus } from './event/EventBus.js';
+export type { AnyEvent } from './event/EventBus.js';
 export type {
   KanbanEvent,
   WorkflowEvent,
@@ -95,19 +95,19 @@ export type {
   ActionItem,
   TaskStatus,
   EventHandler,
-} from './event/types';
+} from './event/types.js';
 export {
   registerAllHandlers,
   registerKanbanHandlers,
   registerWorkflowHandlers,
   registerMeetingHandlers,
-} from './event/handlers';
+} from './event/handlers/index.js';
 export type {
   AllHandlerDeps,
   KanbanHandlerDeps,
   WorkflowHandlerDeps,
   MeetingHandlerDeps,
-} from './event/handlers';
+} from './event/handlers/index.js';
 
 // ── Pipeline 引擎（新增 — 面编排）──
 export {
@@ -117,7 +117,7 @@ export {
   createPipelineOrchestrator,
   ConflictResolver,
   createConflictResolver,
-} from './pipeline';
+} from './pipeline/index.js';
 export type {
   PipelineDefinition,
   PipelineInstance,
@@ -133,7 +133,7 @@ export type {
   ConflictStrategy,
   Conflict,
   ConflictConfig,
-} from './pipeline';
+} from './pipeline/index.js';
 
 // ── Team Profile Registry ──
 export {
@@ -183,8 +183,8 @@ export type {
   Task,
   DocumentManagerConfig,
 } from './knowledge/DocumentManager.js';
-export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus';
-export type { AgentMessage, MessageBusOptions } from './event/MessageBus';
+export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus.js';
+export type { AgentMessage, MessageBusOptions } from './event/MessageBus.js';
 
 // ── A2A 语义模型（内部统一 Agent 通信语言）──
 export {
@@ -232,8 +232,8 @@ export type {
 } from './a2a/index.js';
 
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
-export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager';
-export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager';
+export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
+export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
 
 // ── 国际化（新增 — 全栈中英展示协商）──
 export {
@@ -247,8 +247,8 @@ export {
 export type { Locale, LocalizedText } from './i18n/index.js';
 
 // ── HTTP API 层 ──
-export { createAgentApp } from './agent-factory';
-export type { AgentAppConfig, AgentApp } from './agent-factory';
+export { createAgentApp } from './agent-factory.js';
+export type { AgentAppConfig, AgentApp } from './agent-factory.js';
 
 // ── Agent 可用工具 ──
 export { createDocumentTools } from './tools/document-tools.js';

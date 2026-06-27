@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
-import { AgentBus } from '../bus/AgentBus';
-import { MessageType } from '../bus/types';
-import type { SessionManager } from '../session/SessionManager';
-import type { WorkflowStepDefinition, WorkflowTemplate, WorkflowRecord, WorkflowStepRecord, WorkflowStatus, StepStatus } from './types';
-import { BUILTIN_TEMPLATES, WORKFLOW_SCHEMA } from './templates';
+import { AgentBus } from '../bus/AgentBus.js';
+import { MessageType } from '../bus/types.js';
+import type { SessionManager } from '../session/SessionManager.js';
+import type { WorkflowStepDefinition, WorkflowTemplate, WorkflowRecord, WorkflowStepRecord, WorkflowStatus, StepStatus } from './types.js';
+import { BUILTIN_TEMPLATES, WORKFLOW_SCHEMA } from './templates.js';
 
 export class WorkflowOrchestrator {
   private db: Database.Database;

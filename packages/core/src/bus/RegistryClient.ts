@@ -1,4 +1,4 @@
-import type { AgentRegistration } from './types';
+import type { AgentRegistration } from './types.js';
 
 interface PeerConfig {
   host: string;

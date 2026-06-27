@@ -1,4 +1,4 @@
-import type { WorkflowTemplate } from './types';
+import type { WorkflowTemplate } from './types.js';
 
 export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
   {

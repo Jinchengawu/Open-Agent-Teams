@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { MessageType } from '../bus/types';
-import { BUILTIN_TEMPLATES, WORKFLOW_SCHEMA } from './templates';
+import { MessageType } from '../bus/types.js';
+import { BUILTIN_TEMPLATES, WORKFLOW_SCHEMA } from './templates.js';
 export class WorkflowOrchestrator {
     db;
     agentBus;
