@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
+import { AGENT_LIST } from '@/lib/agents';
 
 interface PipelineDef {
   id: string;
@@ -94,6 +95,15 @@ interface CoordinationSummary {
   };
 }
 
+interface PipelineBuilderSurface {
+  id: string;
+  name: string;
+  agent: string;
+  goal: string;
+  artifacts: string;
+  dependsOn: string;
+}
+
 const STORAGE_KEY = 'pipeline-execution-history';
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const SURFACE_TIMEOUT_OPTIONS = [
@@ -120,6 +130,14 @@ surfaces:
       goal: Clarify the request and produce a concise plan.
 edges: []
 `;
+const BUILDER_DEFAULT_SURFACE: PipelineBuilderSurface = {
+  id: 'discovery',
+  name: 'Discovery',
+  agent: 'team-orchestrator',
+  goal: 'Clarify the request and produce a concise plan.',
+  artifacts: 'meeting_summary, prd',
+  dependsOn: '',
+};
 
 function normalizePipeline(item: unknown): PipelineDef | null {
   if (!item || typeof item !== 'object') return null;
@@ -199,6 +217,9 @@ export default function PipelinePage() {
   const [yamlDraft, setYamlDraft] = useState(YAML_DRAFT);
   const [yamlSource, setYamlSource] = useState('dashboard:pipeline-page');
   const [importingYaml, setImportingYaml] = useState(false);
+  const [builderId, setBuilderId] = useState(`custom-pipeline-${Date.now()}`);
+  const [builderName, setBuilderName] = useState('Custom Pipeline');
+  const [builderSurfaces, setBuilderSurfaces] = useState<PipelineBuilderSurface[]>([BUILDER_DEFAULT_SURFACE]);
   const [executionMode, setExecutionMode] = useState<'dry-run' | 'live'>('dry-run');
   const [surfaceTimeoutMs, setSurfaceTimeoutMs] = useState(90_000);
   const [historyStatusFilter, setHistoryStatusFilter] = useState('all');
@@ -348,6 +369,87 @@ export default function PipelinePage() {
     } finally {
       setImportingYaml(false);
     }
+  };
+
+  const buildYamlFromBuilder = () => {
+    const safeId = builderId.trim() || `custom-pipeline-${Date.now()}`;
+    const safeName = builderName.trim() || safeId;
+    const validSurfaces = builderSurfaces
+      .map((surface, index) => ({
+        ...surface,
+        id: surface.id.trim() || `step-${index + 1}`,
+        name: surface.name.trim() || `Step ${index + 1}`,
+        goal: surface.goal.trim() || `Execute ${surface.name.trim() || `Step ${index + 1}`}.`,
+      }))
+      .filter((surface) => surface.agent);
+    const edgeLines: string[] = [];
+
+    for (const surface of validSurfaces) {
+      const dependencies = surface.dependsOn
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      for (const dependency of dependencies) {
+        edgeLines.push(`  - from: ${dependency}\n    to: ${surface.id}`);
+      }
+    }
+
+    const surfacesYaml = validSurfaces.map((surface) => {
+      const artifacts = surface.artifacts
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const artifactYaml = artifacts.length > 0
+        ? `\n    output:\n      artifacts:\n${artifacts.map((artifact) => `        - ${artifact}`).join('\n')}`
+        : '';
+      return [
+        `  - id: ${surface.id}`,
+        `    name: ${surface.name}`,
+        `    agent: ${surface.agent}`,
+        `    workflow:`,
+        `      goal: ${surface.goal}`,
+        artifactYaml,
+      ].join('\n');
+    }).join('\n');
+
+    return [
+      `id: ${safeId}`,
+      `name: ${safeName}`,
+      `version: "0.1.0"`,
+      `surfaces:`,
+      surfacesYaml || `  - id: discovery\n    name: Discovery\n    agent: team-orchestrator\n    workflow:\n      goal: Clarify the request.`,
+      `edges:`,
+      edgeLines.length > 0 ? edgeLines.join('\n') : `[]`,
+      '',
+    ].join('\n');
+  };
+
+  const updateBuilderSurface = (index: number, patch: Partial<PipelineBuilderSurface>) => {
+    setBuilderSurfaces((current) => current.map((surface, i) => i === index ? { ...surface, ...patch } : surface));
+  };
+
+  const addBuilderSurface = () => {
+    setBuilderSurfaces((current) => [
+      ...current,
+      {
+        id: `step-${current.length + 1}`,
+        name: `Step ${current.length + 1}`,
+        agent: 'workflow-conductor',
+        goal: 'Execute this workflow step and produce a durable artifact.',
+        artifacts: 'report',
+        dependsOn: current[current.length - 1]?.id || '',
+      },
+    ]);
+  };
+
+  const removeBuilderSurface = (index: number) => {
+    setBuilderSurfaces((current) => current.length <= 1 ? current : current.filter((_, i) => i !== index));
+  };
+
+  const generateBuilderYaml = () => {
+    setYamlDraft(buildYamlFromBuilder());
+    setYamlSource(`dashboard:pipeline-builder:${builderId.trim() || 'custom'}`);
+    showToast('已生成 Pipeline YAML，可继续编辑或直接导入', 'success');
   };
 
   const fetchCoordinationSummary = async (instanceId: string) => {
@@ -849,6 +951,99 @@ export default function PipelinePage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6 border-l-4 border-l-cyan-500" data-testid="pipeline-builder">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-lg">自定义 Pipeline Builder</CardTitle>
+                <p className="mt-1 text-sm text-gray-500">像会议邀请 Agent 一样，为每个流水线步骤选择 Agent、目标、产物和依赖</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={addBuilderSurface}>添加步骤</Button>
+                <Button onClick={generateBuilderYaml}>生成 YAML</Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                value={builderId}
+                onChange={(event) => setBuilderId(event.target.value)}
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                placeholder="Pipeline ID"
+                data-testid="pipeline-builder-id"
+              />
+              <input
+                value={builderName}
+                onChange={(event) => setBuilderName(event.target.value)}
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                placeholder="Pipeline Name"
+                data-testid="pipeline-builder-name"
+              />
+            </div>
+
+            <div className="space-y-3">
+              {builderSurfaces.map((surface, index) => (
+                <div key={`${surface.id}-${index}`} className="rounded-lg border border-gray-200 bg-white/80 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-sm font-bold text-gray-800">步骤 {index + 1}</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeBuilderSurface(index)}
+                      disabled={builderSurfaces.length <= 1}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                    >
+                      删除
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <input
+                      value={surface.id}
+                      onChange={(event) => updateBuilderSurface(index, { id: event.target.value })}
+                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      placeholder="step-id"
+                    />
+                    <input
+                      value={surface.name}
+                      onChange={(event) => updateBuilderSurface(index, { name: event.target.value })}
+                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      placeholder="Step name"
+                    />
+                    <select
+                      value={surface.agent}
+                      onChange={(event) => updateBuilderSurface(index, { agent: event.target.value })}
+                      className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    >
+                      {AGENT_LIST.map((agent) => (
+                        <option key={agent.id} value={agent.id}>{agent.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={surface.dependsOn}
+                      onChange={(event) => updateBuilderSurface(index, { dependsOn: event.target.value })}
+                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      placeholder="依赖 step id，逗号分隔"
+                    />
+                  </div>
+                  <textarea
+                    value={surface.goal}
+                    onChange={(event) => updateBuilderSurface(index, { goal: event.target.value })}
+                    className="mt-3 min-h-[72px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    placeholder="这个步骤要完成什么"
+                  />
+                  <input
+                    value={surface.artifacts}
+                    onChange={(event) => updateBuilderSurface(index, { artifacts: event.target.value })}
+                    className="mt-3 h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    placeholder="产物，逗号分隔，例如 prd, tech_spec, report"
+                  />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

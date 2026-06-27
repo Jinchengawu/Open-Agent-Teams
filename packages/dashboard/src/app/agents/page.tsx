@@ -33,6 +33,15 @@ interface CustomAgentView {
   description: string
   endpoint?: string
   skills: string[]
+  runtime?: {
+    status: 'stopped' | 'starting' | 'running' | 'error'
+    pid?: number
+    port?: number
+    endpoint?: string
+    startedAt?: string
+    stoppedAt?: string
+    error?: string
+  }
   createdAt: string
   updatedAt: string
 }
@@ -502,11 +511,17 @@ function AgentCharacterCard({
 
 function CustomAgentCard({
   agent,
+  onStart,
+  onStop,
   onDelete,
 }: {
   agent: CustomAgentView
+  onStart: () => void
+  onStop: () => void
   onDelete: () => void
 }) {
+  const isRunning = agent.runtime?.status === 'running'
+
   return (
     <Card className="overflow-hidden border border-dashed border-gray-300 bg-white/85 shadow-sm">
       <CardContent className="p-0">
@@ -551,8 +566,22 @@ function CustomAgentCard({
           </div>
 
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-            <span>{agent.endpoint ? `Endpoint ${agent.endpoint}` : '尚未绑定运行时 Endpoint'}</span>
-            <span>Framework Custom</span>
+            <span>{agent.runtime?.endpoint || agent.endpoint ? `Endpoint ${agent.runtime?.endpoint || agent.endpoint}` : '尚未绑定运行时 Endpoint'}</span>
+            <span className={isRunning ? 'text-green-600' : 'text-gray-400'}>
+              {isRunning ? `Running${agent.runtime?.pid ? ` #${agent.runtime.pid}` : ''}` : 'Stopped'}
+            </span>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            {isRunning ? (
+              <Button variant="outline" size="sm" onClick={onStop}>
+                停止实例
+              </Button>
+            ) : (
+              <Button size="sm" onClick={onStart}>
+                启动实例
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
@@ -629,6 +658,30 @@ export default function AgentsPage() {
       showToast('自定义 Agent 已删除', 'success')
     } catch (err) {
       showToast(err instanceof Error ? err.message : '自定义 Agent 删除失败', 'error')
+    }
+  }
+
+  async function handleStartCustomAgent(agent: CustomAgentView) {
+    try {
+      const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}/start`, { method: 'POST' })
+      const data = await res.json() as { agent?: CustomAgentView; error?: string }
+      if (!res.ok || !data.agent) throw new Error(data.error || '启动失败')
+      setCustomAgents((current) => current.map((item) => item.id === agent.id ? data.agent! : item))
+      showToast('自定义 Agent 实例已启动', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '自定义 Agent 启动失败', 'error')
+    }
+  }
+
+  async function handleStopCustomAgent(agent: CustomAgentView) {
+    try {
+      const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}/stop`, { method: 'POST' })
+      const data = await res.json() as { agent?: CustomAgentView; error?: string }
+      if (!res.ok || !data.agent) throw new Error(data.error || '停止失败')
+      setCustomAgents((current) => current.map((item) => item.id === agent.id ? data.agent! : item))
+      showToast('自定义 Agent 实例已停止', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '自定义 Agent 停止失败', 'error')
     }
   }
 
@@ -779,6 +832,8 @@ export default function AgentsPage() {
               <CustomAgentCard
                 key={agent.id}
                 agent={agent}
+                onStart={() => handleStartCustomAgent(agent)}
+                onStop={() => handleStopCustomAgent(agent)}
                 onDelete={() => handleDeleteCustomAgent(agent)}
               />
             ))}
