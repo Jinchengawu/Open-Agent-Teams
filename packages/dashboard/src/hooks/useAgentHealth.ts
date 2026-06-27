@@ -48,6 +48,22 @@ export function useAgentHealth() {
       error: result?.error,
     };
   });
+  const staticAgentIds = new Set(AGENT_LIST.map((agent) => agent.id));
+  const dynamicAgents: AgentStatus[] = (data?.agents || [])
+    .filter((agent) => agent.id && !staticAgentIds.has(agent.id))
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.data?.agent || agent.id,
+      label: agent.data?.label || agent.data?.agent || agent.id,
+      port: agent.data?.hermesPort,
+      icon: '🤖',
+      color: 'from-slate-500 to-cyan-500',
+      tags: [],
+      online: Boolean(agent.online),
+      skillCount: agent.data?.skills || 0,
+      error: agent.error,
+    }));
+  const availableAgents = [...agents, ...dynamicAgents];
 
   const stats = {
     totalAgents: data?.totalAgents || AGENT_LIST.length,
@@ -58,5 +74,5 @@ export function useAgentHealth() {
     livePipelineReady: data?.livePipelineReady || false,
   };
 
-  return { agents, stats, error, isLoading, mutate };
+  return { agents, availableAgents, stats, error, isLoading, mutate };
 }

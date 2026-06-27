@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
-import { AGENT_LIST } from '@/lib/agents';
 
 interface PipelineDef {
   id: string;
@@ -205,7 +204,7 @@ function buildProgressSummary(pipeline: PipelineDef | undefined, instance: Pipel
 
 export default function PipelinePage() {
   const { showToast } = useToast();
-  const { stats: agentStats, isLoading: agentHealthLoading } = useAgentHealth();
+  const { stats: agentStats, availableAgents, isLoading: agentHealthLoading } = useAgentHealth();
   const [pipelines, setPipelines] = useState<PipelineDef[]>([]);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -434,7 +433,7 @@ export default function PipelinePage() {
       {
         id: `step-${current.length + 1}`,
         name: `Step ${current.length + 1}`,
-        agent: 'workflow-conductor',
+        agent: availableAgents[0]?.id || 'workflow-conductor',
         goal: 'Execute this workflow step and produce a durable artifact.',
         artifacts: 'report',
         dependsOn: current[current.length - 1]?.id || '',
@@ -1019,7 +1018,7 @@ export default function PipelinePage() {
                       onChange={(event) => updateBuilderSurface(index, { agent: event.target.value })}
                       className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
                     >
-                      {AGENT_LIST.map((agent) => (
+                      {availableAgents.map((agent) => (
                         <option key={agent.id} value={agent.id}>{agent.name}</option>
                       ))}
                     </select>

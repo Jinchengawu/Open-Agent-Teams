@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { AGENTS, AGENT_LIST } from '@/lib/agents'
+import { useAgentHealth } from '@/hooks/useAgentHealth'
 import type { ChatMessage } from '@/lib/types'
 
 // ============================================================================
@@ -31,7 +31,6 @@ interface AgentStatus {
 }
 
 const STORAGE_KEY = 'open-agent-teams-meeting-v1'
-const DEFAULT_PARTICIPANT_IDS = AGENT_LIST.map(a => a.id)
 
 // ============================================================================
 // Storage
@@ -52,10 +51,16 @@ function saveMeetings(meetings: Record<string, MeetingTopic>) {
 // ============================================================================
 
 export default function MeetingView() {
+  const { availableAgents } = useAgentHealth()
+  const defaultParticipantIds = useMemo(() => availableAgents.map(agent => agent.id), [availableAgents])
+  const agentMap = useMemo(
+    () => Object.fromEntries(availableAgents.map(agent => [agent.id, agent])),
+    [availableAgents],
+  )
   const [meetings, setMeetings] = useState<Record<string, MeetingTopic>>(() => loadMeetings())
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null)
   const [newTopicInput, setNewTopicInput] = useState('')
-  const [newTopicParticipantIds, setNewTopicParticipantIds] = useState<string[]>(DEFAULT_PARTICIPANT_IDS)
+  const [newTopicParticipantIds, setNewTopicParticipantIds] = useState<string[]>([])
   const [discussionInput, setDiscussionInput] = useState('')
   const [sending, setSending] = useState(false)
   const [showNewTopic, setShowNewTopic] = useState(false)
@@ -63,6 +68,19 @@ export default function MeetingView() {
   const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([])
   const { showToast } = useToast()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const previousDefaultParticipantIdsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    const previousDefaultIds = previousDefaultParticipantIdsRef.current
+    previousDefaultParticipantIdsRef.current = defaultParticipantIds
+    if (defaultParticipantIds.length === 0) return
+    setNewTopicParticipantIds((current) => {
+      if (current.length === 0) return defaultParticipantIds
+      const newlyAvailableIds = defaultParticipantIds.filter(id => !previousDefaultIds.includes(id))
+      if (newlyAvailableIds.length === 0) return current
+      return Array.from(new Set([...current, ...newlyAvailableIds]))
+    })
+  }, [defaultParticipantIds])
 
   // 持久化
   useEffect(() => {
@@ -76,8 +94,8 @@ export default function MeetingView() {
 
   const activeTopic = activeTopicId ? meetings[activeTopicId] : null
   const activeParticipantIds = activeTopic
-    ? (activeTopic.participantAgentIds ?? DEFAULT_PARTICIPANT_IDS)
-    : DEFAULT_PARTICIPANT_IDS
+    ? (activeTopic.participantAgentIds ?? defaultParticipantIds)
+    : defaultParticipantIds
 
   const toggleNewTopicParticipant = useCallback((agentId: string) => {
     setNewTopicParticipantIds(prev =>
@@ -92,9 +110,9 @@ export default function MeetingView() {
     setMeetings(prev => {
       const current = prev[activeTopic.id]
       if (!current) return prev
-      const currentIds = current.participantAgentIds ?? DEFAULT_PARTICIPANT_IDS
+      const currentIds = current.participantAgentIds ?? defaultParticipantIds
       const nextIds = updater(currentIds).filter((id, index, arr) =>
-        AGENTS[id] && arr.indexOf(id) === index
+        agentMap[id] && arr.indexOf(id) === index
       )
       return {
         ...prev,
@@ -104,7 +122,7 @@ export default function MeetingView() {
         },
       }
     })
-  }, [activeTopic])
+  }, [activeTopic, agentMap, defaultParticipantIds])
 
   const toggleActiveParticipant = useCallback((agentId: string) => {
     updateActiveParticipants(ids =>
@@ -132,7 +150,7 @@ export default function MeetingView() {
       messages: [{
         id: `system-${Date.now()}`,
         role: 'system',
-        content: `🎙️ 会议开始：${topic}｜参会：${newTopicParticipantIds.map(id => AGENTS[id]?.name || id).join('、')}`,
+        content: `🎙️ 会议开始：${topic}｜参会：${newTopicParticipantIds.map(id => agentMap[id]?.name || id).join('、')}`,
         agentId: 'system',
         timestamp: Date.now(),
       }],
@@ -141,9 +159,9 @@ export default function MeetingView() {
     setMeetings(prev => ({ ...prev, [id]: newTopic }))
     setActiveTopicId(id)
     setNewTopicInput('')
-    setNewTopicParticipantIds(DEFAULT_PARTICIPANT_IDS)
+    setNewTopicParticipantIds(defaultParticipantIds)
     setShowNewTopic(false)
-  }, [newTopicInput, newTopicParticipantIds, showToast])
+  }, [newTopicInput, newTopicParticipantIds, showToast, agentMap, defaultParticipantIds])
 
   // ── 删除议题 ──
   const handleDeleteTopic = useCallback((topicId: string) => {
@@ -170,7 +188,7 @@ export default function MeetingView() {
     setSending(true)
 
     // 初始化被邀请 Agent 状态为 waiting
-    const initialStatuses: AgentStatus[] = AGENT_LIST.filter(a => activeParticipantIds.includes(a.id)).map(a => ({
+    const initialStatuses: AgentStatus[] = availableAgents.filter(a => activeParticipantIds.includes(a.id)).map(a => ({
       agent: a.id,
       name: a.name,
       state: 'waiting' as const,
@@ -199,7 +217,7 @@ export default function MeetingView() {
       const discussionContext = activeTopic.messages
         .filter(m => m.role !== 'system')
         .map(m => {
-          const label = m.role === 'user' ? '主持人' : (AGENTS[m.agentId || '']?.name || m.agentId)
+          const label = m.role === 'user' ? '主持人' : (agentMap[m.agentId || '']?.name || m.agentId)
           return `### ${label}\n${m.content}`
         })
         .join('\n\n')
@@ -309,7 +327,7 @@ export default function MeetingView() {
 
     setSending(false)
     setAgentStatuses([])
-  }, [discussionInput, activeTopic, activeParticipantIds, sending, showToast])
+  }, [discussionInput, activeTopic, activeParticipantIds, sending, showToast, availableAgents, agentMap])
 
   // ── 排序后的议题列表 ──
   const sortedTopics = Object.values(meetings).sort((a, b) => b.createdAt - a.createdAt)
@@ -348,7 +366,7 @@ export default function MeetingView() {
                   <button
                     type="button"
                     className="text-xs text-blue-600 hover:text-blue-700"
-                    onClick={() => setNewTopicParticipantIds(DEFAULT_PARTICIPANT_IDS)}
+                    onClick={() => setNewTopicParticipantIds(defaultParticipantIds)}
                   >
                     全选
                   </button>
@@ -363,7 +381,7 @@ export default function MeetingView() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                {AGENT_LIST.map(agent => {
+                {availableAgents.map(agent => {
                   const selected = newTopicParticipantIds.includes(agent.id)
                   return (
                     <button
@@ -383,7 +401,7 @@ export default function MeetingView() {
                 })}
               </div>
               <div className="mt-2 text-xs text-gray-400">
-                已邀请 {newTopicParticipantIds.length}/{AGENT_LIST.length}
+                已邀请 {newTopicParticipantIds.length}/{availableAgents.length}
               </div>
             </div>
             <div className="flex gap-2 mt-2">
@@ -452,11 +470,11 @@ export default function MeetingView() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">🎙️ {activeTopic.topic}</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    {activeTopic.messages.filter(m => m.role !== 'system').length} 条讨论 · {activeParticipantIds.length}/{AGENT_LIST.length} 位 Agent 参会
+                    {activeTopic.messages.filter(m => m.role !== 'system').length} 条讨论 · {activeParticipantIds.length}/{availableAgents.length} 位 Agent 参会
                   </p>
                 </div>
                 <div className="flex gap-1">
-                  {AGENT_LIST.filter(a => activeParticipantIds.includes(a.id)).map(a => (
+                  {availableAgents.filter(a => activeParticipantIds.includes(a.id)).map(a => (
                     <span key={a.id} className="text-lg" title={a.name}>{a.icon}</span>
                   ))}
                 </div>
@@ -469,7 +487,7 @@ export default function MeetingView() {
                       type="button"
                       className="text-xs text-purple-600 hover:text-purple-700 disabled:text-gray-300"
                       disabled={sending}
-                      onClick={() => updateActiveParticipants(() => DEFAULT_PARTICIPANT_IDS)}
+                      onClick={() => updateActiveParticipants(() => defaultParticipantIds)}
                     >
                       全选
                     </button>
@@ -485,7 +503,7 @@ export default function MeetingView() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
-                  {AGENT_LIST.map(agent => {
+                  {availableAgents.map(agent => {
                     const selected = activeParticipantIds.includes(agent.id)
                     return (
                       <button
@@ -512,7 +530,7 @@ export default function MeetingView() {
             {sending && agentStatuses.length > 0 && (
               <div className="mb-3 grid grid-cols-5 gap-2">
                 {agentStatuses.map(s => {
-                  const agent = AGENTS[s.agent]
+                  const agent = agentMap[s.agent]
                   return (
                     <div
                       key={s.agent}
@@ -570,7 +588,7 @@ export default function MeetingView() {
                     )
                   }
 
-                  const agent = AGENTS[msg.agentId || '']
+                  const agent = agentMap[msg.agentId || '']
                   return (
                     <div key={msg.id} className="flex justify-start">
                       <div className="max-w-[80%] bg-white border rounded-2xl p-4 shadow-sm">

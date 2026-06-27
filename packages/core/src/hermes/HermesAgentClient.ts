@@ -79,6 +79,7 @@ function loadDashboardHermesInstances(): HermesInstance[] {
 
     return parsed.agents
       .filter((agent) => agent && typeof agent.id === 'string' && typeof agent.name === 'string')
+      .filter((agent) => agent.runtime?.status === 'running')
       .map((agent) => {
         const port = Number(agent.hermes?.port || agent.runtime?.port || agent.port || 0);
         return {
