@@ -7,6 +7,7 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { OPEN_FRAMEWORK_TEAM_PROFILE } from '../team-profile/open-framework-profile.js';
 import { parse as parseYaml } from 'yaml';
 // ============================================================================
 // Configuration Loader
@@ -28,18 +29,7 @@ function loadConfig() {
             }
         }
     }
-    // 默认配置（fallback）— 调用真正的 Hermes 实例（API Server 端口）
-    return {
-        instances: [
-            { id: 'dev-frontend', label: '前端开发 Agent', port: 8002, hermes_port: 8002, tags: ['frontend'], skills: [], timeout_ms: 120000 },
-            { id: 'dev-backend', label: '后端开发 Agent', port: 8003, hermes_port: 8003, tags: ['backend'], skills: [], timeout_ms: 120000 },
-            { id: 'dev-testing', label: '测试开发 Agent', port: 8004, hermes_port: 8004, tags: ['testing'], skills: [], timeout_ms: 180000 },
-            { id: 'dev-devops', label: 'DevOps Agent', port: 8005, hermes_port: 8005, tags: ['devops'], skills: [], timeout_ms: 300000 },
-            { id: 'dev-pm', label: '产品经理 Agent', port: 8006, hermes_port: 8006, tags: ['pm'], skills: [], timeout_ms: 120000 },
-            { id: 'project-admin', label: '项目管理员 Agent', port: 8007, hermes_port: 8007, tags: ['project-admin'], skills: [], timeout_ms: 120000 },
-        ],
-        routing: { rules: [], default: 'dev-backend' },
-    };
+    return OPEN_FRAMEWORK_TEAM_PROFILE.hermes;
 }
 // ============================================================================
 // Hermes Agent Client

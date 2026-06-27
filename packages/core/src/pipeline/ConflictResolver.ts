@@ -3,7 +3,7 @@
  *
  * 当 Pipeline 中多个 Agent 产生冲突产物时，自动触发仲裁机制。
  * 支持多种解决策略：
- * - project-admin 仲裁（默认）
+ * - profile arbitration agent 仲裁（默认）
  * - 投票机制（多数决）
  * - 合并策略（取并集）
  * - 最新优先（取最后一次执行结果）
@@ -147,13 +147,14 @@ export class ConflictResolver {
   }
 
   /**
-   * 策略 1: project-admin 仲裁（默认）
+   * 策略 1: profile arbitration agent 仲裁（默认）
    */
   private async arbitrate(conflict: Conflict): Promise<ConflictResolution> {
     const arbitrationGoal = this.buildArbitrationPrompt(conflict);
 
     try {
-      const result = await this.teamOrchestrator.runAgent('project-admin', arbitrationGoal, conflict.id);
+      const arbitrationAgentId = this.teamOrchestrator.getArbitrationAgentId();
+      const result = await this.teamOrchestrator.runAgent(arbitrationAgentId, arbitrationGoal, conflict.id);
       const resultText = result.output;
       
       let parsed: any;
@@ -164,7 +165,7 @@ export class ConflictResolver {
         return {
           resolved: true,
           strategy: 'arbitration',
-          reason: `project-admin 仲裁结果: ${resultText.substring(0, 500)}`,
+          reason: `${arbitrationAgentId} 仲裁结果: ${resultText.substring(0, 500)}`,
         };
       }
 
@@ -172,7 +173,7 @@ export class ConflictResolver {
         resolved: true,
         winner: parsed.winner,
         merged: parsed.merged,
-        reason: parsed.reason || 'project-admin 仲裁完成',
+        reason: parsed.reason || `${arbitrationAgentId} 仲裁完成`,
         strategy: 'arbitration',
         metadata: { rawResult: resultText },
       };
@@ -193,7 +194,10 @@ export class ConflictResolver {
     conflict: Conflict,
     params?: Record<string, any>,
   ): Promise<ConflictResolution> {
-    const voters = params?.voters || ['pm', 'project-admin', 'testing'];
+    const voters = params?.voters || [
+      this.teamOrchestrator.getDefaultAgentId(),
+      this.teamOrchestrator.getArbitrationAgentId(),
+    ];
     const votes: Record<string, number> = {};
 
     for (const surfaceId of conflict.surfaceIds) {
@@ -355,7 +359,7 @@ export class ConflictResolver {
       .join('\n');
 
     return `
-你是 project-admin，负责解决多 Agent 之间的冲突。
+你是团队仲裁 Agent，负责解决多 Agent 之间的冲突。
 
 冲突描述：${conflict.description}
 

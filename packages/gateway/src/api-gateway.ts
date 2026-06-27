@@ -39,6 +39,33 @@ function extractOutput(agentResult: { output: string; toolCalls: { toolName: str
   return parts.join('\n') || (agentResult.success ? '✅ 任务完成' : '❌ 任务失败');
 }
 
+function toProviderSafeMessages(messages: { role: string; content: unknown }[]): { role: 'user' | 'assistant'; content: string }[] {
+  const safeMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  const systemMessages: string[] = [];
+
+  for (const message of messages) {
+    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+    if (message.role === 'system') {
+      systemMessages.push(content);
+    } else if (message.role === 'assistant' || message.role === 'user') {
+      safeMessages.push({ role: message.role, content });
+    }
+  }
+
+  if (systemMessages.length === 0) return safeMessages;
+  const folded = `System instructions:\n${systemMessages.join('\n\n')}`;
+  const firstUserIndex = safeMessages.findIndex((message) => message.role === 'user');
+  if (firstUserIndex >= 0) {
+    safeMessages[firstUserIndex] = {
+      role: 'user',
+      content: `${folded}\n\nUser request:\n${safeMessages[firstUserIndex].content}`,
+    };
+  } else {
+    safeMessages.unshift({ role: 'user', content: folded });
+  }
+  return safeMessages;
+}
+
 function serializeWorkflow(workflow: any): Record<string, unknown> {
   const context = workflow.context || {};
   const coordination = context.coordination || {};
@@ -693,7 +720,8 @@ async function main(): Promise<void> {
           return;
         }
 
-        const lastUserMsg = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
+        const providerSafeMessages = toProviderSafeMessages(messages);
+        const lastUserMsg = [...providerSafeMessages].reverse().find((m) => m.role === 'user');
         const userContent = lastUserMsg?.content;
         let userText = typeof userContent === 'string' ? userContent : JSON.stringify(userContent || '');
 
@@ -1268,17 +1296,19 @@ async function main(): Promise<void> {
 
 // Agent ID 映射 — 处理 Dashboard 可能发送的短格式
 const AGENT_ID_MAP: Record<string, string> = {
-  'frontend': 'dev-frontend',
-  'backend': 'dev-backend',
-  'testing': 'dev-testing',
-  'devops': 'dev-devops',
-  'pm': 'dev-pm',
-  'project-admin': 'project-admin',
-  'dev-frontend': 'dev-frontend',
-  'dev-backend': 'dev-backend',
-  'dev-testing': 'dev-testing',
-  'dev-devops': 'dev-devops',
-  'dev-pm': 'dev-pm',
+  'router': 'intent-router',
+  'intent': 'intent-router',
+  'coordinator': 'team-orchestrator',
+  'orchestrator': 'team-orchestrator',
+  'pm': 'team-orchestrator',
+  'project-admin': 'team-orchestrator',
+  'frontend': 'workflow-conductor',
+  'backend': 'workflow-conductor',
+  'testing': 'recovery-agent',
+  'devops': 'integration-agent',
+  'knowledge': 'knowledge-steward',
+  'recovery': 'recovery-agent',
+  'integration': 'integration-agent',
 };
 
 function normalizeAgentId(agentId: string): string {

@@ -51,7 +51,7 @@ export function createDocumentToolsV2() {
         projectId: z.string().describe('项目ID'),
         title: z.string().describe('任务标题'),
         description: z.string().optional().describe('任务描述'),
-        assignee: z.string().optional().describe('指派给哪个 Agent（如 dev-frontend）'),
+        assignee: z.string().optional().describe('指派给哪个 Agent（来自当前 Team Profile）'),
       }),
       execute: async (input) => {
         try {
@@ -73,7 +73,7 @@ export function createDocumentToolsV2() {
         title: z.string().describe('文档标题'),
         content: z.string().describe('文档内容（Markdown格式）'),
         type: z.enum(['prd', 'tech_spec', 'meeting', 'report', 'task', 'general', 'review', 'code_review']).describe('文档类型'),
-        authorId: z.string().describe('作者 Agent ID（如 dev-frontend）'),
+        authorId: z.string().describe('作者 Agent ID（来自当前 Team Profile）'),
         authorName: z.string().describe('作者显示名称'),
         projectId: z.string().optional().describe('所属项目ID'),
         taskId: z.string().optional().describe('关联任务ID'),
@@ -176,7 +176,7 @@ export function createDocumentToolsV2() {
       name: 'get_agent_documents',
       description: '查看某个Agent产出的所有文档（用于跨Agent协作）。',
       inputSchema: z.object({
-        agentId: z.string().describe('Agent ID（如 dev-frontend）'),
+        agentId: z.string().describe('Agent ID（来自当前 Team Profile）'),
         projectId: z.string().optional().describe('项目ID过滤'),
         type: z.string().optional().describe('文档类型过滤'),
       }),

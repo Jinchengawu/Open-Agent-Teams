@@ -112,6 +112,13 @@ export interface TeamOrchestratorConfig {
     defaultModel: string;
     apiKey: string;
     baseUrl: string;
+    /** Team profile id/name for framework-level runtime identity */
+    profileId?: string;
+    profileName?: string;
+    /** Default Role Agent used when routing cannot confidently pick one */
+    defaultAgentId?: string;
+    /** Role Agent used for arbitration or conflict resolution */
+    arbitrationAgentId?: string;
     maxConcurrency?: number;
     maxDelegationDepth?: number;
     onProgress?: (event: OrchestratorEvent) => void;
@@ -149,5 +156,7 @@ export interface IntentRouterConfig {
     apiKey: string;
     /** 超时时间（毫秒），默认 10000 */
     timeoutMs?: number;
+    /** 默认 Agent ID，路由失败或 primaryAgent 无效时使用 */
+    defaultAgentId?: string;
 }
 //# sourceMappingURL=types.d.ts.map

@@ -16,6 +16,7 @@ import type { TeamAgentConfig, RoutingDecision, IntentRouterConfig } from '../or
 export declare class IntentRouter {
     private config;
     private agentCapabilities;
+    private defaultAgentId;
     constructor(config: IntentRouterConfig, agentCapabilities: TeamAgentConfig[]);
     /**
      * 核心路由方法
@@ -41,5 +42,6 @@ export declare class IntentRouter {
      * 回退决策 — 当 LLM 路由失败时使用
      */
     private fallbackDecision;
+    private resolveDefaultAgentId;
 }
 //# sourceMappingURL=IntentRouter.d.ts.map

@@ -13,7 +13,7 @@ import { TokenBudgetManager } from './telemetry/TokenBudgetManager';
 import { TeamOrchestrator } from './team/TeamOrchestrator';
 import type { OrchestratorEvent } from './orchestrator/types.js';
 export interface AgentAppConfig {
-    /** 数据库目录，默认 ~/.dev-agent/data */
+    /** 数据库目录，默认 ~/.open-agent-teams/data */
     dataDir?: string;
     /** 进度回调（用于 Dashboard 实时展示） */
     onProgress?: (event: OrchestratorEvent) => void;

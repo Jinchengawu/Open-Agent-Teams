@@ -30,9 +30,10 @@ export function createGuardedAgentResult(agentId: string): AgentRunResult {
 }
 
 export function createGuardedRoutingDecision(reason?: string): RoutingDecision {
+  const defaultAgentId = process.env.DEFAULT_AGENT_ID || 'team-orchestrator';
   return {
     strategy: 'single',
-    primaryAgent: 'dev-backend',
+    primaryAgent: defaultAgentId,
     reasoning: reason || modelSpendGuardMessage(),
     complexity: 'medium',
   };

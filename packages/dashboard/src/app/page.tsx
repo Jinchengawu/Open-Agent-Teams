@@ -343,7 +343,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <Card data-testid="dashboard-team-loop-card">
+      <Card data-testid="dashboard-team-loop-card" aria-label="Team Coordination Loop">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>{t('dashboard.loop')}</CardTitle>

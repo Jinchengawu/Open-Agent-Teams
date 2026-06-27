@@ -34,17 +34,17 @@ write_report_header() {
 
 record() {
   local name="$1"
-  local status="$2"
+  local check_status="$2"
   local details="$3"
 
-  case "$status" in
+  case "$check_status" in
     PASS) PASS=$((PASS + 1)); echo "  PASS $name - $details" ;;
     FAIL) FAIL=$((FAIL + 1)); echo "  FAIL $name - $details" ;;
     WARN) WARN=$((WARN + 1)); echo "  WARN $name - $details" ;;
-    *) echo "unknown status: $status" >&2; exit 2 ;;
+    *) echo "unknown status: $check_status" >&2; exit 2 ;;
   esac
 
-  printf '| %s | %s | %s |\n' "$name" "$status" "$(echo "$details" | /usr/bin/sed 's/|/\\|/g')" >> "$REPORT_FILE"
+  printf '| %s | %s | %s |\n' "$name" "$check_status" "$(echo "$details" | /usr/bin/sed 's/|/\\|/g')" >> "$REPORT_FILE"
 }
 
 run_cmd() {

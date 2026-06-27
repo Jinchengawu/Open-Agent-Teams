@@ -41,7 +41,13 @@ export { BUILTIN_TEMPLATES } from './workflow/templates';
 export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types';
 
 // ── 编排器（核心）──
-export { TeamOrchestrator, createTeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
+export {
+  TeamOrchestrator,
+  createTeamOrchestrator,
+  createProfileTeamOrchestrator,
+  createOpenTeamOrchestrator,
+  createDevTeamOrchestrator,
+} from './team/TeamOrchestrator';
 
 // ── 编排器抽象层（解耦 @open-multi-agent/core）──
 export type { IOrchestrator } from './orchestrator/IOrchestrator';
@@ -129,7 +135,23 @@ export type {
   ConflictConfig,
 } from './pipeline';
 
-// ── 内置生命周期模板 ──
+// ── Team Profile Registry ──
+export {
+  OPEN_FRAMEWORK_TEAM_PROFILE,
+  OPEN_TEAM_MINIMUM_LOOP_PIPELINE,
+  buildTeamCommunicationGuide,
+  getProfileAgent,
+  materializeTeamAgents,
+} from './team-profile/index.js';
+export type {
+  TeamProfile,
+  TeamProfileAgentDefinition,
+  TeamProfileHermesConfig,
+  TeamProfileHermesInstance,
+  TeamProfileRuntimeOptions,
+} from './team-profile/index.js';
+
+// ── 内置生命周期模板（兼容旧命名） ──
 export { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
 
 // ── 知识中心（新增 — P1）──

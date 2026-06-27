@@ -22,7 +22,7 @@ export type { AgentMessageEnvelope, AgentRegistration } from './bus/types';
 export { WorkflowOrchestrator } from './workflow/WorkflowOrchestrator';
 export { BUILTIN_TEMPLATES } from './workflow/templates';
 export type { WorkflowTemplate, WorkflowStepDefinition as WorkflowStep, WorkflowStatus, StepStatus } from './workflow/types';
-export { TeamOrchestrator, createTeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
+export { TeamOrchestrator, createTeamOrchestrator, createProfileTeamOrchestrator, createOpenTeamOrchestrator, createDevTeamOrchestrator, } from './team/TeamOrchestrator';
 export type { IOrchestrator } from './orchestrator/IOrchestrator';
 export type { TeamAgentConfig, TeamOrchestratorConfig, MeetingProgressEvent, OrchestratorEvent, AgentRunResult, TeamRunResult, TaskDefinition, OrchestratorStatus, TokenUsage, RoutingDecision, IntentRouterConfig, } from './orchestrator/types';
 export { IntentRouter } from './intent/IntentRouter';
@@ -40,6 +40,8 @@ export { registerAllHandlers, registerKanbanHandlers, registerWorkflowHandlers, 
 export type { AllHandlerDeps, KanbanHandlerDeps, WorkflowHandlerDeps, MeetingHandlerDeps, } from './event/handlers';
 export { Surface, createSurface, PipelineOrchestrator, createPipelineOrchestrator, ConflictResolver, createConflictResolver, } from './pipeline';
 export type { PipelineDefinition, PipelineInstance, PipelineStatus, SurfaceDefinition, SurfaceResult, SurfaceStatus, InputContract, OutputContract, Edge, GateDefinition, ConflictResolution, ConflictStrategy, Conflict, ConflictConfig, } from './pipeline';
+export { OPEN_FRAMEWORK_TEAM_PROFILE, OPEN_TEAM_MINIMUM_LOOP_PIPELINE, buildTeamCommunicationGuide, getProfileAgent, materializeTeamAgents, } from './team-profile/index.js';
+export type { TeamProfile, TeamProfileAgentDefinition, TeamProfileHermesConfig, TeamProfileHermesInstance, TeamProfileRuntimeOptions, } from './team-profile/index.js';
 export { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
 export { KnowledgeCenter, getGlobalKnowledgeCenter, resetGlobalKnowledgeCenter, createKnowledgeCenter, } from './knowledge/KnowledgeCenter.js';
 export type { KnowledgeDocument, KnowledgeQuery, KnowledgeResult, KnowledgeCenterConfig, } from './knowledge/KnowledgeCenter.js';

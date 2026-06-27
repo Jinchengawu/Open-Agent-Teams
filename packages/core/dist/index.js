@@ -19,7 +19,7 @@ export { MessageType } from './bus/types';
 export { WorkflowOrchestrator } from './workflow/WorkflowOrchestrator';
 export { BUILTIN_TEMPLATES } from './workflow/templates';
 // ── 编排器（核心）──
-export { TeamOrchestrator, createTeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
+export { TeamOrchestrator, createTeamOrchestrator, createProfileTeamOrchestrator, createOpenTeamOrchestrator, createDevTeamOrchestrator, } from './team/TeamOrchestrator';
 // ── 意图路由（新增）──
 export { IntentRouter } from './intent/IntentRouter';
 // ── 模型消耗保护（Codex 回填模式）──
@@ -33,7 +33,9 @@ export { EventBus, eventBus } from './event/EventBus';
 export { registerAllHandlers, registerKanbanHandlers, registerWorkflowHandlers, registerMeetingHandlers, } from './event/handlers';
 // ── Pipeline 引擎（新增 — 面编排）──
 export { Surface, createSurface, PipelineOrchestrator, createPipelineOrchestrator, ConflictResolver, createConflictResolver, } from './pipeline';
-// ── 内置生命周期模板 ──
+// ── Team Profile Registry ──
+export { OPEN_FRAMEWORK_TEAM_PROFILE, OPEN_TEAM_MINIMUM_LOOP_PIPELINE, buildTeamCommunicationGuide, getProfileAgent, materializeTeamAgents, } from './team-profile/index.js';
+// ── 内置生命周期模板（兼容旧命名） ──
 export { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
 // ── 知识中心（新增 — P1）──
 export { KnowledgeCenter, getGlobalKnowledgeCenter, resetGlobalKnowledgeCenter, createKnowledgeCenter, } from './knowledge/KnowledgeCenter.js';

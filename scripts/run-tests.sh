@@ -70,30 +70,30 @@ test_gateway() {
         append_result "Agent 状态查询" "❌ 失败" "无响应"
     fi
     
-    # 测试 3: 前端路由
-    echo -e "${YELLOW}  测试 3: 前端任务路由${NC}"
+    # 测试 3: 工作流路由
+    echo -e "${YELLOW}  测试 3: 工作流任务路由${NC}"
     RESPONSE=$(curl -s -X POST http://127.0.0.1:8200/v1/chat/completions \
       -H "Content-Type: application/json" \
       -d '{"model":"open-agent-teams","messages":[{"role":"user","content":"创建 React 组件"}]}' 2>/dev/null)
-    if echo "$RESPONSE" | grep -q '"agent":"dev-frontend"'; then
+    if echo "$RESPONSE" | grep -q '"agent":"workflow-conductor"'; then
         echo -e "  ${GREEN}✅ 通过${NC}"
-        append_result "前端任务路由" "✅ 通过" "路由到 dev-frontend"
+        append_result "工作流任务路由" "✅ 通过" "路由到 workflow-conductor"
     else
         echo -e "  ${RED}❌ 失败${NC}"
-        append_result "前端任务路由" "❌ 失败" "路由错误"
+        append_result "工作流任务路由" "❌ 失败" "路由错误"
     fi
     
-    # 测试 4: 后端路由
-    echo -e "${YELLOW}  测试 4: 后端任务路由${NC}"
+    # 测试 4: 团队编排路由
+    echo -e "${YELLOW}  测试 4: 团队编排路由${NC}"
     RESPONSE=$(curl -s -X POST http://127.0.0.1:8200/v1/chat/completions \
       -H "Content-Type: application/json" \
       -d '{"model":"open-agent-teams","messages":[{"role":"user","content":"设计数据库表结构"}]}' 2>/dev/null)
-    if echo "$RESPONSE" | grep -q '"agent":"dev-backend"'; then
+    if echo "$RESPONSE" | grep -q '"agent":"team-orchestrator"'; then
         echo -e "  ${GREEN}✅ 通过${NC}"
-        append_result "后端任务路由" "✅ 通过" "路由到 dev-backend"
+        append_result "团队编排路由" "✅ 通过" "路由到 team-orchestrator"
     else
         echo -e "  ${RED}❌ 失败${NC}"
-        append_result "后端任务路由" "❌ 失败" "路由错误"
+        append_result "团队编排路由" "❌ 失败" "路由错误"
     fi
 }
 
@@ -190,9 +190,9 @@ test_testing() {
     fi
 }
 
-# 测试 DevOps Agent
+# 测试集成交付 Agent
 test_devops() {
-    echo -e "${BLUE}🧪 测试 DevOps Agent...${NC}"
+    echo -e "${BLUE}🧪 测试集成交付 Agent...${NC}"
     
     # 测试 1: Docker 配置
     echo -e "${YELLOW}  测试 1: Docker 配置${NC}"

@@ -8,13 +8,13 @@ context:
 surfaces:
   - id: intake
     name: Requirement Intake
-    agent: dev-pm
+    agent: intent-router
     prompt: |
       Clarify the user request, identify scope, risks, stakeholders, and expected artifacts.
       Produce a concise requirement brief that can be linked to kanban tasks and knowledge documents.
   - id: planning
     name: Delivery Planning
-    agent: project-admin
+    agent: team-orchestrator
     dependsOn:
       - intake
     prompt: |
@@ -22,7 +22,7 @@ surfaces:
       Keep the output domain-neutral so downstream teams can specialize it.
   - id: execution
     name: Team Execution
-    agent: dev-backend
+    agent: workflow-conductor
     dependsOn:
       - planning
     prompt: |
@@ -30,7 +30,7 @@ surfaces:
       Return artifacts, implementation notes, and any handoff details.
   - id: verification
     name: Verification
-    agent: dev-testing
+    agent: recovery-agent
     dependsOn:
       - execution
     prompt: |
@@ -38,7 +38,7 @@ surfaces:
       Return pass/fail evidence, risks, and next recommended action.
   - id: experience
     name: Experience Capture
-    agent: project-admin
+    agent: integration-agent
     dependsOn:
       - verification
     prompt: |

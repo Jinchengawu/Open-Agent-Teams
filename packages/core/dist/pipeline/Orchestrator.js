@@ -9,7 +9,7 @@
  * - 处理关卡、回滚、事件
  * - Pipeline 产物自动沉淀到知识中心
  * - 支持循环编排（CR→FE 反馈）
- * - 冲突解决（project-admin 仲裁）
+ * - 冲突解决（profile arbitration agent 仲裁）
  */
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -435,9 +435,9 @@ export class PipelineOrchestrator {
         throw new Error('Pipeline rollback is not supported yet. Current dry-run guard can detect side effects, but cannot reverse them safely.');
     }
     /**
-     * 冲突解决：project-admin 仲裁多 Agent 分歧
+     * 冲突解决：profile arbitration agent 仲裁多 Agent 分歧
      *
-     * 当多个面产生冲突产物时，调用 project-admin 进行仲裁。
+     * 当多个面产生冲突产物时，调用 profile arbitration agent 进行仲裁。
      * 适用于：
      * - 两个 Agent 对同一需求给出不同实现方案
      * - 代码审查与实现之间的冲突
@@ -459,7 +459,7 @@ export class PipelineOrchestrator {
         }
         // 构建仲裁请求
         const arbitrationGoal = `
-你是 project-admin，负责解决多 Agent 之间的冲突。
+你是团队仲裁 Agent，负责解决多 Agent 之间的冲突。
 
 冲突描述：${conflictDescription}
 
@@ -481,8 +481,8 @@ ${JSON.stringify(artifacts, null, 2)}
 }
 `;
         try {
-            // 调用 project-admin 进行仲裁
-            const arbitrationResult = await this.teamOrchestrator.runAgent('project-admin', arbitrationGoal, instanceId);
+            const arbitrationAgentId = this.teamOrchestrator.getArbitrationAgentId();
+            const arbitrationResult = await this.teamOrchestrator.runAgent(arbitrationAgentId, arbitrationGoal, instanceId);
             const resultText = arbitrationResult.output;
             // 解析仲裁结果
             let resolution;
@@ -492,14 +492,14 @@ ${JSON.stringify(artifacts, null, 2)}
                     resolved: true,
                     winner: parsed.winner,
                     merged: parsed.merged,
-                    reason: parsed.reason || 'project-admin 仲裁结果',
+                    reason: parsed.reason || `${arbitrationAgentId} 仲裁结果`,
                 };
             }
             catch {
                 // 如果解析失败，使用原始输出作为理由
                 resolution = {
                     resolved: true,
-                    reason: `project-admin 仲裁：${resultText.substring(0, 500)}`,
+                    reason: `${arbitrationAgentId} 仲裁：${resultText.substring(0, 500)}`,
                 };
             }
             // 将仲裁结果记录到知识中心
@@ -511,7 +511,7 @@ ${JSON.stringify(artifacts, null, 2)}
 胜出: ${resolution.winner || 'merged'}
 `,
                     type: 'general',
-                    source: 'project-admin',
+                    source: arbitrationAgentId,
                     tags: ['conflict-resolution', 'arbitration', ...surfaceIds],
                     metadata: {
                         instanceId,

@@ -10,11 +10,11 @@ export function createSendMessageTool() {
     return {
         name: 'send_message',
         description: '发送消息给同团队的其他 Agent。可以发送给指定 Agent 或广播给所有 Agent。' +
-            '可用的团队成员: dev-frontend, dev-backend, dev-testing, dev-devops, dev-pm',
+            '目标 Agent ID 由当前 Team Profile 定义。',
         inputSchema: z.object({
             to: z
                 .string()
-                .describe('目标 Agent 名称（如 dev-frontend、dev-backend 等），使用 "*" 广播给所有 Agent'),
+                .describe('目标 Agent ID，使用 "*" 广播给所有 Agent'),
             content: z.string().describe('消息内容'),
         }),
         execute: async (input, context) => {

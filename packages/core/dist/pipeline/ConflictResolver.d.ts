@@ -3,7 +3,7 @@
  *
  * 当 Pipeline 中多个 Agent 产生冲突产物时，自动触发仲裁机制。
  * 支持多种解决策略：
- * - project-admin 仲裁（默认）
+ * - profile arbitration agent 仲裁（默认）
  * - 投票机制（多数决）
  * - 合并策略（取并集）
  * - 最新优先（取最后一次执行结果）
@@ -57,7 +57,7 @@ export declare class ConflictResolver {
      */
     resolve(conflictId: string, config?: ConflictConfig): Promise<ConflictResolution>;
     /**
-     * 策略 1: project-admin 仲裁（默认）
+     * 策略 1: profile arbitration agent 仲裁（默认）
      */
     private arbitrate;
     /**

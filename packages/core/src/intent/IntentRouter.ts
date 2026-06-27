@@ -17,19 +17,51 @@ import type {
 } from '../orchestrator/types.js';
 import { createGuardedRoutingDecision, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
 
+type ProviderMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+function toProviderSafeMessages(messages: ProviderMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const safeMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  const systemMessages: string[] = [];
+
+  for (const message of messages) {
+    if (message.role === 'system') {
+      systemMessages.push(message.content);
+      continue;
+    }
+    safeMessages.push({ role: message.role, content: message.content });
+  }
+
+  if (systemMessages.length === 0) return safeMessages;
+  const systemContent = `System instructions:\n${systemMessages.join('\n\n')}`;
+  const firstUserIndex = safeMessages.findIndex((message) => message.role === 'user');
+  if (firstUserIndex >= 0) {
+    safeMessages[firstUserIndex] = {
+      role: 'user',
+      content: `${systemContent}\n\nUser request:\n${safeMessages[firstUserIndex].content}`,
+    };
+  } else {
+    safeMessages.unshift({ role: 'user', content: systemContent });
+  }
+
+  return safeMessages;
+}
+
 /**
  * IntentRouter — LLM-based 意图路由
  */
 export class IntentRouter {
   private config: Required<IntentRouterConfig>;
   private agentCapabilities: TeamAgentConfig[];
+  private defaultAgentId: string;
 
   constructor(config: IntentRouterConfig, agentCapabilities: TeamAgentConfig[]) {
     this.config = {
       timeoutMs: 10000,
+      defaultAgentId: agentCapabilities[0]?.id || 'team-orchestrator',
       ...config,
     };
     this.agentCapabilities = agentCapabilities;
+    this.defaultAgentId = this.resolveDefaultAgentId(this.config.defaultAgentId);
   }
 
   /**
@@ -54,10 +86,10 @@ export class IntentRouter {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages: [
+          messages: toProviderSafeMessages([
             { role: 'system', content: this.buildSystemPrompt() },
             { role: 'user', content: prompt },
-          ],
+          ]),
           temperature: 0.2, // 低温度确保路由稳定性
           max_tokens: 800,
           response_format: { type: 'json_object' },
@@ -168,8 +200,7 @@ ${agentDescriptions}
     // 校验 primaryAgent
     let primaryAgent = parsed.primaryAgent;
     if (strategy === 'single' && (!primaryAgent || !validAgentIds.has(primaryAgent))) {
-      // 回退到默认 backend
-      primaryAgent = 'dev-backend';
+      primaryAgent = this.defaultAgentId;
     }
 
     // 校验 involvedAgents
@@ -222,9 +253,15 @@ ${agentDescriptions}
   private fallbackDecision(_userQuery: string): RoutingDecision {
     return {
       strategy: 'single',
-      primaryAgent: 'dev-backend',
-      reasoning: 'LLM 路由失败，使用默认回退策略（dev-backend）',
+      primaryAgent: this.defaultAgentId,
+      reasoning: `LLM 路由失败，使用默认回退策略（${this.defaultAgentId}）`,
       complexity: 'medium',
     };
+  }
+
+  private resolveDefaultAgentId(candidate?: string): string {
+    const ids = new Set(this.agentCapabilities.map((agent) => agent.id));
+    if (candidate && ids.has(candidate)) return candidate;
+    return this.agentCapabilities[0]?.id || 'team-orchestrator';
   }
 }

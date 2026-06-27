@@ -27,29 +27,29 @@ export function pickText(text, locale) {
     return text[locale] || text.zh;
 }
 const AGENT_TEXT = {
-    'dev-frontend': {
-        name: { zh: '前端开发 Agent', en: 'Frontend Agent' },
-        label: { zh: '负责 UI、交互、前端工程化与用户体验交付', en: 'Owns UI, interaction, frontend engineering, and experience delivery' },
+    'intent-router': {
+        name: { zh: '意图路由 Agent', en: 'Intent Router' },
+        label: { zh: '负责意图识别、复杂度判断与协作模式选择', en: 'Owns intent classification, complexity assessment, and coordination mode selection' },
     },
-    'dev-backend': {
-        name: { zh: '后端开发 Agent', en: 'Backend Agent' },
-        label: { zh: '负责 API、数据模型、服务集成与业务逻辑', en: 'Owns APIs, data models, service integration, and business logic' },
+    'team-orchestrator': {
+        name: { zh: '团队编排 Agent', en: 'Team Orchestrator' },
+        label: { zh: '负责任务规划、角色分工、状态治理与交接协调', en: 'Owns task planning, role assignment, state governance, and handoff coordination' },
     },
-    'dev-testing': {
-        name: { zh: '测试质量 Agent', en: 'Testing Agent' },
-        label: { zh: '负责测试计划、质量风险、回归与验收证据', en: 'Owns test plans, quality risks, regression, and acceptance evidence' },
+    'workflow-conductor': {
+        name: { zh: '工作流执行 Agent', en: 'Workflow Conductor' },
+        label: { zh: '负责工作流面执行、依赖处理、产物生成与阻塞反馈', en: 'Owns workflow surface execution, dependency handling, artifact production, and blocker feedback' },
     },
-    'dev-devops': {
-        name: { zh: 'DevOps Agent', en: 'DevOps Agent' },
-        label: { zh: '负责部署、环境、CI/CD、发布与运维可靠性', en: 'Owns deployment, environments, CI/CD, release, and operational reliability' },
+    'knowledge-steward': {
+        name: { zh: '知识管家 Agent', en: 'Knowledge Steward' },
+        label: { zh: '负责文档、知识索引、追踪关系与组织记忆', en: 'Owns documents, knowledge indexing, traceability, and organizational memory' },
     },
-    'dev-pm': {
-        name: { zh: '产品经理 Agent', en: 'PM Agent' },
-        label: { zh: '负责需求澄清、PRD、优先级与业务目标对齐', en: 'Owns requirement discovery, PRD, priority, and business alignment' },
+    'recovery-agent': {
+        name: { zh: '恢复自检 Agent', en: 'Recovery Agent' },
+        label: { zh: '负责质量审查、失败分析、风险识别与恢复计划', en: 'Owns quality review, failure analysis, risk assessment, and recovery planning' },
     },
-    'project-admin': {
-        name: { zh: '项目管理员 Agent', en: 'Project Admin Agent' },
-        label: { zh: '负责看板、里程碑、项目脉络与交付统筹', en: 'Owns kanban, milestones, project context, and delivery coordination' },
+    'integration-agent': {
+        name: { zh: '集成交付 Agent', en: 'Integration Agent' },
+        label: { zh: '负责最终交接、集成就绪、经验沉淀与后续任务', en: 'Owns final handoff, integration readiness, experience capture, and follow-up work' },
     },
 };
 export function localizeAgent(agent, locale) {

@@ -7,6 +7,7 @@
  * - Hermes 已自带工具、记忆、RAG，平台层只负责编排和通信
  */
 import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
+import type { TeamProfile } from '../team-profile/index.js';
 import type { TeamAgentConfig, TeamOrchestratorConfig, TeamRunResult, AgentRunResult, TaskDefinition, OrchestratorStatus, MeetingProgressEvent, OrchestratorEvent, RoutingDecision } from '../orchestrator/types.js';
 export type { TeamAgentConfig, TeamOrchestratorConfig, MeetingProgressEvent, OrchestratorEvent } from '../orchestrator/types.js';
 export declare class TeamOrchestrator implements IOrchestrator {
@@ -19,6 +20,10 @@ export declare class TeamOrchestrator implements IOrchestrator {
     private extraCustomTools;
     private maxConcurrency;
     private maxDelegationDepth;
+    private profileId;
+    private profileName;
+    private defaultAgentId;
+    private arbitrationAgentId;
     private onProgress?;
     constructor(config: TeamOrchestratorConfig);
     /**
@@ -78,10 +83,30 @@ export declare class TeamOrchestrator implements IOrchestrator {
     shutdown(): Promise<void>;
     handleRequest(userQuery: string, sessionId?: string): Promise<TeamRunResult>;
     getLastRoutingDecision(): RoutingDecision | null;
+    getDefaultAgentId(): string;
+    getArbitrationAgentId(): string;
+    private resolveAgentId;
 }
 export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?: string, options?: {
     onProgress?: (event: OrchestratorEvent) => void;
+    profileId?: string;
+    profileName?: string;
+    defaultAgentId?: string;
+    arbitrationAgentId?: string;
 }): TeamOrchestrator;
+export declare function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
+    onProgress?: (event: OrchestratorEvent) => void;
+    workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
+    tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
+    extraCustomTools?: any[];
+}): TeamOrchestrator;
+export declare function createOpenTeamOrchestrator(options?: {
+    onProgress?: (event: OrchestratorEvent) => void;
+    workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
+    tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
+    extraCustomTools?: any[];
+}): TeamOrchestrator;
+/** @deprecated Use createOpenTeamOrchestrator or createProfileTeamOrchestrator. */
 export declare function createDevTeamOrchestrator(options?: {
     onProgress?: (event: OrchestratorEvent) => void;
     workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;

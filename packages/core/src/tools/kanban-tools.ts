@@ -31,7 +31,7 @@ export function createKanbanTools() {
       inputSchema: z.object({
         title: z.string().describe('任务标题'),
         description: z.string().optional().describe('任务描述'),
-        assignee: z.string().optional().describe('负责人 Agent ID（如 dev-frontend, dev-backend）'),
+        assignee: z.string().optional().describe('负责人 Agent ID（来自当前 Team Profile）'),
         priority: z.enum(['low', 'medium', 'high', 'critical']).optional().describe('优先级'),
         task_type: z.enum(['feature', 'bug', 'refactor', 'test', 'deploy', 'doc']).optional().describe('任务类型'),
         parent_id: z.string().optional().describe('父任务 ID（用于子任务）'),

@@ -1,9 +1,8 @@
-import type { PipelineDefinition } from '../pipeline/types.js';
 /**
- * Minimum development lifecycle pipeline.
+ * @deprecated Use OPEN_TEAM_MINIMUM_LOOP_PIPELINE from team-profile instead.
  *
- * This is the default product spine for Agent Teams:
- * Meeting -> Document -> Kanban -> Workflow -> Artifact -> Experience.
+ * Kept as a compatibility alias for older consumers. The default framework
+ * lifecycle is now profile-driven and no longer hardcodes DEV role agents.
  */
-export declare const DEV_TEAM_MINIMUM_LOOP_PIPELINE: PipelineDefinition;
+export declare const DEV_TEAM_MINIMUM_LOOP_PIPELINE: import("../index.js").PipelineDefinition;
 //# sourceMappingURL=dev-team-minimum-loop.d.ts.map

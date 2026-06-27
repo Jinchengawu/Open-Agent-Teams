@@ -9,7 +9,7 @@
  * - 处理关卡、回滚、事件
  * - Pipeline 产物自动沉淀到知识中心
  * - 支持循环编排（CR→FE 反馈）
- * - 冲突解决（project-admin 仲裁）
+ * - 冲突解决（profile arbitration agent 仲裁）
  */
 import type { TeamOrchestrator } from '../team/TeamOrchestrator.js';
 import type { WorkflowStateManager } from '../session/WorkflowStateManager.js';
@@ -121,9 +121,9 @@ export declare class PipelineOrchestrator {
      */
     rollback(instanceId: string, surfaceId: string): Promise<void>;
     /**
-     * 冲突解决：project-admin 仲裁多 Agent 分歧
+     * 冲突解决：profile arbitration agent 仲裁多 Agent 分歧
      *
-     * 当多个面产生冲突产物时，调用 project-admin 进行仲裁。
+     * 当多个面产生冲突产物时，调用 profile arbitration agent 进行仲裁。
      * 适用于：
      * - 两个 Agent 对同一需求给出不同实现方案
      * - 代码审查与实现之间的冲突

@@ -15,13 +15,13 @@ import express from 'express';
 import { SessionManager } from './session/SessionManager';
 import { WorkflowStateManager } from './session/WorkflowStateManager';
 import { TokenBudgetManager } from './telemetry/TokenBudgetManager';
-import { TeamOrchestrator, createDevTeamOrchestrator } from './team/TeamOrchestrator';
+import { TeamOrchestrator, createOpenTeamOrchestrator } from './team/TeamOrchestrator';
 import type { OrchestratorEvent } from './orchestrator/types.js';
 import { setKanbanDatabase, createKanbanTools } from './tools/kanban-tools.js';
 import { createDocumentTools } from './tools/document-tools.js';
 import { createDocumentToolsV2 } from './tools/document-tools-v2.js';
 import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
-import { DEV_TEAM_MINIMUM_LOOP_PIPELINE } from './lifecycle/dev-team-minimum-loop.js';
+import { OPEN_FRAMEWORK_TEAM_PROFILE } from './team-profile/index.js';
 import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
 import { getGlobalDocumentManager } from './knowledge/DocumentManager.js';
 
@@ -73,6 +73,33 @@ function extractOutput(agentResult: { output: string; success: boolean; messages
   return parts.join('\n') || (agentResult.success ? '✅ 任务完成' : '❌ 任务失败');
 }
 
+function toProviderSafeMessages(messages: { role: string; content: unknown }[]): { role: 'user' | 'assistant'; content: string }[] {
+  const safeMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  const systemMessages: string[] = [];
+
+  for (const message of messages) {
+    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+    if (message.role === 'system') {
+      systemMessages.push(content);
+    } else if (message.role === 'assistant' || message.role === 'user') {
+      safeMessages.push({ role: message.role, content });
+    }
+  }
+
+  if (systemMessages.length === 0) return safeMessages;
+  const firstUserIndex = safeMessages.findIndex((message) => message.role === 'user');
+  const folded = `System instructions:\n${systemMessages.join('\n\n')}`;
+  if (firstUserIndex >= 0) {
+    safeMessages[firstUserIndex] = {
+      role: 'user',
+      content: `${folded}\n\nUser request:\n${safeMessages[firstUserIndex].content}`,
+    };
+  } else {
+    safeMessages.unshift({ role: 'user', content: folded });
+  }
+  return safeMessages;
+}
+
 // ============================================================================
 // Factory
 // ============================================================================
@@ -93,7 +120,7 @@ export async function createAgentApp(config: AgentAppConfig = {}): Promise<Agent
   setKanbanDatabase(sessionManager.getDb());
   const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools()];
 
-  const orchestrator = createDevTeamOrchestrator({
+  const orchestrator = createOpenTeamOrchestrator({
     onProgress: config.onProgress,
     workflowStateManager,
     tokenBudgetManager,
@@ -108,7 +135,7 @@ export async function createAgentApp(config: AgentAppConfig = {}): Promise<Agent
 
   // 创建 Pipeline 编排器（注入知识中心与 V2 文档管理器）
   const pipelineOrchestrator = createPipelineOrchestrator(orchestrator, workflowStateManager, knowledgeCenter, documentManager);
-  pipelineOrchestrator.loadPipeline(DEV_TEAM_MINIMUM_LOOP_PIPELINE);
+  pipelineOrchestrator.loadPipeline(OPEN_FRAMEWORK_TEAM_PROFILE.lifecyclePipeline);
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -153,7 +180,7 @@ export async function createAgentApp(config: AgentAppConfig = {}): Promise<Agent
         sessionId = sessionManager.createSession('', clientSessionId || '');
       }
 
-      const messagesArr = messages as { role: string; content: unknown }[];
+      const messagesArr = toProviderSafeMessages(messages as { role: string; content: unknown }[]);
       const lastUserMsg = [...messagesArr].reverse().find((m) => m.role === 'user');
       const userContent = lastUserMsg?.content;
 
