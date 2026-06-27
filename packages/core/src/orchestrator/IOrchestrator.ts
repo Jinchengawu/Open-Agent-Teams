@@ -26,13 +26,14 @@ export interface IOrchestrator {
   /** 显式任务列表（用户指定具体步骤） */
   runTasks(tasks: TaskDefinition[]): Promise<TeamRunResult>;
 
-  /** 圆桌会议：所有 Agent 顺序发言，共享上下文 */
-  runMeeting(goal: string): Promise<TeamRunResult>;
+  /** 圆桌会议：指定 Agent 顺序发言，共享上下文；未指定时默认全员 */
+  runMeeting(goal: string, sessionId?: string, options?: { participantAgentIds?: string[] }): Promise<TeamRunResult>;
 
-  /** 带实时进度的圆桌会议（并发控制 + 重试） */
+  /** 带实时进度的圆桌会议（并发控制 + 重试）；未指定时默认全员 */
   runMeetingWithProgress(
     goal: string,
     onProgress: (event: MeetingProgressEvent) => void,
+    options?: { participantAgentIds?: string[] },
   ): Promise<TeamRunResult>;
 
   // ── 智能路由入口（新增）──

@@ -235,11 +235,11 @@ export class TeamOrchestrator {
      * runMeeting — 圆桌会议模式
      * 所有 Agent 顺序执行，共享上下文，每人从自己的专业角度发表意见
      */
-    async runMeeting(goal, sessionId) {
+    async runMeeting(goal, sessionId, options = {}) {
         console.log(`[TeamOrchestrator] runMeeting: "${goal.substring(0, 60)}..." | sessionId: ${sessionId || 'none'}`);
-        const agentCount = this.agentConfigs.size;
+        const agentIds = this.resolveMeetingAgentIds(options.participantAgentIds);
+        const agentCount = agentIds.length;
         this.checkBudget(sessionId || 'runMeeting', agentCount * 3000);
-        const agentIds = Array.from(this.agentConfigs.keys());
         const agentResults = new Map();
         const discussion = [];
         const totalTokenUsage = { input_tokens: 0, output_tokens: 0 };
@@ -281,7 +281,7 @@ export class TeamOrchestrator {
     /**
      * runMeetingWithProgress — 带实时进度的圆桌会议（并发控制 + 重试）
      */
-    async runMeetingWithProgress(goal, onProgress) {
+    async runMeetingWithProgress(goal, onProgress, options = {}) {
         const MAX_CONCURRENT = 2;
         const MAX_RETRIES = 3;
         const BASE_DELAY = 2000;
@@ -293,11 +293,11 @@ export class TeamOrchestrator {
             payload: {
                 meetingId,
                 topic: goal.substring(0, 100),
-                participants: Array.from(this.agentConfigs.keys()),
+                participants: this.resolveMeetingAgentIds(options.participantAgentIds),
             },
         });
         console.log(`[TeamOrchestrator] runMeetingWithProgress (concurrency=${MAX_CONCURRENT}): "${goal.substring(0, 60)}..." (meetingId: ${meetingId})`);
-        const agentIds = Array.from(this.agentConfigs.keys());
+        const agentIds = this.resolveMeetingAgentIds(options.participantAgentIds);
         const agentResults = new Map();
         const totalTokenUsage = { input_tokens: 0, output_tokens: 0 };
         const configs = agentIds
@@ -421,6 +421,22 @@ export class TeamOrchestrator {
             agentResults,
             totalTokenUsage: totalTokenUsage,
         };
+    }
+    resolveMeetingAgentIds(participantAgentIds) {
+        if (!participantAgentIds || participantAgentIds.length === 0) {
+            return Array.from(this.agentConfigs.keys());
+        }
+        const seen = new Set();
+        const validIds = participantAgentIds.filter((id) => {
+            if (seen.has(id))
+                return false;
+            seen.add(id);
+            return this.agentConfigs.has(id);
+        });
+        if (validIds.length === 0) {
+            throw new Error(`No valid meeting participants: ${participantAgentIds.join(', ')}`);
+        }
+        return validIds;
     }
     // ============================================================================
     // 工作流管理

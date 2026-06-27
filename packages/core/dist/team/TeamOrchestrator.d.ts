@@ -53,11 +53,16 @@ export declare class TeamOrchestrator implements IOrchestrator {
      * runMeeting — 圆桌会议模式
      * 所有 Agent 顺序执行，共享上下文，每人从自己的专业角度发表意见
      */
-    runMeeting(goal: string, sessionId?: string): Promise<TeamRunResult>;
+    runMeeting(goal: string, sessionId?: string, options?: {
+        participantAgentIds?: string[];
+    }): Promise<TeamRunResult>;
     /**
      * runMeetingWithProgress — 带实时进度的圆桌会议（并发控制 + 重试）
      */
-    runMeetingWithProgress(goal: string, onProgress: (event: MeetingProgressEvent) => void): Promise<TeamRunResult>;
+    runMeetingWithProgress(goal: string, onProgress: (event: MeetingProgressEvent) => void, options?: {
+        participantAgentIds?: string[];
+    }): Promise<TeamRunResult>;
+    private resolveMeetingAgentIds;
     /**
      * resumeWorkflow — 从断点续传工作流
      */

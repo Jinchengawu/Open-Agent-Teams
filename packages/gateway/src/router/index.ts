@@ -30,6 +30,7 @@ export interface RouteResult {
 export interface RouteContext {
   mode?: string;
   agentId?: string;
+  agents?: string[];
   userText: string;
   sessionId?: string;
   agentApp: AgentApp;
@@ -39,14 +40,14 @@ export interface RouteContext {
  * 执行路由 — 根据模式选择编排策略
  */
 export async function executeRoute(ctx: RouteContext): Promise<RouteResult> {
-  const { mode, agentId: requestedAgentId, userText, sessionId, agentApp } = ctx;
+  const { mode, agentId: requestedAgentId, agents, userText, sessionId, agentApp } = ctx;
 
   if (mode === 'team') {
     return await routeTeam(userText, sessionId, agentApp);
   }
 
   if (mode === 'meeting') {
-    return await routeMeeting(userText, sessionId, agentApp);
+    return await routeMeeting(userText, sessionId, agentApp, agents);
   }
 
   if (mode === 'single' && requestedAgentId) {
@@ -85,10 +86,15 @@ async function routeTeam(userText: string, sessionId: string | undefined, agentA
 }
 
 /**
- * Meeting 模式 — 圆桌会议，所有 Agent 顺序发言
+ * Meeting 模式 — 圆桌会议，指定 Agent 顺序发言；未指定时默认全员
  */
-async function routeMeeting(userText: string, sessionId: string | undefined, agentApp: AgentApp): Promise<RouteResult> {
-  const meetingResult = await agentApp.orchestrator.runMeeting(userText, sessionId);
+async function routeMeeting(
+  userText: string,
+  sessionId: string | undefined,
+  agentApp: AgentApp,
+  agents?: string[],
+): Promise<RouteResult> {
+  const meetingResult = await agentApp.orchestrator.runMeeting(userText, sessionId, { participantAgentIds: agents });
 
   const meetingParts: string[] = [];
   for (const [name, agentResult] of meetingResult.agentResults) {

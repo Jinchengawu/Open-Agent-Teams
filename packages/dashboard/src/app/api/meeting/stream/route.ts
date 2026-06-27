@@ -4,14 +4,14 @@ const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
 
 /**
  * /api/meeting/stream — SSE 流式会议端点
- * POST { message, topicId?, sessionId? }
+ * POST { message, topicId?, sessionId?, agents? }
  *
  * 透传 Gateway 的 SSE 流，前端可逐 Agent 获取进度
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, topicId, sessionId } = body;
+    const { message, topicId, sessionId, agents } = body;
 
     if (!message) {
       return new Response(JSON.stringify({ error: 'message is required' }), {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const gatewayRes = await fetch(`${GATEWAY_URL}/v1/meeting/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, sessionId: sid, topicId }),
+      body: JSON.stringify({ message, sessionId: sid, topicId, agents }),
     });
 
     if (!gatewayRes.ok) {

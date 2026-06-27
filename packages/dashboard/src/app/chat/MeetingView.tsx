@@ -15,6 +15,7 @@ interface MeetingTopic {
   id: string
   topic: string
   createdAt: number
+  participantAgentIds?: string[]
   messages: ChatMessage[]
 }
 
@@ -30,6 +31,7 @@ interface AgentStatus {
 }
 
 const STORAGE_KEY = 'open-agent-teams-meeting-v1'
+const DEFAULT_PARTICIPANT_IDS = AGENT_LIST.map(a => a.id)
 
 // ============================================================================
 // Storage
@@ -53,6 +55,7 @@ export default function MeetingView() {
   const [meetings, setMeetings] = useState<Record<string, MeetingTopic>>(() => loadMeetings())
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null)
   const [newTopicInput, setNewTopicInput] = useState('')
+  const [newTopicParticipantIds, setNewTopicParticipantIds] = useState<string[]>(DEFAULT_PARTICIPANT_IDS)
   const [discussionInput, setDiscussionInput] = useState('')
   const [sending, setSending] = useState(false)
   const [showNewTopic, setShowNewTopic] = useState(false)
@@ -72,21 +75,64 @@ export default function MeetingView() {
   }, [activeTopicId, meetings, agentStatuses])
 
   const activeTopic = activeTopicId ? meetings[activeTopicId] : null
+  const activeParticipantIds = activeTopic
+    ? (activeTopic.participantAgentIds ?? DEFAULT_PARTICIPANT_IDS)
+    : DEFAULT_PARTICIPANT_IDS
+
+  const toggleNewTopicParticipant = useCallback((agentId: string) => {
+    setNewTopicParticipantIds(prev =>
+      prev.includes(agentId)
+        ? prev.filter(id => id !== agentId)
+        : [...prev, agentId]
+    )
+  }, [])
+
+  const updateActiveParticipants = useCallback((updater: (ids: string[]) => string[]) => {
+    if (!activeTopic) return
+    setMeetings(prev => {
+      const current = prev[activeTopic.id]
+      if (!current) return prev
+      const currentIds = current.participantAgentIds ?? DEFAULT_PARTICIPANT_IDS
+      const nextIds = updater(currentIds).filter((id, index, arr) =>
+        AGENTS[id] && arr.indexOf(id) === index
+      )
+      return {
+        ...prev,
+        [activeTopic.id]: {
+          ...current,
+          participantAgentIds: nextIds,
+        },
+      }
+    })
+  }, [activeTopic])
+
+  const toggleActiveParticipant = useCallback((agentId: string) => {
+    updateActiveParticipants(ids =>
+      ids.includes(agentId)
+        ? ids.filter(id => id !== agentId)
+        : [...ids, agentId]
+    )
+  }, [updateActiveParticipants])
 
   // ── 新建议题 ──
   const handleCreateTopic = useCallback(() => {
     const topic = newTopicInput.trim()
     if (!topic) return
+    if (newTopicParticipantIds.length === 0) {
+      showToast('请至少邀请 1 个 Agent 参与会议', 'info')
+      return
+    }
 
     const id = `topic-${Date.now()}`
     const newTopic: MeetingTopic = {
       id,
       topic,
       createdAt: Date.now(),
+      participantAgentIds: newTopicParticipantIds,
       messages: [{
         id: `system-${Date.now()}`,
         role: 'system',
-        content: `🎙️ 会议开始：${topic}`,
+        content: `🎙️ 会议开始：${topic}｜参会：${newTopicParticipantIds.map(id => AGENTS[id]?.name || id).join('、')}`,
         agentId: 'system',
         timestamp: Date.now(),
       }],
@@ -95,8 +141,9 @@ export default function MeetingView() {
     setMeetings(prev => ({ ...prev, [id]: newTopic }))
     setActiveTopicId(id)
     setNewTopicInput('')
+    setNewTopicParticipantIds(DEFAULT_PARTICIPANT_IDS)
     setShowNewTopic(false)
-  }, [newTopicInput])
+  }, [newTopicInput, newTopicParticipantIds, showToast])
 
   // ── 删除议题 ──
   const handleDeleteTopic = useCallback((topicId: string) => {
@@ -114,12 +161,16 @@ export default function MeetingView() {
   const handleDiscuss = useCallback(async () => {
     const msg = discussionInput.trim()
     if (!msg || !activeTopic || sending) return
+    if (activeParticipantIds.length === 0) {
+      showToast('请至少邀请 1 个 Agent 参与会议', 'info')
+      return
+    }
 
     setDiscussionInput('')
     setSending(true)
 
-    // 初始化所有 Agent 状态为 waiting
-    const initialStatuses: AgentStatus[] = AGENT_LIST.map(a => ({
+    // 初始化被邀请 Agent 状态为 waiting
+    const initialStatuses: AgentStatus[] = AGENT_LIST.filter(a => activeParticipantIds.includes(a.id)).map(a => ({
       agent: a.id,
       name: a.name,
       state: 'waiting' as const,
@@ -165,6 +216,7 @@ export default function MeetingView() {
           message: fullMessage,
           topicId: activeTopic.id,
           sessionId: `meeting-${activeTopic.id}`,
+          agents: activeParticipantIds,
         }),
       })
 
@@ -257,7 +309,7 @@ export default function MeetingView() {
 
     setSending(false)
     setAgentStatuses([])
-  }, [discussionInput, activeTopic, sending, showToast])
+  }, [discussionInput, activeTopic, activeParticipantIds, sending, showToast])
 
   // ── 排序后的议题列表 ──
   const sortedTopics = Object.values(meetings).sort((a, b) => b.createdAt - a.createdAt)
@@ -289,6 +341,51 @@ export default function MeetingView() {
               onKeyDown={e => e.key === 'Enter' && handleCreateTopic()}
               autoFocus
             />
+            <div className="mt-3 rounded-lg border border-blue-100 bg-white/80 p-2">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-gray-600">邀请 Agent</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                    onClick={() => setNewTopicParticipantIds(DEFAULT_PARTICIPANT_IDS)}
+                  >
+                    全选
+                  </button>
+                  <span className="text-xs text-gray-300">/</span>
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                    onClick={() => setNewTopicParticipantIds([])}
+                  >
+                    清空
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {AGENT_LIST.map(agent => {
+                  const selected = newTopicParticipantIds.includes(agent.id)
+                  return (
+                    <button
+                      type="button"
+                      key={agent.id}
+                      className={`rounded-md border px-2 py-1 text-left text-xs transition ${
+                        selected
+                          ? 'border-purple-300 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 bg-white text-gray-500'
+                      }`}
+                      onClick={() => toggleNewTopicParticipant(agent.id)}
+                    >
+                      <span className="mr-1">{agent.icon}</span>
+                      {agent.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 text-xs text-gray-400">
+                已邀请 {newTopicParticipantIds.length}/{AGENT_LIST.length}
+              </div>
+            </div>
             <div className="flex gap-2 mt-2">
               <Button size="sm" onClick={handleCreateTopic} className="flex-1">创建</Button>
               <Button size="sm" variant="ghost" onClick={() => setShowNewTopic(false)}>取消</Button>
@@ -355,11 +452,58 @@ export default function MeetingView() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">🎙️ {activeTopic.topic}</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    {activeTopic.messages.filter(m => m.role !== 'system').length} 条讨论
+                    {activeTopic.messages.filter(m => m.role !== 'system').length} 条讨论 · {activeParticipantIds.length}/{AGENT_LIST.length} 位 Agent 参会
                   </p>
                 </div>
                 <div className="flex gap-1">
-                  {AGENT_LIST.map(a => <span key={a.id} className="text-lg" title={a.name}>{a.icon}</span>)}
+                  {AGENT_LIST.filter(a => activeParticipantIds.includes(a.id)).map(a => (
+                    <span key={a.id} className="text-lg" title={a.name}>{a.icon}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3 rounded-lg border border-gray-100 bg-slate-50 p-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-gray-600">参会 Agent</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-purple-600 hover:text-purple-700 disabled:text-gray-300"
+                      disabled={sending}
+                      onClick={() => updateActiveParticipants(() => DEFAULT_PARTICIPANT_IDS)}
+                    >
+                      全选
+                    </button>
+                    <span className="text-xs text-gray-300">/</span>
+                    <button
+                      type="button"
+                      className="text-xs text-purple-600 hover:text-purple-700 disabled:text-gray-300"
+                      disabled={sending}
+                      onClick={() => updateActiveParticipants(() => [])}
+                    >
+                      清空
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                  {AGENT_LIST.map(agent => {
+                    const selected = activeParticipantIds.includes(agent.id)
+                    return (
+                      <button
+                        type="button"
+                        key={agent.id}
+                        disabled={sending}
+                        className={`rounded-md border px-2 py-1 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          selected
+                            ? 'border-purple-300 bg-purple-50 text-purple-700'
+                            : 'border-gray-200 bg-white text-gray-500'
+                        }`}
+                        onClick={() => toggleActiveParticipant(agent.id)}
+                      >
+                        <span className="mr-1">{agent.icon}</span>
+                        {agent.name}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
