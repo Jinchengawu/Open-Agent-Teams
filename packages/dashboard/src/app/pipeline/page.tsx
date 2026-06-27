@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -101,6 +101,8 @@ interface PipelineBuilderSurface {
   goal: string;
   artifacts: string;
   dependsOn: string;
+  x: number;
+  y: number;
 }
 
 const STORAGE_KEY = 'pipeline-execution-history';
@@ -118,13 +120,17 @@ const HISTORY_STATUS_OPTIONS = [
   { label: '已取消', value: 'cancelled' },
   { label: '完成', value: 'completed' },
 ];
-const YAML_DRAFT = `id: custom-agent-team-loop
-name: Custom Agent Team Loop
+const BUILDER_CANVAS_WIDTH = 980;
+const BUILDER_CANVAS_HEIGHT = 430;
+const BUILDER_NODE_WIDTH = 190;
+const BUILDER_NODE_HEIGHT = 112;
+const YAML_DRAFT = `id: custom-dev-loop
+name: Custom Dev Loop
 version: "0.1.0"
 surfaces:
   - id: discovery
     name: Discovery
-    agent: team-orchestrator
+    agent: dev-pm
     workflow:
       goal: Clarify the request and produce a concise plan.
 edges: []
@@ -132,10 +138,12 @@ edges: []
 const BUILDER_DEFAULT_SURFACE: PipelineBuilderSurface = {
   id: 'discovery',
   name: 'Discovery',
-  agent: 'team-orchestrator',
+  agent: 'dev-pm',
   goal: 'Clarify the request and produce a concise plan.',
   artifacts: 'meeting_summary, prd',
   dependsOn: '',
+  x: 72,
+  y: 96,
 };
 
 function normalizePipeline(item: unknown): PipelineDef | null {
@@ -219,6 +227,9 @@ export default function PipelinePage() {
   const [builderId, setBuilderId] = useState(`custom-pipeline-${Date.now()}`);
   const [builderName, setBuilderName] = useState('Custom Pipeline');
   const [builderSurfaces, setBuilderSurfaces] = useState<PipelineBuilderSurface[]>([BUILDER_DEFAULT_SURFACE]);
+  const [selectedBuilderSurfaceId, setSelectedBuilderSurfaceId] = useState(BUILDER_DEFAULT_SURFACE.id);
+  const [draggingSurfaceId, setDraggingSurfaceId] = useState<string | null>(null);
+  const [connectingFromSurfaceId, setConnectingFromSurfaceId] = useState<string | null>(null);
   const [executionMode, setExecutionMode] = useState<'dry-run' | 'live'>('dry-run');
   const [surfaceTimeoutMs, setSurfaceTimeoutMs] = useState(90_000);
   const [historyStatusFilter, setHistoryStatusFilter] = useState('all');
@@ -226,6 +237,26 @@ export default function PipelinePage() {
 
   const livePipelineReady = agentStats.livePipelineReady;
   const canExecuteLive = executionMode !== 'live' || livePipelineReady;
+  const selectedBuilderSurface = builderSurfaces.find((surface) => surface.id === selectedBuilderSurfaceId) || builderSurfaces[0];
+  const selectedBuilderSurfaceIndex = selectedBuilderSurface
+    ? builderSurfaces.findIndex((surface) => surface.id === selectedBuilderSurface.id)
+    : -1;
+  const agentNameById = useMemo(
+    () => new Map(availableAgents.map((agent) => [agent.id, agent.name])),
+    [availableAgents],
+  );
+  const builderEdges = useMemo(() => {
+    const ids = new Set(builderSurfaces.map((surface) => surface.id.trim()).filter(Boolean));
+    return builderSurfaces.flatMap((surface) => {
+      const to = surface.id.trim();
+      if (!to) return [];
+      return surface.dependsOn
+        .split(',')
+        .map((item) => item.trim())
+        .filter((from) => from && ids.has(from) && from !== to)
+        .map((from) => ({ from, to }));
+    });
+  }, [builderSurfaces]);
 
   // 加载 Pipeline 列表 + 恢复历史
   useEffect(() => {
@@ -360,7 +391,7 @@ export default function PipelinePage() {
       } else {
         await fetchPipelines();
       }
-      setYamlDraft(YAML_DRAFT.replace('custom-agent-team-loop', `custom-agent-team-loop-${Date.now()}`));
+      setYamlDraft(YAML_DRAFT.replace('custom-dev-loop', `custom-dev-loop-${Date.now()}`));
       showToast(`Pipeline imported: ${data.pipeline.id}`, 'success');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -416,7 +447,7 @@ export default function PipelinePage() {
       `name: ${safeName}`,
       `version: "0.1.0"`,
       `surfaces:`,
-      surfacesYaml || `  - id: discovery\n    name: Discovery\n    agent: team-orchestrator\n    workflow:\n      goal: Clarify the request.`,
+      surfacesYaml || `  - id: discovery\n    name: Discovery\n    agent: dev-pm\n    workflow:\n      goal: Clarify the request.`,
       `edges:`,
       edgeLines.length > 0 ? edgeLines.join('\n') : `[]`,
       '',
@@ -427,22 +458,86 @@ export default function PipelinePage() {
     setBuilderSurfaces((current) => current.map((surface, i) => i === index ? { ...surface, ...patch } : surface));
   };
 
+  const updateBuilderSurfaceById = (id: string, patch: Partial<PipelineBuilderSurface>) => {
+    setBuilderSurfaces((current) => current.map((surface) => surface.id === id ? { ...surface, ...patch } : surface));
+  };
+
+  const moveBuilderSurface = (id: string, x: number, y: number) => {
+    updateBuilderSurfaceById(id, {
+      x: Math.max(16, Math.min(760, x)),
+      y: Math.max(16, Math.min(340, y)),
+    });
+  };
+
+  const connectBuilderSurfaces = (fromId: string, toId: string) => {
+    if (!fromId || !toId || fromId === toId) return;
+    setBuilderSurfaces((current) => current.map((surface) => {
+      if (surface.id !== toId) return surface;
+      const dependencies = surface.dependsOn
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (dependencies.includes(fromId)) return surface;
+      return {
+        ...surface,
+        dependsOn: [...dependencies, fromId].join(', '),
+      };
+    }));
+  };
+
+  const removeBuilderEdge = (fromId: string, toId: string) => {
+    setBuilderSurfaces((current) => current.map((surface) => {
+      if (surface.id !== toId) return surface;
+      const dependencies = surface.dependsOn
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item && item !== fromId);
+      return { ...surface, dependsOn: dependencies.join(', ') };
+    }));
+  };
+
   const addBuilderSurface = () => {
+    const nextIndex = builderSurfaces.length + 1;
+    const previous = builderSurfaces[builderSurfaces.length - 1];
+    const nextId = `step-${nextIndex}`;
     setBuilderSurfaces((current) => [
       ...current,
       {
-        id: `step-${current.length + 1}`,
-        name: `Step ${current.length + 1}`,
-        agent: availableAgents[0]?.id || 'workflow-conductor',
+        id: nextId,
+        name: `Step ${nextIndex}`,
+        agent: availableAgents[0]?.id || 'dev-backend',
         goal: 'Execute this workflow step and produce a durable artifact.',
         artifacts: 'report',
         dependsOn: current[current.length - 1]?.id || '',
+        x: Math.min(760, (previous?.x ?? 72) + 220),
+        y: previous && (previous.x ?? 0) > 560 ? (previous.y ?? 96) + 150 : (previous?.y ?? 96),
       },
     ]);
+    setSelectedBuilderSurfaceId(nextId);
   };
 
   const removeBuilderSurface = (index: number) => {
-    setBuilderSurfaces((current) => current.length <= 1 ? current : current.filter((_, i) => i !== index));
+    const surfaceId = builderSurfaces[index]?.id;
+    setBuilderSurfaces((current) => {
+      if (current.length <= 1) return current;
+      return current
+        .filter((_, i) => i !== index)
+        .map((surface) => ({
+          ...surface,
+          dependsOn: surface.dependsOn
+            .split(',')
+            .map((item) => item.trim())
+            .filter((item) => item && item !== surfaceId)
+            .join(', '),
+        }));
+    });
+    if (surfaceId === selectedBuilderSurfaceId) {
+      const fallback = builderSurfaces.find((_, i) => i !== index);
+      setSelectedBuilderSurfaceId(fallback?.id || BUILDER_DEFAULT_SURFACE.id);
+    }
+    if (surfaceId === connectingFromSurfaceId) {
+      setConnectingFromSurfaceId(null);
+    }
   };
 
   const generateBuilderYaml = () => {
@@ -985,64 +1080,254 @@ export default function PipelinePage() {
               />
             </div>
 
-            <div className="space-y-3">
-              {builderSurfaces.map((surface, index) => (
-                <div key={`${surface.id}-${index}`} className="rounded-lg border border-gray-200 bg-white/80 p-3">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-bold text-gray-800">步骤 {index + 1}</div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeBuilderSurface(index)}
-                      disabled={builderSurfaces.length <= 1}
-                      className="border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      删除
-                    </Button>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="overflow-hidden rounded-lg border border-gray-200 bg-[#f8fafc]">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
+                  <div>
+                    <div className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-700">Agent Flow Canvas</div>
+                    <div className="text-xs text-gray-500">拖拽节点调整顺序；点击“连接”后再点目标节点创建 Agent to Agent 交付链路</div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                    <input
-                      value={surface.id}
-                      onChange={(event) => updateBuilderSurface(index, { id: event.target.value })}
-                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                      placeholder="step-id"
-                    />
-                    <input
-                      value={surface.name}
-                      onChange={(event) => updateBuilderSurface(index, { name: event.target.value })}
-                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                      placeholder="Step name"
-                    />
-                    <select
-                      value={surface.agent}
-                      onChange={(event) => updateBuilderSurface(index, { agent: event.target.value })}
-                      className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                    >
-                      {availableAgents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>{agent.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      value={surface.dependsOn}
-                      onChange={(event) => updateBuilderSurface(index, { dependsOn: event.target.value })}
-                      className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                      placeholder="依赖 step id，逗号分隔"
-                    />
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="rounded-full border border-gray-200 bg-white px-2 py-1">{builderSurfaces.length} 节点</span>
+                    <span className="rounded-full border border-gray-200 bg-white px-2 py-1">{builderEdges.length} 连线</span>
                   </div>
-                  <textarea
-                    value={surface.goal}
-                    onChange={(event) => updateBuilderSurface(index, { goal: event.target.value })}
-                    className="mt-3 min-h-[72px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                    placeholder="这个步骤要完成什么"
-                  />
-                  <input
-                    value={surface.artifacts}
-                    onChange={(event) => updateBuilderSurface(index, { artifacts: event.target.value })}
-                    className="mt-3 h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                    placeholder="产物，逗号分隔，例如 prd, tech_spec, report"
-                  />
                 </div>
-              ))}
+
+                <div className="overflow-auto">
+                  <div
+                    className="relative"
+                    style={{
+                      width: BUILDER_CANVAS_WIDTH,
+                      height: BUILDER_CANVAS_HEIGHT,
+                      backgroundImage:
+                        'linear-gradient(to right, rgba(15, 23, 42, 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 23, 42, 0.08) 1px, transparent 1px)',
+                      backgroundSize: '32px 32px',
+                    }}
+                    onPointerMove={(event) => {
+                      if (!draggingSurfaceId) return;
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      moveBuilderSurface(
+                        draggingSurfaceId,
+                        event.clientX - rect.left - BUILDER_NODE_WIDTH / 2,
+                        event.clientY - rect.top - 28,
+                      );
+                    }}
+                    onPointerUp={() => setDraggingSurfaceId(null)}
+                    onPointerLeave={() => setDraggingSurfaceId(null)}
+                    data-testid="pipeline-visual-builder-canvas"
+                  >
+                    <svg
+                      className="pointer-events-none absolute inset-0"
+                      width={BUILDER_CANVAS_WIDTH}
+                      height={BUILDER_CANVAS_HEIGHT}
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <marker id="builder-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L0,6 L9,3 z" fill="#0891b2" />
+                        </marker>
+                      </defs>
+                      {builderEdges.map((edge) => {
+                        const from = builderSurfaces.find((surface) => surface.id === edge.from);
+                        const to = builderSurfaces.find((surface) => surface.id === edge.to);
+                        if (!from || !to) return null;
+                        const startX = from.x + BUILDER_NODE_WIDTH;
+                        const startY = from.y + BUILDER_NODE_HEIGHT / 2;
+                        const endX = to.x;
+                        const endY = to.y + BUILDER_NODE_HEIGHT / 2;
+                        const mid = Math.max(48, Math.abs(endX - startX) / 2);
+                        const path = `M ${startX} ${startY} C ${startX + mid} ${startY}, ${endX - mid} ${endY}, ${endX} ${endY}`;
+                        return (
+                          <g key={`${edge.from}-${edge.to}`}>
+                            <path d={path} fill="none" stroke="#0891b2" strokeWidth="2.5" markerEnd="url(#builder-arrow)" />
+                            <circle cx={(startX + endX) / 2} cy={(startY + endY) / 2} r="5" fill="#ecfeff" stroke="#0891b2" strokeWidth="2" />
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {builderSurfaces.map((surface, index) => {
+                      const selected = surface.id === selectedBuilderSurface?.id;
+                      const isConnectingSource = connectingFromSurfaceId === surface.id;
+                      const dependencies = surface.dependsOn.split(',').map((item) => item.trim()).filter(Boolean);
+                      return (
+                        <div
+                          key={`${surface.id}-${index}`}
+                          role="button"
+                          tabIndex={0}
+                          className={`absolute rounded-lg border bg-white shadow-sm transition ${
+                            selected ? 'border-cyan-500 ring-4 ring-cyan-100' : 'border-gray-200 hover:border-cyan-300'
+                          } ${isConnectingSource ? 'ring-4 ring-amber-100 border-amber-400' : ''}`}
+                          style={{ left: surface.x, top: surface.y, width: BUILDER_NODE_WIDTH, height: BUILDER_NODE_HEIGHT }}
+                          onClick={() => {
+                            if (connectingFromSurfaceId && connectingFromSurfaceId !== surface.id) {
+                              connectBuilderSurfaces(connectingFromSurfaceId, surface.id);
+                              setConnectingFromSurfaceId(null);
+                            }
+                            setSelectedBuilderSurfaceId(surface.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') setSelectedBuilderSurfaceId(surface.id);
+                          }}
+                          onPointerDown={(event) => {
+                            if ((event.target as HTMLElement).closest('button')) return;
+                            setDraggingSurfaceId(surface.id);
+                            setSelectedBuilderSurfaceId(surface.id);
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                          }}
+                          data-testid={`pipeline-builder-node-${surface.id}`}
+                        >
+                          <div className="flex h-full flex-col justify-between p-3">
+                            <div>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-bold text-gray-950">{surface.name || surface.id}</div>
+                                  <div className="mt-1 truncate text-xs text-cyan-700">{agentNameById.get(surface.agent) || surface.agent}</div>
+                                </div>
+                                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">#{index + 1}</span>
+                              </div>
+                              <div className="mt-2 line-clamp-2 text-xs text-gray-500">{surface.goal}</div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-[11px] text-gray-400">
+                                {dependencies.length > 0 ? `依赖 ${dependencies.join(', ')}` : '起点节点'}
+                              </span>
+                              <button
+                                type="button"
+                                className={`rounded px-2 py-1 text-[11px] font-semibold ${
+                                  isConnectingSource ? 'bg-amber-500 text-white' : 'bg-gray-950 text-white hover:bg-cyan-700'
+                                }`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setConnectingFromSurfaceId(isConnectingSource ? null : surface.id);
+                                  setSelectedBuilderSurfaceId(surface.id);
+                                }}
+                              >
+                                连接
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                {selectedBuilderSurface && selectedBuilderSurfaceIndex >= 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold text-gray-950">节点属性</div>
+                        <div className="text-xs text-gray-500">配置该 Agent 节点的职责、输入依赖和交付物</div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeBuilderSurface(selectedBuilderSurfaceIndex)}
+                        disabled={builderSurfaces.length <= 1}
+                        className="border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        删除
+                      </Button>
+                    </div>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">节点 ID</span>
+                      <input
+                        value={selectedBuilderSurface.id}
+                        onChange={(event) => {
+                          const nextId = event.target.value;
+                          const previousId = selectedBuilderSurface.id;
+                          updateBuilderSurface(selectedBuilderSurfaceIndex, { id: nextId });
+                          setSelectedBuilderSurfaceId(nextId);
+                          setBuilderSurfaces((current) => current.map((surface, i) => {
+                            if (i === selectedBuilderSurfaceIndex) return surface;
+                            const dependencies = surface.dependsOn
+                              .split(',')
+                              .map((item) => item.trim())
+                              .filter(Boolean)
+                              .map((item) => item === previousId ? nextId : item);
+                            return { ...surface, dependsOn: dependencies.join(', ') };
+                          }));
+                        }}
+                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">节点名称</span>
+                      <input
+                        value={selectedBuilderSurface.name}
+                        onChange={(event) => updateBuilderSurface(selectedBuilderSurfaceIndex, { name: event.target.value })}
+                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">执行 Agent</span>
+                      <select
+                        value={selectedBuilderSurface.agent}
+                        onChange={(event) => updateBuilderSurface(selectedBuilderSurfaceIndex, { agent: event.target.value })}
+                        className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      >
+                        {availableAgents.map((agent) => (
+                          <option key={agent.id} value={agent.id}>{agent.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">目标</span>
+                      <textarea
+                        value={selectedBuilderSurface.goal}
+                        onChange={(event) => updateBuilderSurface(selectedBuilderSurfaceIndex, { goal: event.target.value })}
+                        className="min-h-[92px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">交付产物</span>
+                      <input
+                        value={selectedBuilderSurface.artifacts}
+                        onChange={(event) => updateBuilderSurface(selectedBuilderSurfaceIndex, { artifacts: event.target.value })}
+                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                        placeholder="prd, report, test_plan"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-500">上游依赖</span>
+                      <input
+                        value={selectedBuilderSurface.dependsOn}
+                        onChange={(event) => updateBuilderSurface(selectedBuilderSurfaceIndex, { dependsOn: event.target.value })}
+                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                        placeholder="从画布连线自动生成，也可手动编辑"
+                      />
+                    </label>
+                    <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
+                      <div className="mb-2 text-xs font-semibold text-gray-500">当前连线</div>
+                      <div className="space-y-1">
+                        {builderEdges.filter((edge) => edge.to === selectedBuilderSurface.id || edge.from === selectedBuilderSurface.id).length > 0 ? (
+                          builderEdges
+                            .filter((edge) => edge.to === selectedBuilderSurface.id || edge.from === selectedBuilderSurface.id)
+                            .map((edge) => (
+                              <div key={`${edge.from}-${edge.to}`} className="flex items-center justify-between gap-2 rounded border border-gray-200 bg-white px-2 py-1 text-xs">
+                                <span className="font-mono text-gray-600">{edge.from} → {edge.to}</span>
+                                <button
+                                  type="button"
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => removeBuilderEdge(edge.from, edge.to)}
+                                >
+                                  移除
+                                </button>
+                              </div>
+                            ))
+                        ) : (
+                          <div className="text-xs text-gray-400">暂无连线</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">选择一个节点开始配置</div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
