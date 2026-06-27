@@ -448,6 +448,37 @@ async function main(): Promise<void> {
         return;
       }
 
+      if (path.match(/^\/a2a\/agents\/[^/]+\/message:send$/) && req.method === 'POST') {
+        const agentId = decodeURIComponent(path.split('/')[3] || '');
+        const request = parsedBody?.message
+          ? parsedBody
+          : parsedBody?.text
+            ? {
+                message: createA2AMessage({
+                  role: 'user',
+                  text: String(parsedBody.text),
+                  contextId: typeof parsedBody.contextId === 'string' ? parsedBody.contextId : undefined,
+                  taskId: typeof parsedBody.taskId === 'string' ? parsedBody.taskId : undefined,
+                  metadata: typeof parsedBody.metadata === 'object' ? parsedBody.metadata : undefined,
+                }),
+                configuration: parsedBody.configuration,
+                metadata: parsedBody.metadata,
+              }
+            : null;
+
+        if (!request) {
+          writeJson(res, 400, {
+            error: 'A2A message request requires either message or text',
+            protocol: 'A2A',
+          }, locale);
+          return;
+        }
+
+        const result = await agentApp.orchestrator.sendA2AMessage(agentId, request);
+        writeJson(res, 200, result, locale);
+        return;
+      }
+
       if (path === '/a2a/tasks' && req.method === 'GET') {
         const limitParam = Number(url.searchParams.get('limit') || 50);
         const limit = Number.isFinite(limitParam) ? Math.min(Math.max(Math.trunc(limitParam), 1), 500) : 50;

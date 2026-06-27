@@ -43,7 +43,7 @@ export { KnowledgeCenter, getGlobalKnowledgeCenter, resetGlobalKnowledgeCenter, 
 export { DocumentManager, createDocumentManager, getGlobalDocumentManager, resetGlobalDocumentManager, } from './knowledge/DocumentManager.js';
 export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus';
 // ── A2A 语义模型（内部统一 Agent 通信语言）──
-export { a2aMessageToAgentMessage, agentMessageToA2AMessage, createHermesA2AAdapters, createA2ADataPart, createA2AMessage, createA2ATextPart, getAgentIdFromCard, getGlobalInProcessA2ATransport, HermesA2AAgentAdapter, InProcessA2ATransport, isA2ATask, isTerminalA2ATaskState, partsToText, pipelineInstanceToA2ATask, pipelineStatusToA2AState, surfaceResultToA2AArtifact, surfaceStatusToA2AState, teamProfileAgentToA2AAgentCard, teamProfileToA2AAgentCards, resetGlobalInProcessA2ATransport, } from './a2a/index.js';
+export { a2aMessageToAgentMessage, agentMessageToA2AMessage, createHermesA2AAdapters, createA2ADataPart, createA2AMessage, createA2ATextPart, getAgentIdFromCard, getGlobalInProcessA2ATransport, HermesA2AAgentAdapter, HttpA2AClient, InProcessA2ATransport, isA2ATask, isTerminalA2ATaskState, partsToText, pipelineInstanceToA2ATask, pipelineStatusToA2AState, surfaceResultToA2AArtifact, surfaceStatusToA2AState, teamProfileAgentToA2AAgentCard, teamProfileToA2AAgentCards, resetGlobalInProcessA2ATransport, } from './a2a/index.js';
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager';
 // ── 国际化（新增 — 全栈中英展示协商）──

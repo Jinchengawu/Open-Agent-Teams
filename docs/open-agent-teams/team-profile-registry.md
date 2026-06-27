@@ -74,11 +74,17 @@ Gateway A2A projection routes:
 
 - `GET /a2a/agent-cards`
 - `GET /a2a/agent-cards/:agentId`
+- `POST /a2a/agents/:agentId/message:send`
 - `GET /a2a/tasks`
 - `GET /a2a/tasks/:taskId`
 - `GET /a2a/messages?agentId=:agentId`
 
+`message:send` accepts either a full `A2ASendMessageRequest` or a convenience
+payload with `text`, `contextId`, `taskId`, `metadata`, and `configuration`.
+The response is the A2A result body returned by the current transport.
+
 Remaining next steps:
 
-- add HTTP A2A client/server adapters
+- align the HTTP route names with the external A2A JSON-RPC profile when the
+  protocol binding is finalized for this project
 - migrate remaining MessageBus call sites onto `A2ATransport`

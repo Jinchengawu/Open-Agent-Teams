@@ -197,6 +197,7 @@ export {
   getAgentIdFromCard,
   getGlobalInProcessA2ATransport,
   HermesA2AAgentAdapter,
+  HttpA2AClient,
   InProcessA2ATransport,
   isA2ATask,
   isTerminalA2ATaskState,
@@ -227,6 +228,7 @@ export type {
   A2ATaskStatusUpdateEvent,
   A2ATransport,
   A2ATransportHandler,
+  HttpA2AClientOptions,
 } from './a2a/index.js';
 
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──

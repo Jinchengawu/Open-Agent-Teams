@@ -30,6 +30,10 @@ export {
   HermesA2AAgentAdapter,
 } from './hermes-adapter.js';
 
+export {
+  HttpA2AClient,
+} from './http-client.js';
+
 export type {
   A2AAgentCapabilities,
   A2AAgentCard,
@@ -52,3 +56,7 @@ export type {
   A2ATransport,
   A2ATransportHandler,
 } from './transport.js';
+
+export type {
+  HttpA2AClientOptions,
+} from './http-client.js';
