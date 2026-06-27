@@ -87,5 +87,4 @@ Remaining next steps:
 
 - align the HTTP route names with the external A2A JSON-RPC profile when the
   protocol binding is finalized for this project
-- migrate historical message inspection APIs from legacy MessageBus history to
-  A2A transport history
+- add persistent A2A event/history storage beyond in-process history

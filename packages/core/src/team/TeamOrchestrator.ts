@@ -601,6 +601,12 @@ export class TeamOrchestrator implements IOrchestrator {
    * 获取 Agent 间消息历史
    */
   getMessages(agentName?: string) {
+    const transport = getGlobalInProcessA2ATransport();
+    const a2aMessages = agentName
+      ? transport.getMessageHistory(agentName)
+      : Array.from(this.agentConfigs.keys()).flatMap((agentId) => transport.getMessageHistory(agentId));
+    if (a2aMessages.length > 0) return a2aMessages;
+
     const messageBus = getGlobalMessageBus();
     if (agentName) {
       return messageBus.getHistory(agentName);
