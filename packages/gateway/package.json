@@ -3,7 +3,18 @@
   "version": "0.2.0",
   "description": "API Gateway (Open-Agent-Teams) — 中央编排层，Agent 路由、鉴权、限流、熔断",
   "type": "module",
-  "main": "src/api-gateway.ts",
+  "main": "dist/api-gateway.js",
+  "types": "dist/api-gateway.d.ts",
+  "files": [
+    "dist",
+    "package.json"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/api-gateway.js",
+      "types": "./dist/api-gateway.d.ts"
+    }
+  },
   "scripts": {
     "dev": "tsx watch src/api-gateway.ts",
     "build": "tsc",
