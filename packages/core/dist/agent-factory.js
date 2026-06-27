@@ -19,6 +19,7 @@ import { setKanbanDatabase, createKanbanTools } from './tools/kanban-tools.js';
 import { createDocumentTools } from './tools/document-tools.js';
 import { createDocumentToolsV2 } from './tools/document-tools-v2.js';
 import { createSendMessageTool } from './tools/send-message.js';
+import { getGlobalInProcessA2ATransport, SqliteA2AHistoryStore } from './a2a/index.js';
 import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE } from './team-profile/index.js';
 import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
@@ -85,6 +86,7 @@ export async function createAgentApp(config = {}) {
     mkdirSync(dataDir, { recursive: true });
     const dbPath = path.join(dataDir, 'sessions.db');
     const sessionManager = new SessionManager(dbPath);
+    getGlobalInProcessA2ATransport().setHistoryStore(new SqliteA2AHistoryStore(sessionManager.getDb()));
     const workflowStateManager = new WorkflowStateManager(sessionManager.getDb());
     const tokenBudgetManager = new TokenBudgetManager({
         defaultMaxTokens: parseInt(process.env.DEFAULT_TOKEN_BUDGET || '5000000', 10),

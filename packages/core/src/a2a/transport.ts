@@ -7,6 +7,7 @@ import type {
   A2ATask,
 } from './types.js';
 import { createA2AMessage } from './converters.js';
+import type { A2AHistoryStore } from './history-store.js';
 
 export interface A2ATransportHandler {
   agentCard: A2AAgentCard;
@@ -27,6 +28,11 @@ export class InProcessA2ATransport implements A2ATransport {
   private messageHistory = new Map<string, A2AMessage[]>();
   private taskHistory = new Map<string, A2ATask[]>();
   private emitter = new EventEmitter();
+  private historyStore?: A2AHistoryStore;
+
+  setHistoryStore(store: A2AHistoryStore): void {
+    this.historyStore = store;
+  }
 
   registerAgent(card: A2AAgentCard, handler: A2ATransportHandler['handleMessage']): () => void {
     const agentId = getAgentIdFromCard(card);
@@ -79,10 +85,12 @@ export class InProcessA2ATransport implements A2ATransport {
   }
 
   getMessageHistory(agentId: string): A2AMessage[] {
+    if (this.historyStore) return this.historyStore.getMessageHistory(agentId);
     return this.messageHistory.get(agentId) || [];
   }
 
   getTaskHistory(agentId: string): A2ATask[] {
+    if (this.historyStore) return this.historyStore.getTaskHistory(agentId);
     return this.taskHistory.get(agentId) || [];
   }
 
@@ -90,12 +98,14 @@ export class InProcessA2ATransport implements A2ATransport {
     const history = this.messageHistory.get(agentId) || [];
     history.push(message);
     this.messageHistory.set(agentId, history);
+    this.historyStore?.appendMessage(agentId, message);
   }
 
   private appendTask(agentId: string, task: A2ATask): void {
     const history = this.taskHistory.get(agentId) || [];
     history.push(task);
     this.taskHistory.set(agentId, history);
+    this.historyStore?.appendTask(agentId, task);
   }
 }
 

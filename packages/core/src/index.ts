@@ -206,6 +206,7 @@ export {
   pipelineStatusToA2AState,
   surfaceResultToA2AArtifact,
   surfaceStatusToA2AState,
+  SqliteA2AHistoryStore,
   teamProfileAgentToA2AAgentCard,
   teamProfileToA2AAgentCards,
   resetGlobalInProcessA2ATransport,
@@ -228,6 +229,7 @@ export type {
   A2ATaskStatusUpdateEvent,
   A2ATransport,
   A2ATransportHandler,
+  A2AHistoryStore,
   HttpA2AClientOptions,
 } from './a2a/index.js';
 

@@ -3,7 +3,9 @@ export { isA2ATask, isTerminalA2ATaskState, } from './types.js';
 export { getAgentIdFromCard, getGlobalInProcessA2ATransport, InProcessA2ATransport, resetGlobalInProcessA2ATransport, } from './transport.js';
 export { createHermesA2AAdapters, HermesA2AAgentAdapter, } from './hermes-adapter.js';
 export { HttpA2AClient, } from './http-client.js';
+export { SqliteA2AHistoryStore, } from './history-store.js';
 export type { A2AAgentCapabilities, A2AAgentCard, A2AAgentSkill, A2AArtifact, A2AEvent, A2AMessage, A2APart, A2ARole, A2ASendMessageRequest, A2ASendMessageResult, A2ATask, A2ATaskArtifactUpdateEvent, A2ATaskState, A2ATaskStatus, A2ATaskStatusUpdateEvent, } from './types.js';
 export type { A2ATransport, A2ATransportHandler, } from './transport.js';
 export type { HttpA2AClientOptions, } from './http-client.js';
+export type { A2AHistoryStore, } from './history-store.js';
 //# sourceMappingURL=index.d.ts.map

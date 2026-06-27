@@ -1,4 +1,5 @@
 import type { A2AAgentCard, A2AMessage, A2ASendMessageRequest, A2ASendMessageResult, A2ATask } from './types.js';
+import type { A2AHistoryStore } from './history-store.js';
 export interface A2ATransportHandler {
     agentCard: A2AAgentCard;
     handleMessage: (request: A2ASendMessageRequest) => Promise<A2ASendMessageResult>;
@@ -16,6 +17,8 @@ export declare class InProcessA2ATransport implements A2ATransport {
     private messageHistory;
     private taskHistory;
     private emitter;
+    private historyStore?;
+    setHistoryStore(store: A2AHistoryStore): void;
     registerAgent(card: A2AAgentCard, handler: A2ATransportHandler['handleMessage']): () => void;
     getAgentCard(agentId: string): A2AAgentCard | undefined;
     listAgentCards(): A2AAgentCard[];

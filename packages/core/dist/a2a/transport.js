@@ -5,6 +5,10 @@ export class InProcessA2ATransport {
     messageHistory = new Map();
     taskHistory = new Map();
     emitter = new EventEmitter();
+    historyStore;
+    setHistoryStore(store) {
+        this.historyStore = store;
+    }
     registerAgent(card, handler) {
         const agentId = getAgentIdFromCard(card);
         this.handlers.set(agentId, { agentCard: card, handleMessage: handler });
@@ -50,20 +54,26 @@ export class InProcessA2ATransport {
         return result;
     }
     getMessageHistory(agentId) {
+        if (this.historyStore)
+            return this.historyStore.getMessageHistory(agentId);
         return this.messageHistory.get(agentId) || [];
     }
     getTaskHistory(agentId) {
+        if (this.historyStore)
+            return this.historyStore.getTaskHistory(agentId);
         return this.taskHistory.get(agentId) || [];
     }
     appendMessage(agentId, message) {
         const history = this.messageHistory.get(agentId) || [];
         history.push(message);
         this.messageHistory.set(agentId, history);
+        this.historyStore?.appendMessage(agentId, message);
     }
     appendTask(agentId, task) {
         const history = this.taskHistory.get(agentId) || [];
         history.push(task);
         this.taskHistory.set(agentId, history);
+        this.historyStore?.appendTask(agentId, task);
     }
 }
 let globalInProcessA2ATransport = null;

@@ -63,7 +63,13 @@ The first A2A alignment stage is implemented as an internal domain model:
 - `A2AArtifact`
 - `A2ATaskStatus`
 
-The current in-process runtime exposes `InProcessA2ATransport`, and the legacy `MessageBus` can still carry A2A messages for compatibility. Hermes role agents can be wrapped with `HermesA2AAgentAdapter`. Agent tools should prefer A2A transport; `send_message` now uses A2A first and only falls back to MessageBus for compatibility.
+The current runtime exposes `InProcessA2ATransport`, and `AgentApp` wires it to
+`SqliteA2AHistoryStore` so A2A messages and task projections survive process
+restart when the normal SQLite data store is available. The legacy `MessageBus`
+can still carry A2A messages for compatibility. Hermes role agents can be
+wrapped with `HermesA2AAgentAdapter`. Agent tools should prefer A2A transport;
+`send_message` now uses A2A first and only falls back to MessageBus for
+compatibility.
 
 Next architecture steps:
 
@@ -87,4 +93,5 @@ Remaining next steps:
 
 - align the HTTP route names with the external A2A JSON-RPC profile when the
   protocol binding is finalized for this project
-- add persistent A2A event/history storage beyond in-process history
+- add cross-process A2A transport backends when a product outgrows single-node
+  SQLite-backed history

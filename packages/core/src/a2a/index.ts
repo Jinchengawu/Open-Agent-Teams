@@ -34,6 +34,10 @@ export {
   HttpA2AClient,
 } from './http-client.js';
 
+export {
+  SqliteA2AHistoryStore,
+} from './history-store.js';
+
 export type {
   A2AAgentCapabilities,
   A2AAgentCard,
@@ -60,3 +64,7 @@ export type {
 export type {
   HttpA2AClientOptions,
 } from './http-client.js';
+
+export type {
+  A2AHistoryStore,
+} from './history-store.js';
