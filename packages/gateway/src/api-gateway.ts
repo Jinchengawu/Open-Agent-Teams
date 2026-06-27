@@ -16,7 +16,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { config } from 'dotenv';
-import { createA2AMessage, createAgentApp, createHermesAgentClient, isModelSpendGuardEnabled, localizeAgents, negotiateLocale } from '@open-agent-teams/core';
+import {
+  createA2AMessage,
+  createAgentApp,
+  createHermesAgentClient,
+  isModelSpendGuardEnabled,
+  localizeAgents,
+  negotiateLocale,
+  OPEN_FRAMEWORK_TEAM_PROFILE,
+  teamProfileToA2AAgentCards,
+} from '@open-agent-teams/core';
 import type { OrchestratorEvent, MeetingProgressEvent } from '@open-agent-teams/core';
 import Busboy from 'busboy';
 import { randomUUID } from 'node:crypto';
@@ -103,6 +112,12 @@ function withPipelineNavigation(serialized: Record<string, any>): Record<string,
     knowledge_url: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}` : undefined,
     kanban_url: projectId ? '/kanban?source=coordination' : undefined,
   };
+}
+
+const A2A_AGENT_CARDS = teamProfileToA2AAgentCards(OPEN_FRAMEWORK_TEAM_PROFILE);
+
+function getA2AAgentId(card: Record<string, any>): string {
+  return String(card.metadata?.agentId || card.name);
 }
 
 function pipelineToTemplate(pipeline: any): Record<string, unknown> {
@@ -347,6 +362,61 @@ async function main(): Promise<void> {
           status: 200,
           latencyMs: Date.now() - startTime,
         }, config.auditFile);
+        return;
+      }
+
+      if (path === '/a2a/agent-cards' && req.method === 'GET') {
+        writeJson(res, 200, {
+          protocol: 'A2A',
+          profileId: OPEN_FRAMEWORK_TEAM_PROFILE.id,
+          cards: A2A_AGENT_CARDS,
+        }, locale);
+        return;
+      }
+
+      if (path.match(/^\/a2a\/agent-cards\/[^/]+$/) && req.method === 'GET') {
+        const agentId = decodeURIComponent(path.split('/')[3] || '');
+        const card = A2A_AGENT_CARDS.find((item) => getA2AAgentId(item) === agentId);
+        if (!card) {
+          writeJson(res, 404, { error: 'A2A agent card not found', agentId }, locale);
+          return;
+        }
+        writeJson(res, 200, card, locale);
+        return;
+      }
+
+      if (path === '/a2a/messages' && req.method === 'GET') {
+        const agentId = url.searchParams.get('agentId') || undefined;
+        const messages = agentApp.orchestrator.getA2AMessages(agentId);
+        writeJson(res, 200, {
+          protocol: 'A2A',
+          agentId: agentId || null,
+          messages,
+        }, locale);
+        return;
+      }
+
+      if (path === '/a2a/tasks' && req.method === 'GET') {
+        const limitParam = Number(url.searchParams.get('limit') || 50);
+        const limit = Number.isFinite(limitParam) ? Math.min(Math.max(Math.trunc(limitParam), 1), 500) : 50;
+        const tasks = agentApp.pipelineOrchestrator.listInstances()
+          .slice(0, limit)
+          .map((instance) => agentApp.pipelineOrchestrator.serializeInstance(instance).a2aTask);
+        writeJson(res, 200, {
+          protocol: 'A2A',
+          tasks,
+        }, locale);
+        return;
+      }
+
+      if (path.match(/^\/a2a\/tasks\/[^/]+$/) && req.method === 'GET') {
+        const taskId = decodeURIComponent(path.split('/')[3] || '');
+        const instance = agentApp.pipelineOrchestrator.getStatus(taskId);
+        if (!instance) {
+          writeJson(res, 404, { error: 'A2A task not found', taskId }, locale);
+          return;
+        }
+        writeJson(res, 200, agentApp.pipelineOrchestrator.serializeInstance(instance).a2aTask, locale);
         return;
       }
 

@@ -69,4 +69,16 @@ Next architecture steps:
 
 - add HTTP A2A client/server adapters
 - migrate remaining MessageBus call sites onto `A2ATransport`
-- expose Agent Cards, Tasks, Messages, and Artifacts through Gateway routes
+
+Gateway A2A projection routes:
+
+- `GET /a2a/agent-cards`
+- `GET /a2a/agent-cards/:agentId`
+- `GET /a2a/tasks`
+- `GET /a2a/tasks/:taskId`
+- `GET /a2a/messages?agentId=:agentId`
+
+Remaining next steps:
+
+- add HTTP A2A client/server adapters
+- migrate remaining MessageBus call sites onto `A2ATransport`
