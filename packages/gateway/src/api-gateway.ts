@@ -249,23 +249,32 @@ async function main(): Promise<void> {
   console.log('');
 
   // 创建 agent app（内含 TeamOrchestrator + SessionManager + Express 路由 + PipelineOrchestrator）
-  const agentApp = await createAgentApp({
-    onProgress: (event: OrchestratorEvent) => {
-      if (event.type === 'task_start' || event.type === 'task_complete') {
-        console.log(`[progress] ${event.type}: ${event.task ?? ''}`);
-      }
-    },
-  });
+  let agentApp: Awaited<ReturnType<typeof createAgentApp>> | null = null;
+  let startupError: string | null = null;
+  try {
+    agentApp = await createAgentApp({
+      onProgress: (event: OrchestratorEvent) => {
+        if (event.type === 'task_start' || event.type === 'task_complete') {
+          console.log(`[progress] ${event.type}: ${event.task ?? ''}`);
+        }
+      },
+    });
+  } catch (error) {
+    startupError = error instanceof Error ? error.message : String(error);
+    console.warn('[Gateway] Core AgentApp 初始化失败，进入 degraded 模式:', startupError);
+  }
 
   // 加载示例 Pipeline
-  try {
-    const yamlPath = resolve(__dirname, '../../core/src/pipeline/examples/team-lifecycle.yaml');
-    await agentApp.pipelineOrchestrator.loadFromYaml(yamlPath);
-    console.log(`[Gateway] Pipeline YAML 已加载: ${yamlPath}`);
-  } catch (err) {
-    console.warn('[Gateway] Pipeline 加载失败:', err);
+  if (agentApp) {
+    try {
+      const yamlPath = resolve(__dirname, '../../core/src/pipeline/examples/team-lifecycle.yaml');
+      await agentApp.pipelineOrchestrator.loadFromYaml(yamlPath);
+      console.log(`[Gateway] Pipeline YAML 已加载: ${yamlPath}`);
+    } catch (err) {
+      console.warn('[Gateway] Pipeline 加载失败:', err);
+    }
+    await loadRuntimePipelines(agentApp);
   }
-  await loadRuntimePipelines(agentApp);
   const server = createServer(async (req, res) => {
     const startTime = Date.now();
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -316,9 +325,6 @@ async function main(): Promise<void> {
       try { parsedBody = JSON.parse(body); } catch { parsedBody = {}; }
     }
 
-    // 构造 Express 兼容的 req/res 对象，转发到 agent app
-    const { app } = agentApp;
-
     // 使用 Express 的 handle 方法
     const expressReq = Object.assign(req, {
       body: parsedBody,
@@ -328,6 +334,52 @@ async function main(): Promise<void> {
 
     // 简化处理：直接调用 agent app 的路由
     try {
+      if (!agentApp) {
+        if (path === '/health' && req.method === 'GET') {
+          writeJson(res, 503, {
+            status: 'degraded',
+            gateway: 'open-agent-teams',
+            framework: '@open-multi-agent/core',
+            agents: 0,
+            sharedMemory: false,
+            sessionCount: 0,
+            startupError,
+            uptime: process.uptime(),
+            locale,
+          }, locale);
+          return;
+        }
+
+        if (path === '/a2a/agent-cards' && req.method === 'GET') {
+          writeJson(res, 200, {
+            protocol: 'A2A',
+            profileId: OPEN_FRAMEWORK_TEAM_PROFILE.id,
+            degraded: true,
+            startupError,
+            cards: A2A_AGENT_CARDS,
+          }, locale);
+          return;
+        }
+
+        if (path.match(/^\/a2a\/agent-cards\/[^/]+$/) && req.method === 'GET') {
+          const agentId = decodeURIComponent(path.split('/')[3] || '');
+          const card = A2A_AGENT_CARDS.find((item) => getA2AAgentId(item) === agentId);
+          if (!card) {
+            writeJson(res, 404, { error: 'A2A agent card not found', agentId }, locale);
+            return;
+          }
+          writeJson(res, 200, { ...card, degraded: true, startupError }, locale);
+          return;
+        }
+
+        writeJson(res, 503, {
+          error: 'Gateway core is unavailable',
+          status: 'degraded',
+          startupError,
+        }, locale);
+        return;
+      }
+
       // 健康检查
       if (path === '/health' && req.method === 'GET') {
         const status = agentApp.orchestrator.getStatus();
@@ -1374,13 +1426,13 @@ async function main(): Promise<void> {
   // Graceful shutdown
   process.on('SIGINT', async () => {
     console.log('\n🛑 正在关闭...');
-    await agentApp.close();
+    await agentApp?.close();
     server.close();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    await agentApp.close();
+    await agentApp?.close();
     server.close();
     process.exit(0);
   });
