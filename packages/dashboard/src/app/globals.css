@@ -4,38 +4,42 @@
 
 :root {
   color-scheme: light;
-  --ink: #111820;
-  --muted: #536273;
-  --line: rgba(17, 24, 39, 0.13);
-  --paper: rgba(255, 255, 255, 0.76);
-  --accent: #ff5c1f;
-  --teal: #007f96;
+  --ink: #10182b;
+  --muted: #64748b;
+  --line: #dbe6f5;
+  --paper: rgba(255, 255, 255, 0.92);
+  --brand: #176bff;
+  --brand-soft: #eaf2ff;
+  --success: #10a66a;
+  --warning: #f59e0b;
+  --danger: #ef4444;
 }
 
 html {
-  background: #f7f9fa;
+  background: #f6f9fd;
 }
 
 body {
   margin: 0;
-  background: #f7f9fa;
+  background: #f6f9fd;
   color: var(--ink);
 }
 
 ::selection {
-  background: rgba(0, 127, 150, 0.18);
-  color: #111820;
+  background: rgba(23, 107, 255, 0.16);
+  color: #0f172a;
 }
 
 .dev-shell {
   position: relative;
   overflow-x: hidden;
   background:
-    linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
-    radial-gradient(circle at 72% 24%, rgba(209, 220, 225, 0.56), transparent 28rem),
-    #f7f9fa;
-  background-size: 64px 64px, 64px 64px, auto, auto;
+    linear-gradient(rgba(23, 107, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 107, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 78% 14%, rgba(209, 226, 255, 0.64), transparent 31rem),
+    radial-gradient(circle at 22% 76%, rgba(222, 247, 241, 0.62), transparent 30rem),
+    #f6f9fd;
+  background-size: 44px 44px, 44px 44px, auto, auto, auto;
 }
 
 .dev-shell::before {
@@ -44,14 +48,11 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, transparent 0, rgba(17, 24, 39, 0.10) 49.96%, transparent 50.04%),
-    linear-gradient(180deg, transparent 0, rgba(0, 127, 150, 0.10) 49.96%, transparent 50.04%);
-  background-size: 100vw 1px, 1px 100vh;
-  opacity: 0.4;
+  background: linear-gradient(180deg, rgba(255,255,255,0.74), rgba(255,255,255,0.18));
+  opacity: 0.82;
 }
 
-.dev-shell > * {
+.dev-shell > main {
   position: relative;
   z-index: 1;
 }
@@ -63,7 +64,7 @@ body {
 .dev-shell .bg-slate-100,
 .dev-shell .bg-gray-50,
 .dev-shell .bg-gray-100 {
-  background-color: rgba(255, 255, 255, 0.78) !important;
+  background-color: rgba(255, 255, 255, 0.88) !important;
 }
 
 .dev-shell .bg-black\/20,
@@ -90,7 +91,7 @@ body {
 .dev-shell .bg-indigo-100,
 .dev-shell .bg-purple-100,
 .dev-shell .bg-pink-100 {
-  background-color: rgba(0, 127, 150, 0.09) !important;
+  background-color: rgba(23, 107, 255, 0.08) !important;
 }
 
 .dev-shell .bg-green-50,
@@ -103,7 +104,7 @@ body {
 .dev-shell .bg-amber-100,
 .dev-shell .bg-orange-100,
 .dev-shell .bg-yellow-500 {
-  background-color: rgba(255, 92, 31, 0.12) !important;
+  background-color: rgba(245, 158, 11, 0.10) !important;
 }
 
 .dev-shell .bg-red-50,
@@ -117,7 +118,7 @@ body {
 .dev-shell .text-gray-950,
 .dev-shell .text-gray-900,
 .dev-shell .text-slate-900 {
-  color: #111820 !important;
+  color: #10182b !important;
 }
 
 .dev-shell .text-\[\#c7d2e1\],
@@ -143,7 +144,7 @@ body {
 .dev-shell .text-\[\#8ff0ff\],
 .dev-shell .text-blue-700,
 .dev-shell .text-blue-600 {
-  color: #007f96 !important;
+  color: #176bff !important;
 }
 
 .dev-shell .text-\[\#63f7ae\],
@@ -185,9 +186,10 @@ body {
 .dev-shell input,
 .dev-shell select,
 .dev-shell textarea {
-  background: rgba(255, 255, 255, 0.82) !important;
-  border-color: rgba(17, 24, 39, 0.15) !important;
-  color: #111820 !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: #dbe6f5 !important;
+  color: #10182b !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
 }
 
 .dev-shell input::placeholder,
@@ -208,4 +210,63 @@ body {
 .dev-shell a {
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
+}
+
+.brand-cube {
+  position: relative;
+  display: flex;
+  height: 38px;
+  width: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #176bff, #43b7ff);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(23, 107, 255, 0.22);
+}
+
+.brand-cube::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 2px solid rgba(255,255,255,0.88);
+  border-radius: 6px;
+  transform: rotate(45deg);
+}
+
+.brand-cube span {
+  position: relative;
+  z-index: 1;
+}
+
+.dev-shell main > div,
+.dev-shell main > section {
+  max-width: 1520px;
+}
+
+.dev-shell .rounded-xl {
+  border-radius: 10px !important;
+}
+
+.dev-shell .rounded-2xl,
+.dev-shell .rounded-3xl {
+  border-radius: 12px !important;
+}
+
+.dev-shell [class*="shadow-"] {
+  box-shadow: 0 18px 48px rgba(31, 56, 88, 0.07) !important;
+}
+
+.dev-shell button,
+.dev-shell a,
+.dev-shell input,
+.dev-shell textarea,
+.dev-shell select {
+  outline-color: rgba(23, 107, 255, 0.35);
+}
+
+.dev-shell h1 {
+  letter-spacing: 0;
 }

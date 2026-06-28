@@ -45,81 +45,107 @@ export function NavBar() {
 
   return (
     <>
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/82 backdrop-blur-2xl">
-        <div className="mx-auto max-w-[1540px] px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-[#111820] shadow-[7px_7px_0_rgba(255,92,31,0.18)]">
-                <span className="text-sm font-black tracking-tight text-white">DT</span>
-              </div>
-              <div>
-                <h1 className="text-sm font-black uppercase tracking-[0.24em] text-[#111820] sm:text-base">
-                  Open-Agent-Teams
-                </h1>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{t('nav.brandSubtitle')}</p>
-              </div>
-            </Link>
-            <div className="flex items-center space-x-4">
-              <div
-                className={`hidden items-center space-x-2 rounded-md border px-3 py-1.5 md:flex ${statusTone.container}`}
-                title={stats.statusReason}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${statusTone.dot}`}
-                ></div>
-                <span
-                  className={`text-xs font-semibold uppercase tracking-[0.16em] ${statusTone.text}`}
-                >
-                  {statusTone.label}
-                </span>
-              </div>
-              <button className="rounded-md border border-slate-200 bg-white/70 p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-[#111820]">
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  />
-                </svg>
-              </button>
-              <LanguageSwitcher />
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-[#dbe6f5] bg-white/92 backdrop-blur-2xl">
+        <div className="flex h-16 items-center gap-4 px-4 lg:pl-5 lg:pr-6">
+          <Link href="/" className="flex min-w-[220px] items-center gap-3">
+            <div className="brand-cube">
+              <span>DT</span>
             </div>
+            <div className="hidden sm:block">
+              <h1 className="text-lg font-black tracking-tight text-[#111827]">Open-Agent-Teams</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">{t('nav.brandSubtitle')}</p>
+            </div>
+          </Link>
+
+          <button className="hidden h-10 min-w-[180px] items-center justify-between rounded-lg border border-[#dbe6f5] bg-white px-4 text-sm font-bold text-[#0f172a] shadow-[0_8px_24px_rgba(15,23,42,0.04)] md:flex">
+            <span>通用 Agent 团队框架</span>
+            <span className="text-[#64748b]">⌄</span>
+          </button>
+
+          <div className="mx-auto hidden h-10 max-w-[560px] flex-1 items-center gap-2 rounded-lg border border-[#dbe6f5] bg-white px-3 text-sm text-[#94a3b8] shadow-[0_8px_24px_rgba(15,23,42,0.04)] md:flex">
+            <span className="text-[#334155]">⌕</span>
+            <span className="truncate">搜索任务、文档、Agent 或输入指令...</span>
+            <kbd className="ml-auto rounded border border-[#dbe6f5] bg-[#f8fbff] px-1.5 py-0.5 text-[11px] font-bold text-[#64748b]">⌘ K</kbd>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <div
+              className={`hidden items-center gap-2 rounded-lg border px-3 py-2 md:flex ${statusTone.container}`}
+              title={stats.statusReason}
+            >
+              <div className={`h-2 w-2 rounded-full ${statusTone.dot}`} />
+              <span className={`whitespace-nowrap text-xs font-black ${statusTone.text}`}>
+                {statusTone.label}
+              </span>
+            </div>
+            <div className="hidden items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 md:flex">
+              <span>♢</span>
+              <span>E2E Gate&nbsp; PASS</span>
+            </div>
+            <button className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-[#dbe6f5] bg-white text-[#334155] shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              ♡
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white">3</span>
+            </button>
+            <LanguageSwitcher />
+            <button className="hidden h-10 items-center gap-2 rounded-lg border border-[#dbe6f5] bg-white px-2 pr-3 text-sm font-bold text-[#0f172a] shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:flex">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#eaf2ff]">👨‍💼</span>
+              <span>张明</span>
+              <span className="text-[#64748b]">⌄</span>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav className="border-b border-slate-200 bg-white/58 backdrop-blur-xl">
-        <div className="mx-auto max-w-[1540px] px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-1 overflow-x-auto">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                item.href === '/'
-                  ? pathname === '/'
-                  : pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] transition-colors ${
-                    isActive
-                      ? 'border-[#ff5c1f] bg-[#ff5c1f]/8 text-[#111820]'
-                      : 'border-transparent text-slate-500 hover:bg-white/80 hover:text-[#111820]'
-                  }`}
-                >
-                  {item.icon} {t(item.labelKey, item.label)}
-                </Link>
-              );
-            })}
+      <aside className="fixed bottom-0 left-0 top-16 z-40 hidden w-[180px] flex-col border-r border-[#dbe6f5] bg-white/90 backdrop-blur-2xl lg:flex">
+        <nav className="flex-1 space-y-1 px-3 py-5">
+          {NAV_ITEMS.map((item) => {
+            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-bold transition ${
+                  isActive
+                    ? 'bg-[#eaf2ff] text-[#176bff] shadow-[inset_3px_0_0_#176bff]'
+                    : 'text-[#30415f] hover:bg-[#f4f7fb] hover:text-[#176bff]'
+                }`}
+              >
+                <span className="flex h-6 w-6 items-center justify-center text-base">{item.icon}</span>
+                <span>{t(item.labelKey, item.label)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="border-t border-[#dbe6f5] p-3">
+          <div className="rounded-lg border border-[#dbe6f5] bg-[#f8fbff] p-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm">👩‍💼</span>
+              <div>
+                <p className="text-xs font-black text-[#0f172a]">需要帮助?</p>
+                <p className="text-[11px] text-[#64748b]">查看快速上手指南</p>
+              </div>
+            </div>
           </div>
+          <button className="mt-3 flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm font-bold text-[#64748b] hover:bg-[#f4f7fb]">
+            ‹ 收起
+          </button>
         </div>
+      </aside>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-[#dbe6f5] bg-white/95 p-1 backdrop-blur-xl lg:hidden">
+        {NAV_ITEMS.slice(0, 6).map((item) => {
+          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-bold ${isActive ? 'bg-[#eaf2ff] text-[#176bff]' : 'text-[#64748b]'}`}
+            >
+              <span>{item.icon}</span>
+              <span className="max-w-full truncate">{t(item.labelKey, item.label)}</span>
+            </Link>
+          );
+        })}
       </nav>
     </>
   );
