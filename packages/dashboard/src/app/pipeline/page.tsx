@@ -22,6 +22,7 @@ interface SurfaceDef {
   name: string;
   agent: string;
   status?: string;
+  workflow?: { goal?: string };
   input?: { required?: string[]; from?: string };
   output?: { artifacts?: string[]; description?: string };
 }
@@ -110,6 +111,7 @@ interface PipelineBuilderDraft {
   name: string;
   pipelineId: string;
   pipelineName: string;
+  pipelineVersion: string;
   surfaces: PipelineBuilderSurface[];
   updatedAt: number;
 }
@@ -203,6 +205,7 @@ function normalizeBuilderDraft(item: unknown): PipelineBuilderDraft | null {
     name: String(draft.name || draft.pipelineName),
     pipelineId: String(draft.pipelineId),
     pipelineName: String(draft.pipelineName),
+    pipelineVersion: String(draft.pipelineVersion || '0.1.0'),
     surfaces,
     updatedAt: Number.isFinite(draft.updatedAt) ? Number(draft.updatedAt) : Date.now(),
   };
@@ -336,6 +339,7 @@ export default function PipelinePage() {
   const [importingYaml, setImportingYaml] = useState(false);
   const [builderId, setBuilderId] = useState(`custom-pipeline-${Date.now()}`);
   const [builderName, setBuilderName] = useState('Custom Pipeline');
+  const [builderVersion, setBuilderVersion] = useState('0.1.0');
   const [builderSurfaces, setBuilderSurfaces] = useState<PipelineBuilderSurface[]>([createDefaultBuilderSurface()]);
   const [selectedBuilderSurfaceId, setSelectedBuilderSurfaceId] = useState(BUILDER_DEFAULT_SURFACE.id);
   const [builderDrafts, setBuilderDrafts] = useState<PipelineBuilderDraft[]>([]);
@@ -551,6 +555,7 @@ export default function PipelinePage() {
   const buildYamlFromBuilder = () => {
     const safeId = builderId.trim() || `custom-pipeline-${Date.now()}`;
     const safeName = builderName.trim() || safeId;
+    const safeVersion = builderVersion.trim() || '0.1.0';
     const validSurfaces = builderSurfaces
       .map((surface, index) => ({
         ...surface,
@@ -592,7 +597,7 @@ export default function PipelinePage() {
     return [
       `id: ${safeId}`,
       `name: ${safeName}`,
-      `version: "0.1.0"`,
+      `version: "${safeVersion}"`,
       `surfaces:`,
       surfacesYaml || `  - id: discovery\n    name: Discovery\n    agent: dev-pm\n    workflow:\n      goal: Clarify the request.`,
       `edges:`,
@@ -696,12 +701,14 @@ export default function PipelinePage() {
   const saveBuilderDraft = () => {
     const pipelineId = builderId.trim() || `custom-pipeline-${Date.now()}`;
     const pipelineName = builderName.trim() || pipelineId;
+    const pipelineVersion = builderVersion.trim() || '0.1.0';
     const draftId = selectedDraftId || pipelineId;
     const nextDraft: PipelineBuilderDraft = {
       id: draftId,
       name: pipelineName,
       pipelineId,
       pipelineName,
+      pipelineVersion,
       surfaces: builderSurfaces.map((surface) => ({ ...surface })),
       updatedAt: Date.now(),
     };
@@ -717,6 +724,7 @@ export default function PipelinePage() {
     setSelectedDraftId(draft.id);
     setBuilderId(draft.pipelineId);
     setBuilderName(draft.pipelineName);
+    setBuilderVersion(draft.pipelineVersion || '0.1.0');
     setBuilderSurfaces(draft.surfaces.map((surface) => ({ ...surface })));
     setSelectedBuilderSurfaceId(draft.surfaces[0]?.id || BUILDER_DEFAULT_SURFACE.id);
     setConnectingFromSurfaceId(null);
@@ -737,12 +745,51 @@ export default function PipelinePage() {
     const defaultSurface = createDefaultBuilderSurface();
     setBuilderId(nextId);
     setBuilderName('Custom Pipeline');
+    setBuilderVersion('0.1.0');
     setBuilderSurfaces([defaultSurface]);
     setSelectedBuilderSurfaceId(defaultSurface.id);
     setSelectedDraftId('');
     setConnectingFromSurfaceId(null);
     setDraggingSurfaceId(null);
     showToast('已清空画布，开始新的 Pipeline 草稿', 'success');
+  };
+
+  const copyPipelineToBuilder = (pipeline: PipelineDef) => {
+    const incoming = new Map<string, string[]>();
+    for (const edge of pipeline.edges || []) {
+      const downstream = Array.isArray(edge.to) ? edge.to : [edge.to];
+      for (const to of downstream) {
+        incoming.set(to, [...(incoming.get(to) || []), edge.from]);
+      }
+    }
+
+    const copiedSurfaces = (pipeline.surfaces || []).map((surface, index) => {
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+      return normalizeBuilderSurface({
+        id: surface.id,
+        name: surface.name,
+        agent: surface.agent,
+        goal: surface.workflow?.goal || surface.output?.description || `Execute ${surface.name || surface.id}.`,
+        artifacts: surface.output?.artifacts?.join(', ') || 'report',
+        dependsOn: (incoming.get(surface.id) || []).join(', '),
+        x: 72 + column * 220,
+        y: 96 + row * 150,
+      }, index);
+    });
+    const nextId = pipeline.id;
+    const nextName = pipeline.name;
+    const nextVersion = pipeline.version || '0.1.0';
+
+    setBuilderId(nextId);
+    setBuilderName(nextName);
+    setBuilderVersion(nextVersion);
+    setBuilderSurfaces(copiedSurfaces.length > 0 ? copiedSurfaces : [createDefaultBuilderSurface()]);
+    setSelectedBuilderSurfaceId(copiedSurfaces[0]?.id || BUILDER_DEFAULT_SURFACE.id);
+    setSelectedDraftId('');
+    setConnectingFromSurfaceId(null);
+    setDraggingSurfaceId(null);
+    showToast(`已复制 Pipeline 到 Builder: ${pipeline.name}`, 'success');
   };
 
   const fetchCoordinationSummary = async (instanceId: string) => {
@@ -1319,7 +1366,7 @@ export default function PipelinePage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px]">
               <input
                 value={builderId}
                 onChange={(event) => setBuilderId(event.target.value)}
@@ -1333,6 +1380,13 @@ export default function PipelinePage() {
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
                 placeholder="Pipeline Name"
                 data-testid="pipeline-builder-name"
+              />
+              <input
+                value={builderVersion}
+                onChange={(event) => setBuilderVersion(event.target.value)}
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                placeholder="Version"
+                data-testid="pipeline-builder-version"
               />
             </div>
 
@@ -1738,6 +1792,14 @@ export default function PipelinePage() {
                     <p className="text-sm text-gray-500 mt-1">ID: {pipeline.id} | 版本: {pipeline.version || '1.0'}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => copyPipelineToBuilder(pipeline)}
+                      disabled={executing === pipeline.id}
+                      data-testid={`pipeline-copy-builder-${pipeline.id}`}
+                    >
+                      复制到 Builder
+                    </Button>
                     {pipeline.deletable && (
                       <Button
                         variant="outline"

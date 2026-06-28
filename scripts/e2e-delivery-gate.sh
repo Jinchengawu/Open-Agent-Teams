@@ -148,8 +148,11 @@ if rg -q "pipeline-builder-drafts" packages/dashboard/src/app/pipeline/page.tsx 
   && rg -q "pipeline-builder-save-draft" packages/dashboard/src/app/pipeline/page.tsx \
   && rg -q "pipeline-builder-load-draft" packages/dashboard/src/app/pipeline/page.tsx \
   && rg -q "pipeline-builder-delete-draft" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipeline-builder-version" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipeline-copy-builder-" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipelineVersion" packages/dashboard/src/app/pipeline/page.tsx \
   && rg -q "BUILDER_DRAFTS_STORAGE_KEY" packages/dashboard/src/app/pipeline/page.tsx; then
-  record "dashboard pipeline builder drafts" PASS "Pipeline Builder exposes local draft persistence controls"
+  record "dashboard pipeline builder drafts" PASS "Pipeline Builder exposes local draft persistence, versioning and template copy controls"
 else
   record "dashboard pipeline builder drafts" FAIL "Pipeline Builder draft persistence controls are missing"
 fi
