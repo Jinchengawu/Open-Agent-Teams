@@ -165,6 +165,7 @@ const files = {
   constants: await fs.readFile('packages/dashboard/src/lib/constants.ts', 'utf8'),
   i18n: await fs.readFile('packages/dashboard/src/lib/i18n.tsx', 'utf8'),
   home: await fs.readFile('packages/dashboard/src/app/page.tsx', 'utf8'),
+  meeting: await fs.readFile('packages/dashboard/src/app/chat/MeetingView.tsx', 'utf8'),
 };
 
 const requirements = [
@@ -177,6 +178,8 @@ const requirements = [
   ['dashboard no transient error wall', !files.home.includes('ErrorState') && files.home.includes('stats.statusReason') && files.home.includes("stats.status === 'stale'")],
   ['dashboard delivery cockpit first screen', files.home.includes('dashboard-delivery-cockpit') && files.home.includes('dashboard-current-project-summary') && files.home.includes('dashboard-recent-evidence') && files.home.includes('dashboard-loop-timeline') && files.home.includes('dashboard-next-actions')],
   ['dashboard no marketing hero primary surface', !files.home.includes("t('hero.title')") && !files.home.includes("t('hero.subtitle')")],
+  ['meeting collaboration process panel', files.meeting.includes('meeting-collaboration-panel') && files.meeting.includes('Meeting Coordination') && files.meeting.includes('需求澄清') && files.meeting.includes('多 Agent 分析')],
+  ['meeting artifact links', files.meeting.includes('meeting-artifact-links') && files.meeting.includes('/knowledge') && files.meeting.includes('/kanban?source=coordination') && files.meeting.includes('/pipeline')],
 ];
 
 const failed = requirements.filter(([, ok]) => !ok).map(([name]) => name);

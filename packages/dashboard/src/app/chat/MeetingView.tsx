@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
@@ -331,6 +332,34 @@ export default function MeetingView() {
 
   // ── 排序后的议题列表 ──
   const sortedTopics = Object.values(meetings).sort((a, b) => b.createdAt - a.createdAt)
+  const activeNonSystemMessages = activeTopic?.messages.filter(m => m.role !== 'system') || []
+  const completedAgentCount = agentStatuses.filter(s => s.state === 'done').length
+  const failedAgentCount = agentStatuses.filter(s => s.state === 'error').length
+  const collaborationStages = [
+    {
+      key: 'clarify',
+      label: '需求澄清',
+      detail: '主持人输入目标与上下文',
+      state: activeNonSystemMessages.some(m => m.role === 'user') ? 'done' : 'waiting',
+    },
+    {
+      key: 'analysis',
+      label: '多 Agent 分析',
+      detail: '参会 Agent 分别给出专业判断',
+      state: sending ? 'running' : completedAgentCount > 0 ? 'done' : activeNonSystemMessages.some(m => m.role === 'assistant') ? 'done' : 'waiting',
+    },
+    {
+      key: 'summary',
+      label: '交付汇总',
+      detail: '沉淀为文档、任务和后续工作流',
+      state: !sending && activeNonSystemMessages.some(m => m.role === 'assistant') ? 'done' : sending && completedAgentCount > 0 ? 'running' : 'waiting',
+    },
+  ]
+  const artifactLinks = [
+    { label: 'Knowledge 文档', href: '/knowledge', detail: '沉淀会议纪要、PRD 或技术方案' },
+    { label: 'Kanban 任务', href: '/kanban?source=coordination', detail: '查看或拆分后续交付任务' },
+    { label: 'Pipeline 实例', href: '/pipeline', detail: '继续执行实现、测试或发布流程' },
+  ]
 
   return (
     <div className="flex h-[calc(100vh-200px)] gap-4">
@@ -522,6 +551,59 @@ export default function MeetingView() {
                       </button>
                     )
                   })}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-3 grid gap-3 lg:grid-cols-[1fr_320px]" data-testid="meeting-collaboration-panel">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-600">Meeting Coordination</p>
+                    <h3 className="mt-1 text-base font-black text-gray-900">协作过程</h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      请求类型：Meeting · Coordinator：Project Admin · 参会 {activeParticipantIds.length}/{availableAgents.length}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                    <p className="text-[11px] font-semibold text-gray-500">Agent 状态</p>
+                    <p className="text-sm font-black text-gray-900">
+                      {sending ? `${completedAgentCount}/${activeParticipantIds.length} 完成` : `${activeParticipantIds.length} 已邀请`}
+                    </p>
+                    {failedAgentCount > 0 && <p className="text-xs text-red-600">{failedAgentCount} 失败</p>}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-3">
+                  {collaborationStages.map(stage => {
+                    const tone =
+                      stage.state === 'done' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : stage.state === 'running' ? 'border-purple-300 bg-purple-50 text-purple-700'
+                          : 'border-slate-200 bg-slate-50 text-slate-500'
+                    return (
+                      <div key={stage.key} className={`rounded-lg border p-3 ${tone}`}>
+                        <p className="text-xs font-black">{stage.label}</p>
+                        <p className="mt-1 text-[11px] leading-4 opacity-80">{stage.detail}</p>
+                        <p className="mt-2 text-[11px] font-black uppercase">{stage.state}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4" data-testid="meeting-artifact-links">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">产物落点</p>
+                <div className="mt-3 space-y-2">
+                  {artifactLinks.map(link => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition-colors hover:border-purple-200 hover:bg-purple-50"
+                    >
+                      <span className="font-bold text-gray-900">{link.label}</span>
+                      <span className="mt-1 block text-xs leading-4 text-gray-500">{link.detail}</span>
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
