@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/ui/error-state'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
 import { useSettings } from '@/hooks/useSettings'
 import type { AgentStatus, ModelProfile } from '@/lib/types'
@@ -670,6 +671,7 @@ function CustomAgentCard({
 export default function AgentsPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const { agents, isLoading, error, mutate } = useAgentHealth()
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings()
   const [selectedAgent, setSelectedAgent] = useState<AgentStatus | null>(null)
@@ -790,6 +792,13 @@ export default function AgentsPage() {
   }
 
   async function handleDeleteCustomAgent(agent: CustomAgentView) {
+    const confirmed = await confirm({
+      title: '删除自定义 Agent？',
+      description: `将删除「${agent.name}」的注册信息，并从会议、流水线可选 Agent 池中移除。正在运行的实例也会失去管理入口。`,
+      confirmLabel: '删除 Agent',
+      tone: 'danger',
+    })
+    if (!confirmed) return
     try {
       const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('删除失败')
@@ -813,6 +822,13 @@ export default function AgentsPage() {
   }
 
   async function handleStopCustomAgent(agent: CustomAgentView) {
+    const confirmed = await confirm({
+      title: '停止 Agent 实例？',
+      description: `将停止「${agent.name}」当前 Hermes 实例。进行中的任务、会议发言或流水线步骤可能中断。`,
+      confirmLabel: '停止实例',
+      tone: 'warning',
+    })
+    if (!confirmed) return
     try {
       const res = await fetch(`/api/agents/custom/${encodeURIComponent(agent.id)}/stop`, { method: 'POST' })
       const data = await res.json() as { agent?: CustomAgentView; error?: string }

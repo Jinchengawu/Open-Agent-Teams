@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
 import type { ChatMessage } from '@/lib/types'
 
@@ -68,6 +69,7 @@ export default function MeetingView() {
   /** 每个 Agent 的实时状态 */
   const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([])
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const scrollRef = useRef<HTMLDivElement>(null)
   const previousDefaultParticipantIdsRef = useRef<string[]>([])
 
@@ -165,7 +167,15 @@ export default function MeetingView() {
   }, [newTopicInput, newTopicParticipantIds, showToast, agentMap, defaultParticipantIds])
 
   // ── 删除议题 ──
-  const handleDeleteTopic = useCallback((topicId: string) => {
+  const handleDeleteTopic = useCallback(async (topicId: string) => {
+    const topic = meetings[topicId]
+    const confirmed = await confirm({
+      title: '删除会议议题？',
+      description: `将删除「${topic?.topic || topicId}」及其全部讨论记录，相关上下文不会再出现在会议列表中。`,
+      confirmLabel: '删除议题',
+      tone: 'danger',
+    })
+    if (!confirmed) return
     setMeetings(prev => {
       const next = { ...prev }
       delete next[topicId]
@@ -174,7 +184,7 @@ export default function MeetingView() {
     if (activeTopicId === topicId) {
       setActiveTopicId(null)
     }
-  }, [activeTopicId])
+  }, [activeTopicId, confirm, meetings])
 
   // ── 发起讨论（SSE 流式） ──
   const handleDiscuss = useCallback(async () => {

@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { AGENTS, detectAgent } from '@/lib/agents'
 import type { ChatMessage } from '@/lib/types'
 import CodePreview from '@/components/CodePreview'
@@ -73,6 +74,7 @@ interface AgentTab {
 export default function ChatContent() {
   const searchParams = useSearchParams()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const initialAgent = searchParams.get('agent') || ''
 
   // 多 Tab 管理 — 持久化到 localStorage，路由切换不丢失
@@ -197,7 +199,15 @@ export default function ChatContent() {
     })
   }, [getCachedWelcome])
 
-  const clearConversation = useCallback((agentId: string) => {
+  const clearConversation = useCallback(async (agentId: string) => {
+    const agentName = AGENTS[agentId]?.name || agentId
+    const confirmed = await confirm({
+      title: '清空当前会话？',
+      description: `将清空「${agentName}」当前聊天记录与本地会话状态，清空后无法从页面恢复。`,
+      confirmLabel: '清空会话',
+      tone: 'warning',
+    })
+    if (!confirmed) return
     setConversations((prev) => {
       const next = { ...prev }
       delete next[agentId]
@@ -208,7 +218,7 @@ export default function ChatContent() {
       delete next[agentId]
       return next
     })
-  }, [])
+  }, [confirm])
 
   // 并发安全的发送（per-agent lock）
   const handleSendForAgent = useCallback(async (agentId: string, text: string) => {

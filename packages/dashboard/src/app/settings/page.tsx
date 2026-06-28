@@ -2,6 +2,7 @@
 
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { useI18n, type Locale } from '@/lib/i18n'
 import type { ModelProfile } from '@/lib/types'
@@ -9,6 +10,7 @@ import type { ModelProfile } from '@/lib/types'
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings, isLoaded } = useSettings()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const { locale, setLocale, t } = useI18n()
 
   if (!isLoaded) {
@@ -28,8 +30,14 @@ export default function SettingsPage() {
     showToast(t('settings.saved'), 'success')
   }
 
-  const handleReset = () => {
-    if (typeof window !== 'undefined' && !confirm(t('settings.resetConfirm'))) return
+  const handleReset = async () => {
+    const confirmed = await confirm({
+      title: t('settings.resetDefaults'),
+      description: t('settings.resetConfirm'),
+      confirmLabel: t('settings.resetDefaults'),
+      tone: 'warning',
+    })
+    if (!confirmed) return
     resetSettings()
     setLocale('zh')
     showToast(t('settings.resetDone'), 'info')
@@ -75,11 +83,19 @@ export default function SettingsPage() {
     })
   }
 
-  const removeModelProfile = (id: string) => {
+  const removeModelProfile = async (id: string) => {
     if (settings.modelProfiles.length <= 1) {
       showToast('至少保留一个模型配置', 'info')
       return
     }
+    const profile = settings.modelProfiles.find((item) => item.id === id)
+    const confirmed = await confirm({
+      title: '删除模型配置？',
+      description: `将删除 ${profile?.name || id}，使用该模型的 Agent 会回退到默认模型。`,
+      confirmLabel: '删除模型',
+      tone: 'danger',
+    })
+    if (!confirmed) return
     const modelProfiles = settings.modelProfiles.filter((profile) => profile.id !== id)
     const defaultModelProfileId = settings.defaultModelProfileId === id
       ? modelProfiles[0].id

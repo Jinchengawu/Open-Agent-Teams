@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface Task {
   id: string
@@ -97,6 +98,7 @@ const SOURCE_FILTERS = [
 const COLUMN_TASK_LIMIT = 12
 
 export default function KanbanPage() {
+  const confirm = useConfirm()
   const [data, setData] = useState<KanbanData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -174,6 +176,14 @@ export default function KanbanPage() {
   }
 
   const handleDeleteTask = async (taskId: string) => {
+    const task = data?.tasks.find((item) => item.id === taskId)
+    const confirmed = await confirm({
+      title: '删除看板任务？',
+      description: `任务「${task?.title || taskId}」删除后不会再出现在看板中，关联的交付脉络可能失去入口。`,
+      confirmLabel: '删除任务',
+      tone: 'danger',
+    })
+    if (!confirmed) return
     await fetch(`/api/kanban/tasks/${taskId}`, { method: 'DELETE' })
     fetchKanban()
   }

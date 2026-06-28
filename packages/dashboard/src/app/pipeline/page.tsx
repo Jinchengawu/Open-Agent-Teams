@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
 
 interface PipelineDef {
@@ -325,6 +326,7 @@ function buildFailureDetail(
 
 export default function PipelinePage() {
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const { stats: agentStats, availableAgents, isLoading: agentHealthLoading } = useAgentHealth();
   const [pipelines, setPipelines] = useState<PipelineDef[]>([]);
   const [loading, setLoading] = useState(false);
@@ -493,6 +495,13 @@ export default function PipelinePage() {
 
   const deletePipeline = async (pipeline: PipelineDef) => {
     if (!pipeline.deletable) return;
+    const confirmed = await confirm({
+      title: '删除 Pipeline 模板？',
+      description: `将删除「${pipeline.name}」模板。已生成的历史实例不会被删除，但后续无法从该模板继续发起执行。`,
+      confirmLabel: '删除模板',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/pipelines/${encodeURIComponent(pipeline.id)}`, { method: 'DELETE' });
@@ -668,8 +677,16 @@ export default function PipelinePage() {
     setSelectedBuilderSurfaceId(nextId);
   };
 
-  const removeBuilderSurface = (index: number) => {
+  const removeBuilderSurface = async (index: number) => {
     const surfaceId = builderSurfaces[index]?.id;
+    const surfaceName = builderSurfaces[index]?.name || surfaceId;
+    const confirmed = await confirm({
+      title: '删除 Pipeline 节点？',
+      description: `将从当前编排画布中移除「${surfaceName}」，并同步清理其他节点对它的依赖连线。`,
+      confirmLabel: '删除节点',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setBuilderSurfaces((current) => {
       if (current.length <= 1) return current;
       return current
@@ -732,15 +749,30 @@ export default function PipelinePage() {
     showToast(`已载入草稿: ${draft.name}`, 'success');
   };
 
-  const deleteBuilderDraft = () => {
+  const deleteBuilderDraft = async () => {
     if (!selectedDraftId) return;
+    const draft = builderDrafts.find((item) => item.id === selectedDraftId);
+    const confirmed = await confirm({
+      title: '删除 Pipeline 草稿？',
+      description: `将删除「${draft?.name || selectedDraftId}」草稿，当前未生成 YAML 的编排内容会丢失。`,
+      confirmLabel: '删除草稿',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     const nextDrafts = builderDrafts.filter((draft) => draft.id !== selectedDraftId);
     writeBuilderDrafts(nextDrafts);
     setSelectedDraftId(nextDrafts[0]?.id || '');
     showToast('Pipeline 草稿已删除', 'success');
   };
 
-  const resetBuilderDraft = () => {
+  const resetBuilderDraft = async () => {
+    const confirmed = await confirm({
+      title: '新建空白 Pipeline？',
+      description: '当前画布上的节点、连线与依赖关系会被清空。请先保存草稿或生成 YAML 后再继续。',
+      confirmLabel: '清空画布',
+      tone: 'warning',
+    });
+    if (!confirmed) return;
     const nextId = `custom-pipeline-${Date.now()}`;
     const defaultSurface = createDefaultBuilderSurface();
     setBuilderId(nextId);
@@ -958,6 +990,13 @@ export default function PipelinePage() {
   };
 
   const cancelPipeline = async (instanceId: string) => {
+    const confirmed = await confirm({
+      title: '停止当前 Pipeline？',
+      description: `将向实例 ${instanceId} 发送取消信号。未完成的 Agent 步骤会停止推进，当前交付状态会标记为已取消。`,
+      confirmLabel: '停止 Pipeline',
+      tone: 'warning',
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/pipeline-instances/${instanceId}/cancel`, {
         method: 'POST',
