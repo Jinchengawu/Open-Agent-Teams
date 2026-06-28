@@ -105,6 +105,23 @@ interface PipelineBuilderSurface {
   y: number;
 }
 
+interface PipelineFailureDetail {
+  surfaceId: string;
+  surfaceName: string;
+  agentId: string;
+  agentName: string;
+  status: string;
+  error: string;
+  taskId?: string;
+  documentCount: number;
+  latestCheckpoint?: {
+    surfaceId: string;
+    surfaceName: string;
+    completedAt?: number;
+  };
+  projectId?: string;
+}
+
 const STORAGE_KEY = 'pipeline-execution-history';
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const SURFACE_TIMEOUT_OPTIONS = [
@@ -207,6 +224,54 @@ function buildProgressSummary(pipeline: PipelineDef | undefined, instance: Pipel
     activeSurfaceLabels,
     elapsed: formatDuration(elapsedMs),
     progressPercent,
+  };
+}
+
+function buildFailureDetail(
+  pipeline: PipelineDef | undefined,
+  instance: PipelineInstance | null,
+  summary: CoordinationSummary | null,
+  agentNameById: Map<string, string>,
+): PipelineFailureDetail | null {
+  if (!instance || (instance.status !== 'failed' && instance.status !== 'cancelled')) return null;
+
+  const results = Object.values(instance.surfaceResults || {});
+  const failedResult = results.find((result) => result.status === 'failed' || result.status === 'blocked')
+    || results.find((result) => result.status === 'cancelled')
+    || results
+      .slice()
+      .sort((a, b) => (b.completedAt || b.startedAt || 0) - (a.completedAt || a.startedAt || 0))[0];
+  if (!failedResult) return null;
+
+  const surface = pipeline?.surfaces.find((item) => item.id === failedResult.surfaceId);
+  const latestCompleted = results
+    .filter((result) => result.status === 'completed')
+    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))[0];
+  const latestCompletedSurface = latestCompleted
+    ? pipeline?.surfaces.find((item) => item.id === latestCompleted.surfaceId)
+    : undefined;
+  const binding = summary?.bindings.find((item) => item.surfaceId === failedResult.surfaceId);
+  const projectId = summary?.project?.id || instance.coordination?.projectId;
+
+  return {
+    surfaceId: failedResult.surfaceId,
+    surfaceName: surface?.name || failedResult.surfaceId,
+    agentId: surface?.agent || 'unknown',
+    agentName: surface?.agent ? agentNameById.get(surface.agent) || surface.agent : '未绑定',
+    status: failedResult.status,
+    error: (failedResult.error || instance.status === 'cancelled')
+      ? failedResult.error || 'Pipeline was cancelled before this surface completed.'
+      : 'No error detail was reported by the surface.',
+    taskId: binding?.taskId || instance.coordination?.taskIdsBySurface?.[failedResult.surfaceId],
+    documentCount: binding?.documents?.length || 0,
+    latestCheckpoint: latestCompleted
+      ? {
+          surfaceId: latestCompleted.surfaceId,
+          surfaceName: latestCompletedSurface?.name || latestCompleted.surfaceId,
+          completedAt: latestCompleted.completedAt,
+        }
+      : undefined,
+    projectId,
   };
 }
 
@@ -577,14 +642,17 @@ export default function PipelinePage() {
   };
 
   // 执行 Pipeline
-  const executePipeline = async (pipelineId: string) => {
-    if (executionMode === 'live' && !livePipelineReady) {
+  const executePipeline = async (
+    pipelineId: string,
+    recovery?: { retryOf?: string; forceDryRun?: boolean },
+  ) => {
+    const isDryRun = recovery?.forceDryRun ? true : executionMode === 'dry-run';
+    if (!isDryRun && !livePipelineReady) {
       showToast('Hermes Agents are not all online; live execution is disabled', 'error');
       return;
     }
 
     setExecuting(pipelineId);
-    const isDryRun = executionMode === 'dry-run';
     try {
       const res = await fetch('/api/pipelines/execute', {
         method: 'POST',
@@ -595,7 +663,8 @@ export default function PipelinePage() {
             userRequest: isDryRun
               ? `Dashboard requested dry-run execution of ${pipelineId}. Produce concise coordination artifacts and preserve results as documents. Do not create, edit, delete, move, install, build, or write repository files.`
               : `Dashboard requested live execution of ${pipelineId}. Execute through the available Hermes Agents, preserve coordination artifacts as documents, and keep task state current.`,
-            requestedBy: isDryRun ? 'dashboard-dry-run' : 'dashboard-live',
+            requestedBy: recovery?.retryOf ? 'dashboard-recovery-retry' : isDryRun ? 'dashboard-dry-run' : 'dashboard-live',
+            retryOf: recovery?.retryOf,
           },
           options: {
             dryRun: isDryRun,
@@ -621,13 +690,20 @@ export default function PipelinePage() {
         }
       }
 
-      showToast(isDryRun ? 'Pipeline dry-run started' : 'Live Pipeline started', 'success');
+      showToast(recovery?.retryOf ? 'Pipeline recovery retry started' : isDryRun ? 'Pipeline dry-run started' : 'Live Pipeline started', 'success');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       showToast(msg, 'error');
     } finally {
       setExecuting(null);
     }
+  };
+
+  const retryFailedPipeline = async (instance: PipelineInstance) => {
+    await executePipeline(instance.pipelineId, {
+      retryOf: instance.id,
+      forceDryRun: true,
+    });
   };
 
   // 轮询实例状态
@@ -961,6 +1037,7 @@ export default function PipelinePage() {
   const currentProgress = currentInstance
     ? buildProgressSummary(currentPipeline, currentInstance, now)
     : null;
+  const currentFailureDetail = buildFailureDetail(currentPipeline, currentInstance, coordinationSummary, agentNameById);
   const filteredInstanceHistory = historyStatusFilter === 'all'
     ? instanceHistory
     : instanceHistory.filter((instance) => instance.status === historyStatusFilter);
@@ -1573,6 +1650,90 @@ export default function PipelinePage() {
                       className="h-full rounded bg-blue-600 transition-all"
                       style={{ width: `${currentProgress.progressPercent}%` }}
                     />
+                  </div>
+                </div>
+              )}
+              {currentFailureDetail && (
+                <div
+                  className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-3"
+                  data-testid="pipeline-failure-recovery-panel"
+                >
+                  <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-red-900">失败恢复</span>
+                        {getStatusBadge(currentFailureDetail.status)}
+                        <Badge variant="outline" className="border-red-200 text-red-700">
+                          {currentFailureDetail.surfaceName}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-red-800">
+                        负责 Agent: {currentFailureDetail.agentName}
+                        <span className="mx-2 text-red-300">|</span>
+                        Surface: <span className="font-mono">{currentFailureDetail.surfaceId}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => retryFailedPipeline(currentInstance)}
+                        disabled={executing === currentInstance.pipelineId}
+                        data-testid="pipeline-retry-button"
+                      >
+                        {executing === currentInstance.pipelineId ? '重试中...' : '重新执行 Pipeline'}
+                      </Button>
+                      {currentFailureDetail.projectId && (
+                        <a
+                          href={`/kanban?source=coordination&projectId=${encodeURIComponent(currentFailureDetail.projectId)}&status=blocked`}
+                          className="inline-flex"
+                        >
+                          <Button variant="outline" size="sm" className="border-red-200 text-red-700">
+                            查看阻塞任务
+                          </Button>
+                        </a>
+                      )}
+                      {currentFailureDetail.projectId && (
+                        <a
+                          href={`/knowledge?projectId=${encodeURIComponent(currentFailureDetail.projectId)}${currentFailureDetail.taskId ? `&taskId=${encodeURIComponent(currentFailureDetail.taskId)}` : ''}`}
+                          className="inline-flex"
+                        >
+                          <Button variant="outline" size="sm">
+                            查看交付文档
+                          </Button>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid gap-2 text-xs text-red-900 md:grid-cols-2">
+                    <div className="rounded bg-white/70 px-3 py-2">
+                      <div className="mb-1 text-red-500">错误原因</div>
+                      <div className="break-words font-mono">{currentFailureDetail.error}</div>
+                    </div>
+                    <div className="rounded bg-white/70 px-3 py-2">
+                      <div className="mb-1 text-red-500">最近成功 checkpoint</div>
+                      {currentFailureDetail.latestCheckpoint ? (
+                        <div>
+                          {currentFailureDetail.latestCheckpoint.surfaceName}
+                          <span className="mx-2 text-red-300">|</span>
+                          <span className="font-mono">{currentFailureDetail.latestCheckpoint.surfaceId}</span>
+                          {currentFailureDetail.latestCheckpoint.completedAt && (
+                            <span className="ml-2 text-red-700">
+                              {new Date(currentFailureDetail.latestCheckpoint.completedAt).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div>暂无成功 checkpoint，本次恢复会从 Pipeline 起点重新演练。</div>
+                      )}
+                    </div>
+                    <div className="rounded bg-white/70 px-3 py-2">
+                      <div className="mb-1 text-red-500">绑定任务</div>
+                      <div className="font-mono">{currentFailureDetail.taskId || '未绑定'}</div>
+                    </div>
+                    <div className="rounded bg-white/70 px-3 py-2">
+                      <div className="mb-1 text-red-500">关联文档</div>
+                      <div>{currentFailureDetail.documentCount} 篇</div>
+                    </div>
                   </div>
                 </div>
               )}
