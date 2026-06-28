@@ -105,6 +105,15 @@ interface PipelineBuilderSurface {
   y: number;
 }
 
+interface PipelineBuilderDraft {
+  id: string;
+  name: string;
+  pipelineId: string;
+  pipelineName: string;
+  surfaces: PipelineBuilderSurface[];
+  updatedAt: number;
+}
+
 interface PipelineFailureDetail {
   surfaceId: string;
   surfaceName: string;
@@ -123,6 +132,7 @@ interface PipelineFailureDetail {
 }
 
 const STORAGE_KEY = 'pipeline-execution-history';
+const BUILDER_DRAFTS_STORAGE_KEY = 'pipeline-builder-drafts';
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 const SURFACE_TIMEOUT_OPTIONS = [
   { label: '60 秒', value: 60_000 },
@@ -162,6 +172,41 @@ const BUILDER_DEFAULT_SURFACE: PipelineBuilderSurface = {
   x: 72,
   y: 96,
 };
+
+function createDefaultBuilderSurface(): PipelineBuilderSurface {
+  return { ...BUILDER_DEFAULT_SURFACE };
+}
+
+function normalizeBuilderSurface(item: unknown, index: number): PipelineBuilderSurface {
+  const surface = item && typeof item === 'object' ? item as Partial<PipelineBuilderSurface> : {};
+  return {
+    id: String(surface.id || `step-${index + 1}`),
+    name: String(surface.name || `Step ${index + 1}`),
+    agent: String(surface.agent || 'dev-pm'),
+    goal: String(surface.goal || 'Execute this workflow step and produce a durable artifact.'),
+    artifacts: String(surface.artifacts || 'report'),
+    dependsOn: String(surface.dependsOn || ''),
+    x: Number.isFinite(surface.x) ? Number(surface.x) : Math.min(760, 72 + index * 220),
+    y: Number.isFinite(surface.y) ? Number(surface.y) : 96,
+  };
+}
+
+function normalizeBuilderDraft(item: unknown): PipelineBuilderDraft | null {
+  if (!item || typeof item !== 'object') return null;
+  const draft = item as Partial<PipelineBuilderDraft>;
+  if (!draft.id || !draft.pipelineId || !draft.pipelineName || !Array.isArray(draft.surfaces)) return null;
+  const surfaces = draft.surfaces.map(normalizeBuilderSurface);
+  if (surfaces.length === 0) return null;
+
+  return {
+    id: String(draft.id),
+    name: String(draft.name || draft.pipelineName),
+    pipelineId: String(draft.pipelineId),
+    pipelineName: String(draft.pipelineName),
+    surfaces,
+    updatedAt: Number.isFinite(draft.updatedAt) ? Number(draft.updatedAt) : Date.now(),
+  };
+}
 
 function normalizePipeline(item: unknown): PipelineDef | null {
   if (!item || typeof item !== 'object') return null;
@@ -291,8 +336,10 @@ export default function PipelinePage() {
   const [importingYaml, setImportingYaml] = useState(false);
   const [builderId, setBuilderId] = useState(`custom-pipeline-${Date.now()}`);
   const [builderName, setBuilderName] = useState('Custom Pipeline');
-  const [builderSurfaces, setBuilderSurfaces] = useState<PipelineBuilderSurface[]>([BUILDER_DEFAULT_SURFACE]);
+  const [builderSurfaces, setBuilderSurfaces] = useState<PipelineBuilderSurface[]>([createDefaultBuilderSurface()]);
   const [selectedBuilderSurfaceId, setSelectedBuilderSurfaceId] = useState(BUILDER_DEFAULT_SURFACE.id);
+  const [builderDrafts, setBuilderDrafts] = useState<PipelineBuilderDraft[]>([]);
+  const [selectedDraftId, setSelectedDraftId] = useState('');
   const [draggingSurfaceId, setDraggingSurfaceId] = useState<string | null>(null);
   const [connectingFromSurfaceId, setConnectingFromSurfaceId] = useState<string | null>(null);
   const [executionMode, setExecutionMode] = useState<'dry-run' | 'live'>('dry-run');
@@ -327,6 +374,7 @@ export default function PipelinePage() {
   useEffect(() => {
     fetchPipelines();
     restoreHistory();
+    restoreBuilderDrafts();
     const requestedInstanceId = new URLSearchParams(window.location.search).get('instanceId');
     if (requestedInstanceId) {
       loadInstanceById(requestedInstanceId);
@@ -391,6 +439,40 @@ export default function PipelinePage() {
       }
     } catch (e) {
       console.error('保存历史失败:', e);
+    }
+  };
+
+  const readBuilderDrafts = (): PipelineBuilderDraft[] => {
+    try {
+      const stored = localStorage.getItem(BUILDER_DRAFTS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed)
+        ? parsed
+            .map(normalizeBuilderDraft)
+            .filter((item): item is PipelineBuilderDraft => Boolean(item))
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .slice(0, 20)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeBuilderDrafts = (drafts: PipelineBuilderDraft[]) => {
+    const normalized = drafts
+      .map(normalizeBuilderDraft)
+      .filter((item): item is PipelineBuilderDraft => Boolean(item))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 20);
+    localStorage.setItem(BUILDER_DRAFTS_STORAGE_KEY, JSON.stringify(normalized));
+    setBuilderDrafts(normalized);
+  };
+
+  const restoreBuilderDrafts = () => {
+    const drafts = readBuilderDrafts();
+    setBuilderDrafts(drafts);
+    if (drafts.length > 0) {
+      setSelectedDraftId(drafts[0].id);
     }
   };
 
@@ -609,6 +691,58 @@ export default function PipelinePage() {
     setYamlDraft(buildYamlFromBuilder());
     setYamlSource(`dashboard:pipeline-builder:${builderId.trim() || 'custom'}`);
     showToast('已生成 Pipeline YAML，可继续编辑或直接导入', 'success');
+  };
+
+  const saveBuilderDraft = () => {
+    const pipelineId = builderId.trim() || `custom-pipeline-${Date.now()}`;
+    const pipelineName = builderName.trim() || pipelineId;
+    const draftId = selectedDraftId || pipelineId;
+    const nextDraft: PipelineBuilderDraft = {
+      id: draftId,
+      name: pipelineName,
+      pipelineId,
+      pipelineName,
+      surfaces: builderSurfaces.map((surface) => ({ ...surface })),
+      updatedAt: Date.now(),
+    };
+    const nextDrafts = [nextDraft, ...builderDrafts.filter((draft) => draft.id !== draftId)];
+    writeBuilderDrafts(nextDrafts);
+    setSelectedDraftId(draftId);
+    showToast('Pipeline 草稿已保存到本机浏览器', 'success');
+  };
+
+  const loadBuilderDraft = (draftId: string) => {
+    const draft = builderDrafts.find((item) => item.id === draftId);
+    if (!draft) return;
+    setSelectedDraftId(draft.id);
+    setBuilderId(draft.pipelineId);
+    setBuilderName(draft.pipelineName);
+    setBuilderSurfaces(draft.surfaces.map((surface) => ({ ...surface })));
+    setSelectedBuilderSurfaceId(draft.surfaces[0]?.id || BUILDER_DEFAULT_SURFACE.id);
+    setConnectingFromSurfaceId(null);
+    setDraggingSurfaceId(null);
+    showToast(`已载入草稿: ${draft.name}`, 'success');
+  };
+
+  const deleteBuilderDraft = () => {
+    if (!selectedDraftId) return;
+    const nextDrafts = builderDrafts.filter((draft) => draft.id !== selectedDraftId);
+    writeBuilderDrafts(nextDrafts);
+    setSelectedDraftId(nextDrafts[0]?.id || '');
+    showToast('Pipeline 草稿已删除', 'success');
+  };
+
+  const resetBuilderDraft = () => {
+    const nextId = `custom-pipeline-${Date.now()}`;
+    const defaultSurface = createDefaultBuilderSurface();
+    setBuilderId(nextId);
+    setBuilderName('Custom Pipeline');
+    setBuilderSurfaces([defaultSurface]);
+    setSelectedBuilderSurfaceId(defaultSurface.id);
+    setSelectedDraftId('');
+    setConnectingFromSurfaceId(null);
+    setDraggingSurfaceId(null);
+    showToast('已清空画布，开始新的 Pipeline 草稿', 'success');
   };
 
   const fetchCoordinationSummary = async (instanceId: string) => {
@@ -1133,13 +1267,58 @@ export default function PipelinePage() {
                 <CardTitle className="text-lg">自定义 Pipeline Builder</CardTitle>
                 <p className="mt-1 text-sm text-gray-500">像会议邀请 Agent 一样，为每个流水线步骤选择 Agent、目标、产物和依赖</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={saveBuilderDraft} data-testid="pipeline-builder-save-draft">
+                  保存草稿
+                </Button>
                 <Button variant="outline" onClick={addBuilderSurface}>添加步骤</Button>
                 <Button onClick={generateBuilderYaml}>生成 YAML</Button>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div
+              className="grid gap-3 rounded-lg border border-cyan-100 bg-cyan-50/60 p-3 md:grid-cols-[minmax(0,1fr)_auto]"
+              data-testid="pipeline-builder-drafts"
+            >
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_120px_120px]">
+                <select
+                  value={selectedDraftId}
+                  onChange={(event) => setSelectedDraftId(event.target.value)}
+                  className="h-10 rounded-md border border-cyan-200 bg-white px-3 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  data-testid="pipeline-builder-draft-select"
+                  aria-label="Pipeline builder drafts"
+                >
+                  <option value="">未选择草稿</option>
+                  {builderDrafts.map((draft) => (
+                    <option key={draft.id} value={draft.id}>
+                      {draft.name} · {draft.surfaces.length} 节点 · {new Date(draft.updatedAt).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  onClick={() => loadBuilderDraft(selectedDraftId)}
+                  disabled={!selectedDraftId}
+                  data-testid="pipeline-builder-load-draft"
+                >
+                  载入草稿
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={deleteBuilderDraft}
+                  disabled={!selectedDraftId}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  data-testid="pipeline-builder-delete-draft"
+                >
+                  删除草稿
+                </Button>
+              </div>
+              <Button variant="outline" onClick={resetBuilderDraft} data-testid="pipeline-builder-reset">
+                新建空白
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <input
                 value={builderId}

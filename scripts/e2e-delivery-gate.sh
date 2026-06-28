@@ -138,10 +138,20 @@ else
   record "provider-safe message normalization" FAIL "missing provider-safe folding helper"
 fi
 
-if rg -q "Team Coordination Loop" packages/dashboard/src/app/page.tsx && rg -q "deliveryGate" packages/dashboard/src/app/api/team-loop/status/route.ts; then
+if rg -q "dashboard-team-loop-card" packages/dashboard/src/app/page.tsx && rg -q "deliveryGate" packages/dashboard/src/app/api/team-loop/status/route.ts; then
   record "dashboard team-loop observability" PASS "Dashboard surfaces Team Loop and delivery gate readiness"
 else
   record "dashboard team-loop observability" FAIL "Team Loop readiness surface not wired"
+fi
+
+if rg -q "pipeline-builder-drafts" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipeline-builder-save-draft" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipeline-builder-load-draft" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "pipeline-builder-delete-draft" packages/dashboard/src/app/pipeline/page.tsx \
+  && rg -q "BUILDER_DRAFTS_STORAGE_KEY" packages/dashboard/src/app/pipeline/page.tsx; then
+  record "dashboard pipeline builder drafts" PASS "Pipeline Builder exposes local draft persistence controls"
+else
+  record "dashboard pipeline builder drafts" FAIL "Pipeline Builder draft persistence controls are missing"
 fi
 
 probe_json "gateway health" "$GATEWAY_URL/health" "status"
