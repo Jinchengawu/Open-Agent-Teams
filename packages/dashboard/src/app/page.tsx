@@ -271,59 +271,200 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <section className="relative min-h-[calc(100vh-180px)] overflow-hidden border-b border-slate-300/70 pb-10 pt-8">
-        <div className="grid gap-8 lg:grid-cols-[1.12fr_0.88fr] lg:items-center">
-          <div className="max-w-4xl">
+      <section className="border-b border-slate-300/70 pb-8 pt-6" data-testid="dashboard-delivery-cockpit">
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
             <p className="text-xs font-black uppercase tracking-[0.28em] text-[#007f96]">
-              {t('hero.eyebrow')}
+              Delivery Cockpit
             </p>
-            <h1 className={`mt-5 max-w-5xl font-black tracking-normal text-[#111820] ${
-              locale === 'zh'
-                ? 'text-[clamp(3rem,8.6vw,8.2rem)] leading-[0.9]'
-                : 'text-[clamp(3rem,7.2vw,6.7rem)] leading-[0.92]'
-            }`}>
-              {t('hero.title')}
+            <h1 className="mt-2 text-3xl font-black tracking-normal text-[#111820] md:text-5xl">
+              {locale === 'zh' ? 'Agent Teams 交付驾驶舱' : 'Agent Teams Delivery Cockpit'}
             </h1>
-            <p className="mt-8 max-w-3xl text-lg leading-8 text-slate-700 md:text-xl md:leading-9">
-              {t('hero.subtitle')}
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+              {locale === 'zh'
+                ? '聚合当前项目、Agent 状态、交付循环、产物证据和下一步动作。'
+                : 'Current project, agent health, delivery loop evidence, artifacts, and next actions in one place.'}
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button onClick={() => router.push('/chat')}>{t('hero.primary')}</Button>
-              <Button variant="outline" onClick={() => router.push('/kanban?source=coordination')}>{t('hero.secondary')}</Button>
+          </div>
+          <div className="flex flex-wrap gap-2" data-testid="dashboard-next-actions">
+            {(currentProject?.nextActions?.length ? currentProject.nextActions.slice(0, 3) : [
+              { label: locale === 'zh' ? '启动协作会议' : 'Start coordination meeting', href: '/chat?mode=meeting' },
+              { label: locale === 'zh' ? '运行 Pipeline' : 'Run pipeline', href: '/pipeline' },
+              { label: locale === 'zh' ? '查看验证报告' : 'View gate report', href: '/api/delivery-gate/latest?format=markdown' },
+            ]).map((action, index) => (
+              <Button
+                key={`${action.label}-${index}`}
+                variant={index === 0 ? 'default' : 'outline'}
+                onClick={() => {
+                  if (action.href.startsWith('/api/')) {
+                    window.open(action.href, '_blank')
+                  } else {
+                    router.push(action.href)
+                  }
+                }}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-lg border border-slate-200 bg-white/72 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)]" data-testid="dashboard-current-project-summary">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                  {locale === 'zh' ? '当前交付项目' : 'Current Delivery Project'}
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-[#111820]">
+                  {currentProject?.project?.name || (locale === 'zh' ? '暂无当前交付项目' : 'No active project yet')}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  {currentProject?.project?.goal || (locale === 'zh'
+                    ? '启动一次团队协作后，这里会展示项目阶段、任务、文档、Pipeline 与验证报告。'
+                    : 'Start a team collaboration run to surface project phase, tasks, documents, pipeline, and gate report.')}
+                </p>
+              </div>
+              <Badge className={globalStatusClass}>{globalStatus}</Badge>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: 'Gateway',
+                  value: readiness?.gateway?.ok ? 'Online' : stats.gatewayOnline ? 'Online' : '--',
+                  tone: readiness?.gateway?.ok || stats.gatewayOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600',
+                },
+                {
+                  label: 'Agents',
+                  value: `${stats.onlineCount}/${stats.totalAgents}`,
+                  tone: healthCardColor,
+                },
+                {
+                  label: 'Live Pipeline',
+                  value: readiness?.agentHealth?.livePipelineReady || stats.livePipelineReady ? 'Ready' : '--',
+                  tone: readiness?.agentHealth?.livePipelineReady || stats.livePipelineReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600',
+                },
+                {
+                  label: 'E2E Gate',
+                  value: deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total}` : '--',
+                  tone: deliveryGate?.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700',
+                },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-md border px-3 py-2 ${item.tone}`}>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] opacity-75">{item.label}</p>
+                  <p className="mt-1 text-lg font-black">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Project Stage</p>
+                <p className="mt-1 font-semibold text-[#111820]">
+                  {currentProject?.currentPipeline?.currentSurface || currentProject?.currentPipeline?.status || (locale === 'zh' ? '待启动' : 'Not started')}
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Blocked</p>
+                <p className="mt-1 font-semibold text-[#111820]">
+                  {currentProject ? `${currentProject.tasks.blocked} / ${currentProject.tasks.total}` : '--'}
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Last Checked</p>
+                <p className="mt-1 font-semibold text-[#111820]">
+                  {readiness?.checkedAt ? new Date(readiness.checkedAt).toLocaleTimeString() : clientTime}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="relative min-h-[460px] lg:min-h-[620px]">
-            <div className="absolute left-[5%] top-[35%] h-px w-[72%] rotate-[26deg] bg-slate-300" />
-            <div className="absolute left-[20%] top-[58%] h-px w-[70%] -rotate-[17deg] bg-slate-300" />
-            <div className="absolute right-6 top-12 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.businessObject')}</p>
-              <p className="mt-2 text-lg font-black text-[#111820]">{t('hero.deliveryLoop')}</p>
-              <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PRD / Kanban / Test / Release</p>
+          <div className="rounded-lg border border-slate-200 bg-white/72 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)]" data-testid="dashboard-recent-evidence">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                  {locale === 'zh' ? '最近交付证据' : 'Recent Delivery Evidence'}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {locale === 'zh' ? '文档、任务、Pipeline、验证报告可回跳追踪。' : 'Documents, tasks, pipelines, and gate reports are traceable.'}
+                </p>
+              </div>
+              <Link href="/knowledge" className="text-xs font-black uppercase tracking-[0.12em] text-[#007f96]">
+                Knowledge
+              </Link>
             </div>
-            <div className="absolute left-8 top-[45%] w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.agentTeam')}</p>
-              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PM Frontend Backend Testing DevOps Admin</p>
-            </div>
-            <div className="absolute bottom-16 right-0 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.commercialEntry')}</p>
-              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">{t('hero.commercialText')}</p>
+            <div className="space-y-3">
+              {[
+                {
+                  label: 'Latest Document',
+                  value: currentProject?.documents.latest?.title || (locale === 'zh' ? '暂无项目文档' : 'No project document'),
+                  href: currentProject?.documents.latest?.href || currentProject?.documents.href || '/knowledge',
+                },
+                {
+                  label: 'Latest Pipeline',
+                  value: currentProject?.currentPipeline ? `${currentProject.currentPipeline.pipelineId} · ${currentProject.currentPipeline.status}` : (locale === 'zh' ? '暂无 Pipeline 实例' : 'No pipeline instance'),
+                  href: currentProject?.currentPipeline?.href || '/pipeline',
+                },
+                {
+                  label: 'Kanban',
+                  value: currentProject ? `${currentProject.tasks.total} tasks · ${currentProject.tasks.blocked} blocked` : (locale === 'zh' ? '暂无任务' : 'No tasks'),
+                  href: currentProject?.tasks.href || '/kanban?source=coordination',
+                },
+                {
+                  label: 'E2E Report',
+                  value: deliveryGate?.summary || (deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total} PASS` : (locale === 'zh' ? '暂无报告' : 'No report')),
+                  href: '/api/delivery-gate/latest?format=markdown',
+                },
+              ].map((item) => (
+                <Link key={item.label} href={item.href} target={item.href.startsWith('/api/') ? '_blank' : undefined} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white/80 px-3 py-2 transition-colors hover:border-[#007f96]/30 hover:bg-white">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-[#111820]">{item.value}</p>
+                  </div>
+                  <span className="text-xs font-black text-[#007f96]">Open</span>
+                </Link>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '角色 Agent: PM、Frontend、Backend、Testing、DevOps、Project Admin' : 'Role agents: PM, Frontend, Backend, Testing, DevOps, Project Admin' },
-            { value: '7', label: locale === 'zh' ? '交付面: Meeting、Document、Kanban、Workflow、Artifact、Experience、Context/Event' : 'Delivery surfaces: Meeting, Document, Kanban, Workflow, Artifact, Experience, Context/Event' },
-            { value: deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total}` : '8/8', label: locale === 'zh' ? '最近一次端到端回归验证达到通过状态，后续官网应挂出报告链接' : 'Latest end-to-end regression is passing and report links can be published' },
-            { value: '3', label: locale === 'zh' ? '首批商业入口: 代码审计、RAG 评审、智能图片评审' : 'Initial commercial entries: code audit, RAG review, image review' },
-          ].map(item => (
-            <div key={item.label} className="border-t border-[#111820] pt-4">
-              <p className="text-3xl font-black text-[#111820]">{item.value}</p>
-              <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{item.label}</p>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white/72 p-4" data-testid="dashboard-loop-timeline">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Team Coordination Loop</p>
+            {currentProject?.project?.id && <span className="font-mono text-[11px] text-slate-400">{currentProject.project.id}</span>}
+          </div>
+          <div className="grid gap-2 md:grid-cols-6">
+            {(currentProject?.deliveryLoop || ['Meeting', 'Document', 'Kanban', 'Workflow', 'Artifact', 'Experience'].map((label) => ({ key: label, label, status: 'pending' }))).map((step) => {
+              const statusTone =
+                step.status === 'completed' || step.status === 'done' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : step.status === 'failed' || step.status === 'cancelled' ? 'border-red-200 bg-red-50 text-red-700'
+                    : step.status === 'running' ? 'border-cyan-200 bg-cyan-50 text-cyan-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-600'
+              return (
+                <div key={step.key} className={`rounded-md border px-3 py-2 text-center text-xs font-bold ${statusTone}`}>
+                  <div>{step.label}</div>
+                  <div className="mt-1 uppercase">{step.status}</div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3" data-testid="dashboard-risk-queue">
+            <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{locale === 'zh' ? '阻塞任务' : 'Blocked Tasks'}</p>
+              <p className="mt-1 text-lg font-black text-[#111820]">{currentProject?.tasks.blocked ?? 0}</p>
             </div>
-          ))}
+            <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{locale === 'zh' ? '未绑定文档' : 'Unlinked Docs'}</p>
+              <p className="mt-1 text-lg font-black text-[#111820]">
+                {teamLoop?.documents ? Math.max(teamLoop.documents.projectDocumentCount - teamLoop.documents.boundProjectDocumentCount, 0) : 0}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white/80 p-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Gate Warnings</p>
+              <p className="mt-1 text-lg font-black text-[#111820]">{deliveryGate?.warn ?? 0}</p>
+            </div>
+          </div>
         </div>
       </section>
 

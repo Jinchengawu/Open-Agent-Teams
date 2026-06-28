@@ -175,6 +175,8 @@ const requirements = [
   ['delivery-first nav order', files.constants.indexOf("href: '/chat'") < files.constants.indexOf("href: '/kanban'") && files.constants.indexOf("href: '/kanban'") < files.constants.indexOf("href: '/pipeline'") && files.constants.indexOf("href: '/sessions'") < files.constants.indexOf("href: '/agents'")],
   ['health i18n copy', files.i18n.includes('health.checking') && files.i18n.includes('health.lastKnown') && files.i18n.includes('未检测到在线 Agent') && files.i18n.includes('No agents online')],
   ['dashboard no transient error wall', !files.home.includes('ErrorState') && files.home.includes('stats.statusReason') && files.home.includes("stats.status === 'stale'")],
+  ['dashboard delivery cockpit first screen', files.home.includes('dashboard-delivery-cockpit') && files.home.includes('dashboard-current-project-summary') && files.home.includes('dashboard-recent-evidence') && files.home.includes('dashboard-loop-timeline') && files.home.includes('dashboard-next-actions')],
+  ['dashboard no marketing hero primary surface', !files.home.includes("t('hero.title')") && !files.home.includes("t('hero.subtitle')")],
 ];
 
 const failed = requirements.filter(([, ok]) => !ok).map(([name]) => name);
