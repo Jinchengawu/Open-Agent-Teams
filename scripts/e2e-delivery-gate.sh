@@ -121,6 +121,8 @@ for file in \
   "packages/core/src/tools/kanban-tools.ts" \
   "packages/core/src/event/EventBus.ts" \
   "packages/dashboard/src/app/api/team-loop/status/route.ts" \
+  "packages/dashboard/src/app/api/team-architect/[...path]/route.ts" \
+  "packages/dashboard/src/app/team-architect/page.tsx" \
   "packages/dashboard/src/app/api/delivery-gate/latest/route.ts" \
   "packages/dashboard/src/app/api/delivery-gate/history/route.ts" \
   "packages/dashboard/src/lib/delivery-gate-reports.ts"
@@ -157,37 +159,47 @@ else
   record "dashboard pipeline builder drafts" FAIL "Pipeline Builder draft persistence controls are missing"
 fi
 
-dashboard_ux_output="$(node <<'NODE' 2>&1
-const fs = await import('node:fs/promises');
-const files = {
-  health: await fs.readFile('packages/dashboard/src/hooks/useAgentHealth.ts', 'utf8'),
-  nav: await fs.readFile('packages/dashboard/src/components/NavBar.tsx', 'utf8'),
-  constants: await fs.readFile('packages/dashboard/src/lib/constants.ts', 'utf8'),
-  i18n: await fs.readFile('packages/dashboard/src/lib/i18n.tsx', 'utf8'),
-  home: await fs.readFile('packages/dashboard/src/app/page.tsx', 'utf8'),
-  meeting: await fs.readFile('packages/dashboard/src/app/chat/MeetingView.tsx', 'utf8'),
-};
+dashboard_ux_output="$(python3 <<'PY' 2>&1
+from pathlib import Path
 
-const requirements = [
-  ['health status model', files.health.includes('AgentHealthStatus') && files.health.includes('HEALTH_CACHE_KEY') && files.health.includes("'stale'")],
-  ['trusted cached health fallback', files.health.includes('setCachedHealth(data)') && files.health.includes('localStorage.setItem(HEALTH_CACHE_KEY')],
-  ['navbar checking state', files.nav.includes('health.checking') && files.nav.includes('health.lastKnown') && files.nav.includes('stats.statusReason')],
-  ['no hardcoded No Agents banner', !files.nav.includes('No Agents')],
-  ['delivery-first nav order', files.constants.indexOf("href: '/chat'") < files.constants.indexOf("href: '/kanban'") && files.constants.indexOf("href: '/kanban'") < files.constants.indexOf("href: '/pipeline'") && files.constants.indexOf("href: '/sessions'") < files.constants.indexOf("href: '/agents'")],
-  ['health i18n copy', files.i18n.includes('health.checking') && files.i18n.includes('health.lastKnown') && files.i18n.includes('未检测到在线 Agent') && files.i18n.includes('No agents online')],
-  ['dashboard no transient error wall', !files.home.includes('ErrorState') && files.home.includes('stats.statusReason') && files.home.includes("stats.status === 'stale'")],
-  ['dashboard delivery cockpit first screen', files.home.includes('dashboard-delivery-cockpit') && files.home.includes('dashboard-current-project-summary') && files.home.includes('dashboard-recent-evidence') && files.home.includes('dashboard-loop-timeline') && files.home.includes('dashboard-next-actions')],
-  ['dashboard no marketing hero primary surface', !files.home.includes("t('hero.title')") && !files.home.includes("t('hero.subtitle')")],
-  ['meeting collaboration process panel', files.meeting.includes('meeting-collaboration-panel') && files.meeting.includes('Meeting Coordination') && files.meeting.includes('需求澄清') && files.meeting.includes('多 Agent 分析')],
-  ['meeting artifact links', files.meeting.includes('meeting-artifact-links') && files.meeting.includes('/knowledge') && files.meeting.includes('/kanban?source=coordination') && files.meeting.includes('/pipeline')],
-];
-
-const failed = requirements.filter(([, ok]) => !ok).map(([name]) => name);
-if (failed.length > 0) {
-  throw new Error(`Dashboard UX requirements missing: ${failed.join(', ')}`);
+files = {
+    "health": Path("packages/dashboard/src/hooks/useAgentHealth.ts").read_text(encoding="utf-8"),
+    "nav": Path("packages/dashboard/src/components/NavBar.tsx").read_text(encoding="utf-8"),
+    "constants": Path("packages/dashboard/src/lib/constants.ts").read_text(encoding="utf-8"),
+    "i18n": Path("packages/dashboard/src/lib/i18n.tsx").read_text(encoding="utf-8"),
+    "home": Path("packages/dashboard/src/app/page.tsx").read_text(encoding="utf-8"),
+    "meeting": Path("packages/dashboard/src/app/chat/MeetingView.tsx").read_text(encoding="utf-8"),
+    "teamArchitectPage": Path("packages/dashboard/src/app/team-architect/page.tsx").read_text(encoding="utf-8"),
+    "teamArchitectApi": Path("packages/dashboard/src/app/api/team-architect/[...path]/route.ts").read_text(encoding="utf-8"),
+    "teamArchitectLib": Path("packages/dashboard/src/lib/team-architect.ts").read_text(encoding="utf-8"),
+    "agents": Path("packages/dashboard/src/lib/agents.ts").read_text(encoding="utf-8"),
+    "profile": Path("packages/core/src/team-profile/open-framework-profile.ts").read_text(encoding="utf-8"),
+    "healthRoute": Path("packages/dashboard/src/app/api/health/route.ts").read_text(encoding="utf-8"),
 }
-console.log(`requirements=${requirements.length} healthStatus=1 deliveryNav=1`);
-NODE
+
+requirements = [
+    ("health status model", "AgentHealthStatus" in files["health"] and "HEALTH_CACHE_KEY" in files["health"] and "'stale'" in files["health"]),
+    ("trusted cached health fallback", "setCachedHealth(data)" in files["health"] and "localStorage.setItem(HEALTH_CACHE_KEY" in files["health"]),
+    ("navbar checking state", "health.checking" in files["nav"] and "health.lastKnown" in files["nav"] and "stats.statusReason" in files["nav"]),
+    ("no hardcoded No Agents banner", "No Agents" not in files["nav"]),
+    ("delivery-first nav order", files["constants"].find("href: '/chat'") < files["constants"].find("href: '/kanban'") and files["constants"].find("href: '/kanban'") < files["constants"].find("href: '/pipeline'") and files["constants"].find("href: '/sessions'") < files["constants"].find("href: '/agents'")),
+    ("health i18n copy", "health.checking" in files["i18n"] and "health.lastKnown" in files["i18n"] and "未检测到在线 Agent" in files["i18n"] and "No agents online" in files["i18n"]),
+    ("dashboard no transient error wall", "ErrorState" not in files["home"] and "stats.statusReason" in files["home"] and "stats.status === 'stale'" in files["home"]),
+    ("dashboard delivery cockpit first screen", "dashboard-delivery-cockpit" in files["home"] and "dashboard-current-project-summary" in files["home"] and "dashboard-recent-evidence" in files["home"] and "dashboard-loop-timeline" in files["home"] and "dashboard-next-actions" in files["home"]),
+    ("dashboard no marketing hero primary surface", "t('hero.title')" not in files["home"] and "t('hero.subtitle')" not in files["home"]),
+    ("meeting collaboration process panel", "meeting-collaboration-panel" in files["meeting"] and "Meeting Coordination" in files["meeting"] and "需求澄清" in files["meeting"] and "多 Agent 分析" in files["meeting"]),
+    ("meeting artifact links", "meeting-artifact-links" in files["meeting"] and "/knowledge" in files["meeting"] and "/kanban?source=coordination" in files["meeting"] and "/pipeline" in files["meeting"]),
+    ("team architect nav and page", "href: '/team-architect'" in files["constants"] and "nav.teamArchitect" in files["i18n"] and "/team-architect" in files["home"] and "team-architect-page" in files["teamArchitectPage"]),
+    ("team architect initialization api", "generate-blueprint" in files["teamArchitectApi"] and "generate-agents" in files["teamArchitectApi"] and "generate-workflow" in files["teamArchitectApi"] and "applyTeamArchitectSession" in files["teamArchitectApi"]),
+    ("team architect deterministic assets", "generateBlueprint" in files["teamArchitectLib"] and "generateAgentSpecs" in files["teamArchitectLib"] and "validateGeneratedAssets" in files["teamArchitectLib"] and ".open-agent-teams/data" in files["teamArchitectLib"]),
+    ("system team architect registered", "system-team-architect" in files["agents"] and "system-team-architect" in files["profile"] and "withSystemAgents" in files["healthRoute"]),
+]
+
+failed = [name for name, ok in requirements if not ok]
+if failed:
+    raise SystemExit(f"Dashboard UX requirements missing: {', '.join(failed)}")
+print(f"requirements={len(requirements)} healthStatus=1 deliveryNav=1")
+PY
 )"
 dashboard_ux_code=$?
 if [ "$dashboard_ux_code" -eq 0 ]; then

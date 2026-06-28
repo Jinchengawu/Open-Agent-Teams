@@ -2,6 +2,7 @@ import type { AppSettings } from './types';
 
 export const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', labelKey: 'nav.dashboard', icon: '📊' },
+  { href: '/team-architect', label: 'Team Architect', labelKey: 'nav.teamArchitect', icon: '🧭' },
   { href: '/chat', label: 'Chat', labelKey: 'nav.chat', icon: '💬' },
   { href: '/kanban', label: '看板', labelKey: 'nav.kanban', icon: '📋' },
   { href: '/pipeline', label: 'Pipeline', labelKey: 'nav.pipeline', icon: '🚀' },

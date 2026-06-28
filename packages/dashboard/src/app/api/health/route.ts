@@ -15,6 +15,24 @@ interface HealthResult {
   error?: string;
 }
 
+function withSystemAgents(agents: HealthResult[]): HealthResult[] {
+  if (agents.some((agent) => agent.id === 'system-team-architect')) return agents;
+  return [
+    {
+      id: 'system-team-architect',
+      online: true,
+      data: {
+        status: 'online',
+        agent: 'Team Architect Agent',
+        label: '团队架构师 Agent',
+        hermesPort: 0,
+        skills: 5,
+      },
+    },
+    ...agents,
+  ];
+}
+
 async function checkGateway(request: Request): Promise<{
   online: boolean;
   agents: HealthResult[];
@@ -62,7 +80,7 @@ async function checkGateway(request: Request): Promise<{
     }));
     return {
       online: true,
-      agents,
+      agents: withSystemAgents(agents),
       livePipelineReady: Boolean(data.livePipelineReady),
       modelSpendGuard: Boolean(data.modelSpendGuard),
       codexBackfillReady: Boolean(data.codexBackfillReady),
@@ -74,11 +92,11 @@ async function checkGateway(request: Request): Promise<{
       livePipelineReady: false,
       modelSpendGuard: false,
       codexBackfillReady: false,
-      agents: ['intent-router', 'team-orchestrator', 'workflow-conductor', 'knowledge-steward', 'recovery-agent', 'integration-agent'].map(id => ({
+      agents: withSystemAgents(['intent-router', 'team-orchestrator', 'workflow-conductor', 'knowledge-steward', 'recovery-agent', 'integration-agent'].map(id => ({
         id,
         online: false,
         error: e instanceof Error ? e.message : 'Gateway offline',
-      })),
+      }))),
     };
   }
 }

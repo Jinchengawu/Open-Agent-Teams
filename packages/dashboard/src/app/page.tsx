@@ -288,9 +288,9 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap gap-2" data-testid="dashboard-next-actions">
             {(currentProject?.nextActions?.length ? currentProject.nextActions.slice(0, 3) : [
+              { label: locale === 'zh' ? '初始化我的 AI 团队' : 'Initialize my AI team', href: '/team-architect' },
               { label: locale === 'zh' ? '启动协作会议' : 'Start coordination meeting', href: '/chat?mode=meeting' },
               { label: locale === 'zh' ? '运行 Pipeline' : 'Run pipeline', href: '/pipeline' },
-              { label: locale === 'zh' ? '查看验证报告' : 'View gate report', href: '/api/delivery-gate/latest?format=markdown' },
             ]).map((action, index) => (
               <Button
                 key={`${action.label}-${index}`}
@@ -639,7 +639,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(currentProject?.nextActions?.length ? currentProject.nextActions : [{ label: '启动新交付项目', href: '/chat' }]).map((action) => (
+            {(currentProject?.nextActions?.length ? currentProject.nextActions : [{ label: locale === 'zh' ? '初始化我的 AI 团队' : 'Initialize my AI team', href: '/team-architect' }]).map((action) => (
               <Button key={action.label} variant={action.label.includes('失败') || action.label.includes('阻塞') ? 'default' : 'outline'} size="sm" onClick={() => router.push(action.href)}>
                 {action.label}
               </Button>

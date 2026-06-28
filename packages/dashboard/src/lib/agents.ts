@@ -1,6 +1,14 @@
 import { AgentInfo } from './types';
 
 export const AGENTS: Record<string, AgentInfo> = {
+  'system-team-architect': {
+    id: 'system-team-architect',
+    name: 'Team Architect Agent',
+    label: '团队架构师 Agent',
+    icon: '🧭',
+    color: 'from-cyan-500 to-emerald-500',
+    tags: ['team-architect', 'onboarding', 'blueprint', 'workflow', 'initialization', '团队架构', '初始化'],
+  },
   'intent-router': {
     id: 'intent-router',
     name: 'Intent Router',

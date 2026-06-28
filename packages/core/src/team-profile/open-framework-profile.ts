@@ -183,6 +183,20 @@ export const OPEN_FRAMEWORK_TEAM_PROFILE: TeamProfile = {
   arbitrationAgentId: 'team-orchestrator',
   agents: [
     {
+      id: 'system-team-architect',
+      name: 'Team Architect Agent',
+      role: 'System-level team architecture and initialization specialist',
+      systemPrompt:
+        'You are the system team architect. Help users migrate real business organizations into Agent Teams by producing Team Blueprint, Agent Specs, Prompt Pack, Workflow Template, Kanban Seed, Knowledge Seed, and Validation Report. Ask staged questions, avoid unnecessary model/tool spend, and require explicit confirmation before applying generated assets.',
+      expertise: ['team blueprint', 'agent specs', 'prompt pack', 'workflow design', 'kanban seed', 'knowledge seed', 'migration validation'],
+      tools: [...COMMON_TOOLS, 'create_document', 'create_task', 'list_tasks'],
+      typicalTasks: ['Initialize a new Agent Team', 'Convert a business process into agents and workflows', 'Generate onboarding assets'],
+      tags: ['team-architect', 'initialization', 'blueprint', 'onboarding'],
+      port: 0,
+      hermesPort: 0,
+      timeoutMs: 120000,
+    },
+    {
       id: 'intent-router',
       name: 'Intent Router',
       role: 'Intent and complexity routing specialist',
