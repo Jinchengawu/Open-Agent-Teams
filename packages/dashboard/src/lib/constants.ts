@@ -2,14 +2,14 @@ import type { AppSettings } from './types';
 
 export const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', labelKey: 'nav.dashboard', icon: '📊' },
+  { href: '/chat', label: 'Chat', labelKey: 'nav.chat', icon: '💬' },
   { href: '/kanban', label: '看板', labelKey: 'nav.kanban', icon: '📋' },
   { href: '/pipeline', label: 'Pipeline', labelKey: 'nav.pipeline', icon: '🚀' },
   { href: '/knowledge', label: '知识中心', labelKey: 'nav.knowledge', icon: '🧠' },
+  { href: '/workflows', label: 'Workflows', labelKey: 'nav.workflows', icon: '🔄' },
+  { href: '/sessions', label: 'Sessions', labelKey: 'nav.sessions', icon: '🗂️' },
   { href: '/agents', label: 'Agents', labelKey: 'nav.agents', icon: '🤖' },
   { href: '/skills', label: 'Skills', labelKey: 'nav.skills', icon: '📚' },
-  { href: '/chat', label: 'Chat', labelKey: 'nav.chat', icon: '💬' },
-  { href: '/sessions', label: 'Sessions', labelKey: 'nav.sessions', icon: '💬' },
-  { href: '/workflows', label: 'Workflows', labelKey: 'nav.workflows', icon: '🔄' },
   { href: '/settings', label: 'Settings', labelKey: 'nav.settings', icon: '⚙️' },
 ] as const;
 

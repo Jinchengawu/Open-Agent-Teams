@@ -9,8 +9,39 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 export function NavBar() {
   const pathname = usePathname();
   const { stats } = useAgentHealth();
-  const systemOnline = stats.onlineCount > 0;
   const { t } = useI18n();
+  const statusTone = {
+    checking: {
+      container: 'border-sky-200 bg-sky-50',
+      dot: 'bg-sky-500 animate-pulse',
+      text: 'text-sky-700',
+      label: t('health.checking', 'Checking agents...'),
+    },
+    online: {
+      container: 'border-emerald-200 bg-emerald-50',
+      dot: 'bg-emerald-500 animate-pulse',
+      text: 'text-emerald-700',
+      label: `${stats.onlineCount}/${stats.totalAgents} ${t('health.agentsOnline', 'Agents Online')}`,
+    },
+    degraded: {
+      container: 'border-amber-200 bg-amber-50',
+      dot: 'bg-amber-500 animate-pulse',
+      text: 'text-amber-700',
+      label: `${stats.onlineCount}/${stats.totalAgents} ${t('health.agentsOnline', 'Agents Online')}`,
+    },
+    stale: {
+      container: 'border-slate-200 bg-slate-50',
+      dot: 'bg-slate-400',
+      text: 'text-slate-700',
+      label: `${stats.onlineCount}/${stats.totalAgents} ${t('health.lastKnown', 'Last known')}`,
+    },
+    offline: {
+      container: 'border-red-200 bg-red-50',
+      dot: 'bg-red-500',
+      text: 'text-red-700',
+      label: stats.gatewayOnline === false ? 'Gateway offline' : t('health.noAgents', 'No agents online'),
+    },
+  }[stats.status];
 
   return (
     <>
@@ -31,27 +62,16 @@ export function NavBar() {
             </Link>
             <div className="flex items-center space-x-4">
               <div
-                className={`hidden items-center space-x-2 rounded-md border px-3 py-1.5 md:flex ${
-                  systemOnline
-                    ? 'border-emerald-200 bg-emerald-50'
-                    : 'border-red-200 bg-red-50'
-                }`}
+                className={`hidden items-center space-x-2 rounded-md border px-3 py-1.5 md:flex ${statusTone.container}`}
+                title={stats.statusReason}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${
-                    systemOnline
-                      ? 'bg-green-500 animate-pulse'
-                      : 'bg-red-500'
-                  }`}
+                  className={`w-2 h-2 rounded-full ${statusTone.dot}`}
                 ></div>
                 <span
-                  className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                    systemOnline ? 'text-emerald-700' : 'text-red-700'
-                  }`}
+                  className={`text-xs font-semibold uppercase tracking-[0.16em] ${statusTone.text}`}
                 >
-                  {systemOnline
-                    ? `${stats.onlineCount} Agents Online`
-                    : 'No Agents'}
+                  {statusTone.label}
                 </span>
               </div>
               <button className="rounded-md border border-slate-200 bg-white/70 p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-[#111820]">

@@ -157,6 +157,40 @@ else
   record "dashboard pipeline builder drafts" FAIL "Pipeline Builder draft persistence controls are missing"
 fi
 
+dashboard_ux_output="$(node <<'NODE' 2>&1
+const fs = await import('node:fs/promises');
+const files = {
+  health: await fs.readFile('packages/dashboard/src/hooks/useAgentHealth.ts', 'utf8'),
+  nav: await fs.readFile('packages/dashboard/src/components/NavBar.tsx', 'utf8'),
+  constants: await fs.readFile('packages/dashboard/src/lib/constants.ts', 'utf8'),
+  i18n: await fs.readFile('packages/dashboard/src/lib/i18n.tsx', 'utf8'),
+  home: await fs.readFile('packages/dashboard/src/app/page.tsx', 'utf8'),
+};
+
+const requirements = [
+  ['health status model', files.health.includes('AgentHealthStatus') && files.health.includes('HEALTH_CACHE_KEY') && files.health.includes("'stale'")],
+  ['trusted cached health fallback', files.health.includes('setCachedHealth(data)') && files.health.includes('localStorage.setItem(HEALTH_CACHE_KEY')],
+  ['navbar checking state', files.nav.includes('health.checking') && files.nav.includes('health.lastKnown') && files.nav.includes('stats.statusReason')],
+  ['no hardcoded No Agents banner', !files.nav.includes('No Agents')],
+  ['delivery-first nav order', files.constants.indexOf("href: '/chat'") < files.constants.indexOf("href: '/kanban'") && files.constants.indexOf("href: '/kanban'") < files.constants.indexOf("href: '/pipeline'") && files.constants.indexOf("href: '/sessions'") < files.constants.indexOf("href: '/agents'")],
+  ['health i18n copy', files.i18n.includes('health.checking') && files.i18n.includes('health.lastKnown') && files.i18n.includes('未检测到在线 Agent') && files.i18n.includes('No agents online')],
+  ['dashboard no transient error wall', !files.home.includes('ErrorState') && files.home.includes('stats.statusReason') && files.home.includes("stats.status === 'stale'")],
+];
+
+const failed = requirements.filter(([, ok]) => !ok).map(([name]) => name);
+if (failed.length > 0) {
+  throw new Error(`Dashboard UX requirements missing: ${failed.join(', ')}`);
+}
+console.log(`requirements=${requirements.length} healthStatus=1 deliveryNav=1`);
+NODE
+)"
+dashboard_ux_code=$?
+if [ "$dashboard_ux_code" -eq 0 ]; then
+  record "dashboard health and navigation UX" PASS "$(echo "$dashboard_ux_output" | /usr/bin/tail -n 1)"
+else
+  record "dashboard health and navigation UX" FAIL "exit $dashboard_ux_code: $(echo "$dashboard_ux_output" | /usr/bin/tail -n 3 | /usr/bin/tr '\n' ' ')"
+fi
+
 probe_json "gateway health" "$GATEWAY_URL/health" "status"
 probe_json "dashboard health api" "$DASHBOARD_URL/api/health" "agents"
 probe_json "dashboard team-loop api" "$DASHBOARD_URL/api/team-loop/status" "checks"

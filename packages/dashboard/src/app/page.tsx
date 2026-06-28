@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
-import { ErrorState } from '@/components/ui/error-state'
 import { useAgentHealth } from '@/hooks/useAgentHealth'
 import { useI18n } from '@/lib/i18n'
 
@@ -157,7 +156,7 @@ const jsonFetcher = <T,>(url: string): Promise<T> =>
 export default function Dashboard() {
   const router = useRouter()
   const [clientTime, setClientTime] = useState('--')
-  const { agents, stats, error, isLoading, mutate } = useAgentHealth()
+  const { agents, stats, isLoading, mutate } = useAgentHealth()
   const { locale, t, apiHeaders } = useI18n()
   const {
     data: readiness,
@@ -216,6 +215,14 @@ export default function Dashboard() {
     red: 'border-red-200 bg-red-50/70',
     gray: 'border-slate-200 bg-white/70',
   }[globalStatusTone]
+  const agentsReachable = stats.status === 'online' || stats.status === 'degraded' || stats.status === 'stale'
+  const healthCardColor = {
+    checking: 'border-sky-200 bg-sky-50 text-sky-700',
+    online: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    degraded: 'border-amber-200 bg-amber-50 text-amber-700',
+    stale: 'border-slate-200 bg-slate-50 text-slate-700',
+    offline: 'border-red-200 bg-red-50 text-red-700',
+  }[stats.status]
 
   useEffect(() => {
     const updateTime = () => setClientTime(new Date().toLocaleTimeString())
@@ -229,8 +236,8 @@ export default function Dashboard() {
       title: t('dashboard.activeAgents'),
       value: `${stats.onlineCount}/${stats.totalAgents}`,
       icon: 'AG',
-      color: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-      detail: stats.onlineCount > 0 ? `${stats.onlineCount} ${t('common.online').toLowerCase()}` : t('common.offline'),
+      color: healthCardColor,
+      detail: stats.statusReason,
     },
     {
       title: t('dashboard.totalSkills'),
@@ -241,17 +248,17 @@ export default function Dashboard() {
     },
     {
       title: t('dashboard.successRate'),
-      value: stats.onlineCount > 0 ? `${stats.successRate}%` : '--',
+      value: agentsReachable ? `${stats.successRate}%` : '--',
       icon: '%',
       color: 'border-orange-200 bg-orange-50 text-orange-700',
-      detail: stats.onlineCount > 0 ? (locale === 'zh' ? 'Agent 可触达' : 'Agents reachable') : (locale === 'zh' ? '无在线 Agent' : 'No agents'),
+      detail: agentsReachable ? (locale === 'zh' ? 'Agent 可触达' : 'Agents reachable') : stats.statusReason,
     },
     {
       title: t('dashboard.system'),
-      value: stats.onlineCount > 0 ? t('common.online') : t('common.offline'),
+      value: stats.status === 'checking' ? t('dashboard.checking') : agentsReachable ? t('common.online') : t('common.offline'),
       icon: 'OS',
-      color: stats.onlineCount > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700',
-      detail: locale === 'zh' ? '基于 Hermes Runtime' : 'Via Hermes runtime',
+      color: healthCardColor,
+      detail: stats.gatewayOnline ? (locale === 'zh' ? 'Gateway 已连接' : 'Gateway connected') : stats.statusReason,
     },
   ]
 
@@ -261,16 +268,6 @@ export default function Dashboard() {
     { icon: 'SKL', title: t('nav.skills'), desc: locale === 'zh' ? '查看团队技能' : 'View all skills', path: '/skills' },
     { icon: 'CFG', title: t('nav.settings'), desc: locale === 'zh' ? '配置系统' : 'Configure system', path: '/settings' },
   ]
-
-  if (error) {
-    return (
-      <ErrorState
-        title="Failed to load agents"
-        message="Cannot connect to agent services. Make sure the agents are running (./scripts/start-all.sh)."
-        onRetry={() => mutate()}
-      />
-    )
-  }
 
   return (
     <div className="space-y-8">
