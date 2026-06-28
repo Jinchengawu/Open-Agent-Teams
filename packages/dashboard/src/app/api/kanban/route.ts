@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 
-const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.open-agent-teams/data/sessions.db`;
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8401';
+const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.dev-agent/data/sessions.db`;
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
 
 type KanbanTask = {
   id: string;
@@ -68,6 +68,28 @@ async function fetchPipelineTaskLinks(): Promise<Map<string, PipelineTaskLink>> 
   return links;
 }
 
+async function fetchCurrentProjectId(): Promise<string | null> {
+  try {
+    const res = await fetch(`${GATEWAY_URL}/pipeline-instances?limit=1`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.instances?.[0]?.coordination?.projectId || null;
+  } catch {
+    return null;
+  }
+}
+
+function classifyBlockedReason(task: KanbanTask): string {
+  const text = `${task.title || ''} ${task.description || ''}`.toLowerCase();
+  if (text.includes('model') || text.includes('api_key') || text.includes('配置')) return '缺少配置';
+  if (text.includes('pipeline') || text.includes('failed') || text.includes('失败') || text.includes('timeout')) return 'Pipeline 执行失败';
+  if (text.includes('test') || text.includes('测试')) return '测试未通过';
+  if (text.includes('用户') || text.includes('确认') || text.includes('input')) return '等待用户输入';
+  if (task.surface_id || task.pipeline_instance_id) return '等待上游任务';
+  if (task.assignee) return 'Agent 调用失败';
+  return '未分类';
+}
+
 async function mapCoordinationTask(task: any, link?: PipelineTaskLink): Promise<KanbanTask> {
   const documentCount = await fetchDocumentCount(task.id);
   return {
@@ -111,6 +133,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sourceFilter = searchParams.get('source');
   const assigneeFilter = searchParams.get('assignee');
+  const statusFilter = searchParams.get('status');
+  const explicitProjectId = searchParams.get('projectId');
+  const scope = searchParams.get('scope') || 'current';
+  const currentProjectId = scope === 'all' ? null : (explicitProjectId || await fetchCurrentProjectId());
 
   const db = new Database(DB_PATH, { readonly: true });
   try {
@@ -122,7 +148,9 @@ export async function GET(request: Request) {
     ];
     const tasks = allTasks
       .filter((task) => !sourceFilter || sourceFilter === 'all' || task.source === sourceFilter)
-      .filter((task) => !assigneeFilter || assigneeFilter === 'all' || task.assignee === assigneeFilter);
+      .filter((task) => !assigneeFilter || assigneeFilter === 'all' || task.assignee === assigneeFilter)
+      .filter((task) => !statusFilter || statusFilter === 'all' || task.status === statusFilter)
+      .filter((task) => !currentProjectId || task.project_id === currentProjectId);
     const milestones = db.prepare('SELECT * FROM milestones ORDER BY target_date ASC').all();
 
     // 按 Agent 统计
@@ -137,6 +165,13 @@ export async function GET(request: Request) {
     const total = tasks.length;
     const completed = tasks.filter(t => t.status === 'done').length;
     const blocked = tasks.filter(t => t.status === 'blocked').length;
+    const blocked_reason_groups = tasks
+      .filter((task) => task.status === 'blocked')
+      .reduce<Record<string, number>>((acc, task) => {
+        const reason = classifyBlockedReason(task);
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+      }, {});
     const overdue = tasks.filter(
       t => t.due_at && t.due_at < new Date().toISOString() && t.status !== 'done'
     ).length;
@@ -149,12 +184,16 @@ export async function GET(request: Request) {
         total_tasks: total,
         completed,
         blocked,
+        blocked_reason_groups,
         overdue,
         active_milestones: (milestones as any[]).filter(m => m.status === 'active').length,
       },
       filters: {
         source: sourceFilter || 'all',
         assignee: assigneeFilter || 'all',
+        status: statusFilter || 'all',
+        projectId: currentProjectId,
+        scope,
       },
     });
   } finally {

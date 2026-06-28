@@ -41,8 +41,16 @@ interface KanbanData {
     total_tasks: number
     completed: number
     blocked: number
+    blocked_reason_groups?: Record<string, number>
     overdue: number
     active_milestones: number
+  }
+  filters?: {
+    source: string
+    assignee: string
+    status: string
+    projectId?: string | null
+    scope: string
   }
 }
 
@@ -62,22 +70,22 @@ const PRIORITY_COLORS = {
 } as const
 
 const AGENT_ICONS: Record<string, string> = {
-  'intent-router': '🧭',
-  'team-orchestrator': '🕸️',
-  'workflow-conductor': '🔁',
-  'knowledge-steward': '🧠',
-  'recovery-agent': '🛠️',
-  'integration-agent': '🔌',
+  'dev-frontend': '🎨',
+  'dev-backend': '⚙️',
+  'dev-testing': '🧪',
+  'dev-devops': '🚀',
+  'dev-pm': '📋',
+  'project-admin': '📊',
 }
 
 const AGENT_FILTERS = [
   { value: 'all', label: '全部负责人' },
-  { value: 'intent-router', label: 'Intent Router' },
-  { value: 'team-orchestrator', label: 'Team Orchestrator' },
-  { value: 'workflow-conductor', label: 'Workflow Conductor' },
-  { value: 'knowledge-steward', label: 'Knowledge Steward' },
-  { value: 'recovery-agent', label: 'Recovery Agent' },
-  { value: 'integration-agent', label: 'Integration Agent' },
+  { value: 'dev-frontend', label: 'Frontend' },
+  { value: 'dev-backend', label: 'Backend' },
+  { value: 'dev-testing', label: 'Testing' },
+  { value: 'dev-devops', label: 'DevOps' },
+  { value: 'dev-pm', label: 'PM' },
+  { value: 'project-admin', label: 'Project Admin' },
 ]
 
 const SOURCE_FILTERS = [
@@ -92,22 +100,26 @@ export default function KanbanPage() {
   const [data, setData] = useState<KanbanData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [newTask, setNewTask] = useState({ title: '', description: '', assignee: 'team-orchestrator', priority: 'medium' })
-  const [sourceFilter, setSourceFilter] = useState('all')
+  const [newTask, setNewTask] = useState({ title: '', description: '', assignee: 'dev-frontend', priority: 'medium' })
+  const [sourceFilter, setSourceFilter] = useState('coordination')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [urlFiltersLoaded, setUrlFiltersLoaded] = useState(false)
 
   const fetchKanban = useCallback(() => {
     const params = new URLSearchParams()
     if (sourceFilter !== 'all') params.set('source', sourceFilter)
     if (assigneeFilter !== 'all') params.set('assignee', assigneeFilter)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    const projectId = new URLSearchParams(window.location.search).get('projectId')
+    if (projectId) params.set('projectId', projectId)
     const query = params.toString()
     fetch(`/api/kanban${query ? `?${query}` : ''}`)
       .then(r => r.json())
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [sourceFilter, assigneeFilter])
+  }, [sourceFilter, assigneeFilter, statusFilter])
 
   const syncUrlFilters = useCallback(() => {
     const params = new URLSearchParams(window.location.search)
@@ -115,18 +127,22 @@ export default function KanbanPage() {
     else params.delete('source')
     if (assigneeFilter !== 'all') params.set('assignee', assigneeFilter)
     else params.delete('assignee')
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    else params.delete('status')
 
     const query = params.toString()
     const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname
     window.history.replaceState(null, '', nextUrl)
-  }, [sourceFilter, assigneeFilter])
+  }, [sourceFilter, assigneeFilter, statusFilter])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const source = params.get('source')
     const assignee = params.get('assignee')
+    const status = params.get('status')
     if (source && SOURCE_FILTERS.some(option => option.value === source)) setSourceFilter(source)
     if (assignee && AGENT_FILTERS.some(option => option.value === assignee)) setAssigneeFilter(assignee)
+    if (status && (status === 'all' || STATUS_COLUMNS.some(option => option.key === status))) setStatusFilter(status)
     setUrlFiltersLoaded(true)
   }, [])
 
@@ -143,7 +159,7 @@ export default function KanbanPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTask),
     })
-    setNewTask({ title: '', description: '', assignee: 'team-orchestrator', priority: 'medium' })
+    setNewTask({ title: '', description: '', assignee: 'dev-frontend', priority: 'medium' })
     setShowCreate(false)
     fetchKanban()
   }
@@ -176,6 +192,7 @@ export default function KanbanPage() {
   }
 
   const summary = data?.summary
+  const currentProjectId = data?.filters?.projectId
 
   return (
     <div className="mx-auto max-w-[1540px] space-y-6">
@@ -184,7 +201,10 @@ export default function KanbanPage() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.26em] text-[#007f96]">Task Command Board</p>
           <h1 className="mt-2 text-3xl font-black uppercase tracking-[0.12em] text-[#111820]">项目看板</h1>
-          <p className="mt-1 text-sm text-slate-600">串联任务、文档、工作流与角色 Agent 的执行状态</p>
+          <p className="mt-1 text-sm text-slate-600">
+            串联任务、文档、工作流与角色 Agent 的执行状态
+            {currentProjectId ? ` · 当前项目 ${currentProjectId}` : ' · 当前项目自动识别中'}
+          </p>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
@@ -210,6 +230,19 @@ export default function KanbanPage() {
         ))}
       </div>
 
+      {summary?.blocked && summary.blocked > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4">
+          <div className="mb-2 text-sm font-black uppercase tracking-[0.16em] text-amber-700">阻塞原因</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(summary.blocked_reason_groups || { 未分类: summary.blocked }).map(([reason, count]) => (
+              <span key={reason} className="rounded-md border border-amber-200 bg-white/80 px-3 py-1 text-sm font-semibold text-amber-800">
+                {reason}: {count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white/76 p-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -232,6 +265,18 @@ export default function KanbanPage() {
           >
             {AGENT_FILTERS.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white/80 px-3 text-sm text-[#111820] focus:border-[#007f96]/45 focus:outline-none focus:ring-2 focus:ring-[#007f96]/15"
+            aria-label="Kanban status filter"
+            data-testid="kanban-status-filter"
+          >
+            <option value="all">全部状态</option>
+            {STATUS_COLUMNS.map(option => (
+              <option key={option.key} value={option.key}>{option.label}</option>
             ))}
           </select>
         </div>
@@ -264,12 +309,12 @@ export default function KanbanPage() {
               onChange={e => setNewTask({...newTask, assignee: e.target.value})}
               className="rounded-md border border-slate-200 bg-white/80 px-3 py-2 text-sm"
             >
-              <option value="intent-router">🧭 Intent Router</option>
-              <option value="team-orchestrator">🕸️ Team Orchestrator</option>
-              <option value="workflow-conductor">🔁 Workflow Conductor</option>
-              <option value="knowledge-steward">🧠 Knowledge Steward</option>
-              <option value="recovery-agent">🛠️ Recovery Agent</option>
-              <option value="integration-agent">🔌 Integration Agent</option>
+              <option value="dev-frontend">🎨 Frontend</option>
+              <option value="dev-backend">⚙️ Backend</option>
+              <option value="dev-testing">🧪 Testing</option>
+              <option value="dev-devops">🚀 DevOps</option>
+              <option value="dev-pm">📋 PM</option>
+              <option value="project-admin">📊 Project Admin</option>
             </select>
             <div className="flex gap-2">
               <select

@@ -90,6 +90,52 @@ interface TeamLoopStatusResponse {
   }
 }
 
+interface CurrentProjectSummaryResponse {
+  ok: boolean
+  checkedAt: number
+  health: {
+    status: 'Healthy' | 'Degraded' | 'Failed' | 'Checking'
+    label: string
+    reason: string
+    tone: 'green' | 'amber' | 'red' | 'gray'
+  }
+  project: {
+    id: string
+    name: string
+    goal: string
+    updatedAt: number
+  } | null
+  currentPipeline: {
+    id: string
+    pipelineId: string
+    status: string
+    currentSurface?: string | null
+    failedSurface?: { surfaceId: string; status: string; error?: string | null; agent?: string | null } | null
+    error?: string | null
+    href: string
+  } | null
+  deliveryGate?: {
+    ok: boolean
+    pass?: number
+    fail?: number
+    warn?: number
+    total?: number
+  } | null
+  deliveryLoop: Array<{ key: string; label: string; status: string }>
+  tasks: {
+    total: number
+    blocked: number
+    blockerGroups: Record<string, number>
+    href: string
+  }
+  documents: {
+    total: number
+    latest?: { id: string; title: string; type: string; href: string } | null
+    href: string
+  }
+  nextActions: Array<{ label: string; href: string }>
+}
+
 const readinessFetcher = (url: string): Promise<ReadinessResponse> =>
   fetch(url, { cache: 'no-store' }).then(async (response) => {
     const data = await response.json()
@@ -147,9 +193,29 @@ export default function Dashboard() {
     refreshInterval: 30000,
     revalidateOnFocus: false,
   })
+  const {
+    data: currentProject,
+    mutate: refreshCurrentProject,
+  } = useSWR<CurrentProjectSummaryResponse>('/api/projects/current/summary', jsonFetcher, {
+    refreshInterval: 30000,
+    revalidateOnFocus: false,
+  })
   const deliveryGateLoaded = Boolean(deliveryGate?.total)
   const teamLoopLoaded = Boolean(teamLoop?.checkedAt)
-  const mvpReady = readiness?.ok === true && deliveryGate?.ok === true && teamLoop?.ok === true
+  const globalStatus = currentProject?.health?.status || (readinessLoading || !deliveryGateLoaded || !teamLoopLoaded ? 'Checking' : 'Degraded')
+  const globalStatusTone = currentProject?.health?.tone || 'gray'
+  const globalStatusClass = {
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    red: 'border-red-200 bg-red-50 text-red-700',
+    gray: 'border-slate-200 bg-slate-50 text-slate-700',
+  }[globalStatusTone]
+  const globalCardClass = {
+    green: 'border-emerald-200 bg-emerald-50/70',
+    amber: 'border-amber-200 bg-amber-50/70',
+    red: 'border-red-200 bg-red-50/70',
+    gray: 'border-slate-200 bg-white/70',
+  }[globalStatusTone]
 
   useEffect(() => {
     const updateTime = () => setClientTime(new Date().toLocaleTimeString())
@@ -240,7 +306,7 @@ export default function Dashboard() {
             </div>
             <div className="absolute left-8 top-[45%] w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.agentTeam')}</p>
-              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">Router Orchestrator Workflow Knowledge Recovery Integration</p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600">PM Frontend Backend Testing DevOps Admin</p>
             </div>
             <div className="absolute bottom-16 right-0 w-[280px] rounded-lg border border-slate-200 bg-white/82 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{t('hero.commercialEntry')}</p>
@@ -251,7 +317,7 @@ export default function Dashboard() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '框架 Agent: Intent Router、Orchestrator、Workflow、Knowledge、Recovery、Integration' : 'Framework agents: Intent Router, Orchestrator, Workflow, Knowledge, Recovery, Integration' },
+            { value: String(stats.totalAgents || 6), label: locale === 'zh' ? '角色 Agent: PM、Frontend、Backend、Testing、DevOps、Project Admin' : 'Role agents: PM, Frontend, Backend, Testing, DevOps, Project Admin' },
             { value: '7', label: locale === 'zh' ? '交付面: Meeting、Document、Kanban、Workflow、Artifact、Experience、Context/Event' : 'Delivery surfaces: Meeting, Document, Kanban, Workflow, Artifact, Experience, Context/Event' },
             { value: deliveryGate?.total ? `${deliveryGate.pass}/${deliveryGate.total}` : '8/8', label: locale === 'zh' ? '最近一次端到端回归验证达到通过状态，后续官网应挂出报告链接' : 'Latest end-to-end regression is passing and report links can be published' },
             { value: '3', label: locale === 'zh' ? '首批商业入口: 代码审计、RAG 评审、智能图片评审' : 'Initial commercial entries: code audit, RAG review, image review' },
@@ -265,21 +331,22 @@ export default function Dashboard() {
       </section>
 
       <Card
-        className={mvpReady ? 'border-emerald-200 bg-emerald-50/70' : 'border-orange-200 bg-orange-50/70'}
+        className={globalCardClass}
         data-testid="dashboard-readiness-card"
       >
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge className={mvpReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'} data-testid="dashboard-readiness-badge">
-                {readinessLoading || !deliveryGateLoaded || !teamLoopLoaded ? t('dashboard.checking') : mvpReady ? t('dashboard.mvpReady') : t('dashboard.needsAttention')}
+              <Badge className={globalStatusClass} data-testid="dashboard-readiness-badge">
+                {globalStatus}
               </Badge>
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#111820]">{t('dashboard.readiness')}</p>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#111820]">System Status</p>
                 <p className="text-xs text-slate-500">
-                  {readiness?.agentHealth
-                    ? `${readiness.agentHealth.onlineCount ?? 0}/${readiness.agentHealth.totalAgents ?? 0} ${locale === 'zh' ? '个 Agent 在线' : 'Agents online'}`
-                    : locale === 'zh' ? '检查本地团队就绪状态' : 'Checking local team readiness'}
+                  {currentProject?.health?.reason ||
+                    (readiness?.agentHealth
+                      ? `${readiness.agentHealth.onlineCount ?? 0}/${readiness.agentHealth.totalAgents ?? 0} ${locale === 'zh' ? '个 Agent 在线' : 'Agents online'}`
+                      : locale === 'zh' ? '检查本地团队就绪状态' : 'Checking local team readiness')}
                 </p>
               </div>
             </div>
@@ -299,9 +366,11 @@ export default function Dashboard() {
                 <p className="text-slate-500">E2E Gate</p>
                 <p className="font-semibold text-[#111820]">
                   {deliveryGate?.total
-                    ? deliveryGate.ok
-                      ? `${deliveryGate.pass}/${deliveryGate.total} PASS`
-                      : `${deliveryGate.fail ?? 0} FAIL`
+                    ? Number(deliveryGate.warn || 0) > 0
+                      ? `${deliveryGate.pass}/${deliveryGate.total} PASS · ${deliveryGate.warn} WARN`
+                      : deliveryGate.ok
+                        ? `${deliveryGate.pass}/${deliveryGate.total} PASS`
+                        : `${deliveryGate.fail ?? 0} FAIL`
                     : '--'}
                 </p>
                 {deliveryGate?.report && (
@@ -334,6 +403,7 @@ export default function Dashboard() {
                 refreshDeliveryGate()
                 refreshDeliveryGateHistory()
                 refreshTeamLoop()
+                refreshCurrentProject()
               }}
               data-testid="dashboard-readiness-refresh"
             >
@@ -343,7 +413,104 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <Card data-testid="dashboard-team-loop-card" aria-label="Team Coordination Loop">
+      <Card data-testid="dashboard-current-project-cockpit">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#007f96]">Current Project Cockpit</p>
+            <CardTitle className="mt-2">
+              {currentProject?.project?.name || '暂无当前交付项目'}
+            </CardTitle>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              {currentProject?.project?.goal || '启动一个项目后，这里会聚合 Meeting、Document、Kanban、Workflow、Artifact、Experience 的交付状态。'}
+            </p>
+          </div>
+          <Badge className={globalStatusClass}>{globalStatus}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-white/70 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Pipeline</p>
+              <p className="mt-1 font-semibold text-[#111820]">
+                {currentProject?.currentPipeline
+                  ? `${currentProject.currentPipeline.pipelineId} · ${currentProject.currentPipeline.status}`
+                  : '--'}
+              </p>
+              {currentProject?.currentPipeline?.failedSurface && (
+                <p className="mt-1 text-xs text-red-700">
+                  失败阶段：{currentProject.currentPipeline.failedSurface.surfaceId}
+                </p>
+              )}
+              {currentProject?.currentPipeline?.href && (
+                <Link href={currentProject.currentPipeline.href} className="mt-2 inline-block text-xs font-bold text-[#007f96]">
+                  查看 Pipeline
+                </Link>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white/70 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Kanban</p>
+              <p className="mt-1 font-semibold text-[#111820]">
+                {currentProject ? `${currentProject.tasks.total} tasks · ${currentProject.tasks.blocked} blocked` : '--'}
+              </p>
+              {Object.entries(currentProject?.tasks.blockerGroups || {}).slice(0, 2).map(([reason, count]) => (
+                <span key={reason} className="mr-1 mt-2 inline-block rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  {reason}: {count}
+                </span>
+              ))}
+              {currentProject?.tasks.href && (
+                <Link href={currentProject.tasks.href} className="block mt-2 text-xs font-bold text-[#007f96]">
+                  查看交付看板
+                </Link>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white/70 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Knowledge</p>
+              <p className="mt-1 font-semibold text-[#111820]">
+                {currentProject ? `${currentProject.documents.total} documents` : '--'}
+              </p>
+              <p className="mt-1 truncate text-xs text-slate-500">
+                {currentProject?.documents.latest?.title || '暂无关键产物'}
+              </p>
+              <Link href={currentProject?.documents.latest?.href || currentProject?.documents.href || '/knowledge'} className="mt-2 inline-block text-xs font-bold text-[#007f96]">
+                查看项目文档
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white/70 p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Delivery Loop</p>
+              {currentProject?.project?.id && (
+                <span className="font-mono text-[11px] text-slate-400">{currentProject.project.id}</span>
+              )}
+            </div>
+            <div className="grid gap-2 md:grid-cols-6">
+              {(currentProject?.deliveryLoop || ['Meeting', 'Document', 'Kanban', 'Workflow', 'Artifact', 'Experience'].map((label) => ({ key: label, label, status: 'pending' }))).map((step) => {
+                const statusTone =
+                  step.status === 'completed' || step.status === 'done' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : step.status === 'failed' || step.status === 'cancelled' ? 'border-red-200 bg-red-50 text-red-700'
+                      : step.status === 'running' ? 'border-cyan-200 bg-cyan-50 text-cyan-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                return (
+                  <div key={step.key} className={`rounded-md border px-3 py-2 text-center text-xs font-bold ${statusTone}`}>
+                    <div>{step.label}</div>
+                    <div className="mt-1 uppercase">{step.status}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(currentProject?.nextActions?.length ? currentProject.nextActions : [{ label: '启动新交付项目', href: '/chat' }]).map((action) => (
+              <Button key={action.label} variant={action.label.includes('失败') || action.label.includes('阻塞') ? 'default' : 'outline'} size="sm" onClick={() => router.push(action.href)}>
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="dashboard-team-loop-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>{t('dashboard.loop')}</CardTitle>
@@ -479,7 +646,7 @@ export default function Dashboard() {
               {[
                 { label: 'Model Provider', value: 'DeepSeek' },
                 { label: 'Model', value: 'deepseek-v4-pro[1m]' },
-                { label: locale === 'zh' ? 'Agents' : 'Agents', value: `${stats.onlineCount}/${agents.length} ${t('common.online').toLowerCase()}` },
+                { label: locale === 'zh' ? 'Agents' : 'Agents', value: `${stats.onlineCount}/${stats.totalAgents} ${t('common.online').toLowerCase()}` },
                 { label: t('nav.skills'), value: String(stats.totalSkills) },
                 { label: locale === 'zh' ? '更新时间' : 'Updated', value: clientTime },
               ].map((item) => (
