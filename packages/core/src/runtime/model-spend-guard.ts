@@ -1,12 +1,17 @@
 import type { AgentRunResult, RoutingDecision } from '../orchestrator/types.js';
 
 const truthy = new Set(['1', 'true', 'yes', 'on']);
+const falsy = new Set(['0', 'false', 'no', 'off']);
 
 export function isModelSpendGuardEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (truthy.has(String(env.ALLOW_LIVE_MODEL || '').toLowerCase())) {
     return false;
   }
-  return truthy.has(String(env.MODEL_SPEND_GUARD || '').toLowerCase());
+  const guard = String(env.MODEL_SPEND_GUARD || '').toLowerCase();
+  if (falsy.has(guard)) {
+    return false;
+  }
+  return true;
 }
 
 export function modelSpendGuardMessage(agentId?: string): string {
