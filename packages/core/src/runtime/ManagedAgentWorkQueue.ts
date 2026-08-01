@@ -8,6 +8,13 @@ import {
   validateManagedArtifactEnvelope,
   type ManagedArtifactEnvelope,
 } from './ManagedArtifactContract.js';
+import {
+  captureManagedWorkspaceSnapshot,
+  ManagedCodeChangeVerificationError,
+  verifyManagedCodeChange,
+  type ManagedWorkspacePolicy,
+  type ManagedWorkspaceSnapshot,
+} from './ManagedCodeChangeVerification.js';
 
 export type ManagedAgentWorkStatus =
   | 'pending'
@@ -34,6 +41,7 @@ export interface ManagedAgentWorkItem {
   error?: string;
   output?: string;
   artifact?: ManagedArtifactEnvelope;
+  workspaceSnapshot?: ManagedWorkspaceSnapshot;
 }
 
 export interface ManagedAgentWorkerHeartbeat {
@@ -177,6 +185,7 @@ export class ManagedAgentWorkQueue {
     sessionId?: string;
     surfaceId?: string;
     taskId?: string;
+    workspacePolicy?: ManagedWorkspacePolicy;
     timeoutMs?: number;
     signal?: AbortSignal;
   }): Promise<AgentRunResult> {
@@ -186,6 +195,11 @@ export class ManagedAgentWorkQueue {
 
     const id = `managed-work-${randomUUID()}`;
     const now = this.now();
+    const workspaceSnapshot = (
+      input.surfaceId === 'frontend' || input.surfaceId === 'backend'
+    ) && input.workspacePolicy
+      ? captureManagedWorkspaceSnapshot(input.workspacePolicy)
+      : undefined;
     this.items.set(id, {
       id,
       agentId: input.agentId,
@@ -197,6 +211,7 @@ export class ManagedAgentWorkQueue {
       status: 'pending',
       createdAt: now,
       updatedAt: now,
+      workspaceSnapshot,
     });
     this.persistItem(this.items.get(id)!);
 
@@ -268,6 +283,17 @@ export class ManagedAgentWorkQueue {
         }
         throw new ManagedArtifactContractError(item.surfaceId, validation.issues);
       }
+    }
+    if (item.surfaceId === 'frontend' || item.surfaceId === 'backend') {
+      if (!item.workspaceSnapshot || !input.artifact) {
+        throw new ManagedCodeChangeVerificationError(
+          'ARTIFACT_EVIDENCE_UNRESOLVABLE',
+          422,
+          item.surfaceId,
+          ['implementation work item is missing a captured workspace snapshot'],
+        );
+      }
+      verifyManagedCodeChange(item.workspaceSnapshot, input.artifact);
     }
     const artifactId = input.artifact?.artifactId;
     const contentHash = typeof input.artifact?.contentHash === 'string' ? input.artifact.contentHash : undefined;
@@ -378,6 +404,7 @@ export class ManagedAgentWorkQueue {
         error TEXT,
         output TEXT,
         artifact_json TEXT
+        ,workspace_snapshot_json TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_managed_work_status_created
         ON managed_agent_work_items(status, created_at);
@@ -418,10 +445,13 @@ export class ManagedAgentWorkQueue {
     if (!workItemColumns.some((column) => column.name === 'artifact_json')) {
       this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN artifact_json TEXT');
     }
+    if (!workItemColumns.some((column) => column.name === 'workspace_snapshot_json')) {
+      this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN workspace_snapshot_json TEXT');
+    }
 
     const rows = this.database.prepare(`
       SELECT id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-             claimed_by, lease_expires_at, error, output, artifact_json
+             claimed_by, lease_expires_at, error, output, artifact_json, workspace_snapshot_json
       FROM managed_agent_work_items
       ORDER BY created_at ASC
     `).all() as Array<Record<string, unknown>>;
@@ -442,6 +472,7 @@ export class ManagedAgentWorkQueue {
         error: row.error ? String(row.error) : undefined,
         output: row.output ? String(row.output) : undefined,
         artifact: this.parseArtifact(row.artifact_json),
+        workspaceSnapshot: this.parseWorkspaceSnapshot(row.workspace_snapshot_json),
       };
       if (item.status === 'pending' || item.status === 'claimed') {
         item.status = 'interrupted';
@@ -474,8 +505,8 @@ export class ManagedAgentWorkQueue {
     this.database?.prepare(`
       INSERT INTO managed_agent_work_items
         (id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-         claimed_by, lease_expires_at, error, output, artifact_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         claimed_by, lease_expires_at, error, output, artifact_json, workspace_snapshot_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         surface_id = excluded.surface_id,
         task_id = excluded.task_id,
@@ -487,6 +518,7 @@ export class ManagedAgentWorkQueue {
         error = excluded.error,
         output = excluded.output,
         artifact_json = excluded.artifact_json
+        ,workspace_snapshot_json = excluded.workspace_snapshot_json
     `).run(
       item.id,
       item.agentId,
@@ -503,6 +535,7 @@ export class ManagedAgentWorkQueue {
       item.error ?? null,
       item.output ?? null,
       item.artifact ? JSON.stringify(item.artifact) : null,
+      item.workspaceSnapshot ? JSON.stringify(item.workspaceSnapshot) : null,
     );
   }
 
@@ -532,6 +565,16 @@ export class ManagedAgentWorkQueue {
     try {
       const parsed = JSON.parse(String(value));
       return parsed && typeof parsed === 'object' ? parsed as ManagedArtifactEnvelope : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseWorkspaceSnapshot(value: unknown): ManagedWorkspaceSnapshot | undefined {
+    if (!value) return undefined;
+    try {
+      const parsed = JSON.parse(String(value));
+      return parsed && typeof parsed === 'object' ? parsed as ManagedWorkspaceSnapshot : undefined;
     } catch {
       return undefined;
     }

@@ -34,6 +34,8 @@ export interface WorkspaceProvenance {
   workspaceFingerprintMatchesBefore: boolean;
   outOfScopePaths: string[];
   sensitiveFindings: SensitiveFinding[];
+  /** Content-only fingerprints for every tracked or untracked workspace path. */
+  fileFingerprints: Record<string, string>;
 }
 
 interface CommandResult {
@@ -189,9 +191,9 @@ function untrackedDiff(repositoryRoot: string, paths: string[]): string {
   ).stdout).join('');
 }
 
-export async function collectWorkspaceProvenance(
+export function collectWorkspaceProvenance(
   input: WorkspaceProvenanceInput,
-): Promise<WorkspaceProvenance> {
+): WorkspaceProvenance {
   const requestedRoot = realpathSync(resolve(input.workspaceRoot));
   const repositoryRoot = realpathSync(runGit(requestedRoot, ['rev-parse', '--show-toplevel']).stdout.trim());
   const relativeRoot = relative(repositoryRoot, requestedRoot);
@@ -233,16 +235,22 @@ export async function collectWorkspaceProvenance(
     safeDiff.findings.map((finding) => [`${finding.path}\0${finding.type}`, finding]),
   ).values()].sort((left, right) => `${left.path}\0${left.type}`.localeCompare(`${right.path}\0${right.type}`));
 
+  const workspacePaths = [...new Set(runGit(repositoryRoot, [
+    'ls-files', '-z', '--cached', '--others', '--exclude-standard',
+  ]).stdout.split('\0').filter(Boolean))].sort();
+  const fileFingerprints = Object.fromEntries(
+    workspacePaths.map((path) => [path, fileFingerprint(repositoryRoot, path)]),
+  );
   const fingerprintSource = JSON.stringify({
     currentRevision,
     status: porcelain.map(({ display }) => display).sort(),
-    files: changedPaths.map((path) => [path, fileFingerprint(repositoryRoot, path)]),
+    files: Object.entries(fileFingerprints),
   });
   const workspaceFingerprint = sha256(fingerprintSource);
 
   return {
     repositoryRoot,
-    baselineRevision: input.baselineRevision,
+    baselineRevision: resolvedBaselineRevision,
     currentRevision,
     porcelainStatus: porcelain.map(({ display }) => display),
     changedPaths,
@@ -253,5 +261,6 @@ export async function collectWorkspaceProvenance(
     workspaceFingerprintMatchesBefore: workspaceFingerprint === input.workspaceFingerprintBefore,
     outOfScopePaths: changedPaths.filter((path) => !isAllowed(path, input.allowedPaths)),
     sensitiveFindings,
+    fileFingerprints,
   };
 }

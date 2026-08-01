@@ -25,6 +25,7 @@ export interface SurfaceExecuteOptions {
   timeoutMs?: number;
   dryRun?: boolean;
   taskId?: string;
+  workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
 }
 
 /**
@@ -181,6 +182,7 @@ export class Surface {
         timeoutMs: options.timeoutMs ?? this.definition.timeout,
         surfaceId: this.id,
         taskId: options.taskId,
+        workspacePolicy: options.workspacePolicy,
       });
       if (!agentResult.success) {
         throw new Error(`Agent ${this.agent} 执行失败: ${agentResult.output || 'unknown error'}`);

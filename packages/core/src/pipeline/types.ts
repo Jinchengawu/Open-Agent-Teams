@@ -219,6 +219,8 @@ export interface PipelineExecuteOptions {
   dryRun?: boolean;
   /** Surface 默认超时（毫秒） */
   surfaceTimeoutMs?: number;
+  /** Delivery-scoped workspace policies keyed by implementation Surface ID. */
+  workspacePolicies?: Record<string, import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy>;
 }
 
 // ============================================================================

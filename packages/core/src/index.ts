@@ -271,6 +271,16 @@ export type {
   SensitiveFinding,
   SensitiveFindingType,
 } from './runtime/WorkspaceProvenance.js';
+export {
+  captureManagedWorkspaceSnapshot,
+  verifyManagedCodeChange,
+  ManagedCodeChangeVerificationError,
+} from './runtime/ManagedCodeChangeVerification.js';
+export type {
+  ManagedCodeChangeVerification,
+  ManagedWorkspacePolicy,
+  ManagedWorkspaceSnapshot,
+} from './runtime/ManagedCodeChangeVerification.js';
 
 // ── 国际化（新增 — 全栈中英展示协商）──
 export {

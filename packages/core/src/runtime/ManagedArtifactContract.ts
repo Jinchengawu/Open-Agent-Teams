@@ -93,6 +93,14 @@ function isSafeRelativePath(value: unknown): value is string {
   return !value.split(/[\\/]/).some((segment) => segment === '..');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+
 function hasDependencyCycle(tasks: Array<{ id: string; dependsOn: string[] }>): boolean {
   const dependencies = new Map(tasks.map((task) => [task.id, task.dependsOn]));
   const visiting = new Set<string>();
@@ -279,13 +287,98 @@ export function validateManagedArtifactEnvelope(
     }
   } else if (surfaceId === 'frontend' || surfaceId === 'backend') {
     if (artifact.kind !== 'code_change') stageIssues.push('kind must be code_change');
+    if (!nonEmptyStrings(artifact.acceptanceIds)) {
+      stageIssues.push('acceptanceIds must contain at least one ID');
+    }
+    if (!isNonEmptyString(payload.repositoryId)) stageIssues.push('payload.repositoryId is required');
+    if (!isNonEmptyString(payload.baselineRevision)) {
+      stageIssues.push('payload.baselineRevision is required');
+    }
+    if (!isSha256(payload.workspaceFingerprintBefore)) {
+      stageIssues.push('payload.workspaceFingerprintBefore must be a lowercase SHA-256 hex digest');
+    }
+    if (!isSha256(payload.workspaceFingerprintAfter)) {
+      stageIssues.push('payload.workspaceFingerprintAfter must be a lowercase SHA-256 hex digest');
+    }
     const changedFiles = Array.isArray(payload.changedFiles) ? payload.changedFiles : [];
-    if (changedFiles.length === 0) stageIssues.push('payload.changedFiles must contain at least one change');
-    const commands = Array.isArray(payload.commands) ? payload.commands as Array<Partial<CommandEvidence>> : [];
-    if (!commands.some((evidence) =>
-      typeof evidence.command === 'string' && Boolean(evidence.command.trim()) && evidence.exitCode === 0)) {
+    if (changedFiles.length === 0) {
+      stageIssues.push('payload.changedFiles must contain at least one change');
+    } else {
+      for (const change of changedFiles) {
+        if (!isRecord(change)) {
+          stageIssues.push('each payload.changedFiles entry must be an object');
+          continue;
+        }
+        if (!isSafeRelativePath(change.path)) {
+          stageIssues.push('each changed file requires a safe relative path');
+        }
+        if (!['added', 'modified', 'deleted'].includes(String(change.operation))) {
+          stageIssues.push('each changed file operation must be added, modified, or deleted');
+        }
+        if (!isNonEmptyString(change.beforeHash)) {
+          stageIssues.push('each changed file requires beforeHash');
+        }
+        if (change.operation !== 'deleted' && !isNonEmptyString(change.afterHash)) {
+          stageIssues.push('each non-deleted changed file requires afterHash');
+        }
+      }
+    }
+    const diff = isRecord(payload.diff) ? payload.diff : undefined;
+    if (!diff || diff.format !== 'unified' || !isSha256(diff.sha256)
+      || !isNonEmptyString(diff.storageRef)) {
+      stageIssues.push('payload.diff requires format=unified, sha256, and storageRef');
+    }
+    const commands = Array.isArray(payload.commands) ? payload.commands : [];
+    if (commands.length === 0 || commands.some((entry) => {
+      if (!isRecord(entry)) return true;
+      return !isNonEmptyString(entry.command)
+        || !isNonEmptyString(entry.cwd)
+        || !isNonEmptyString(entry.startedAt)
+        || !isNonEmptyString(entry.completedAt)
+        || typeof entry.exitCode !== 'number'
+        || !isNonEmptyString(entry.stdoutRef)
+        || !isNonEmptyString(entry.stderrRef);
+    })) {
+      stageIssues.push('payload.commands entries require command, cwd, timestamps, exitCode, stdoutRef, and stderrRef');
+    }
+    if (!commands.some((entry) => isRecord(entry) && entry.exitCode === 0)) {
       stageIssues.push('commandEvidence must contain at least one successful command');
     }
+    const selfTests = Array.isArray(payload.selfTests) ? payload.selfTests : [];
+    const acceptanceIds = new Set(artifact.acceptanceIds ?? []);
+    const coveredAcceptanceIds = new Set<string>();
+    if (selfTests.length === 0 || selfTests.some((entry) => {
+      if (!isRecord(entry)) return true;
+      if (Array.isArray(entry.acceptanceIds)) {
+        for (const acceptanceId of entry.acceptanceIds) {
+          if (typeof acceptanceId === 'string') coveredAcceptanceIds.add(acceptanceId);
+        }
+      }
+      return !isNonEmptyString(entry.name)
+        || entry.status !== 'passed'
+        || !Number.isInteger(entry.commandIndex)
+        || Number(entry.commandIndex) < 0
+        || Number(entry.commandIndex) >= commands.length
+        || !nonEmptyStrings(entry.acceptanceIds)
+        || entry.acceptanceIds.some((id) => !acceptanceIds.has(id));
+    })) {
+      stageIssues.push('payload.selfTests must map passed command evidence to known acceptance IDs');
+    }
+    if ([...acceptanceIds].some((id) => !coveredAcceptanceIds.has(id))) {
+      stageIssues.push('every Artifact acceptanceId must be covered by a passed selfTest');
+    }
+    const scope = isRecord(payload.scope) ? payload.scope : undefined;
+    if (!scope || !nonEmptyStrings(scope.allowedPaths)
+      || scope.allowedPaths.some((path) => !isSafeRelativePath(path))
+      || !Array.isArray(scope.outOfScopePaths)) {
+      stageIssues.push('payload.scope requires safe allowedPaths and outOfScopePaths');
+    }
+    const security = isRecord(payload.security) ? payload.security : undefined;
+    if (!security || security.secretScanStatus !== 'passed'
+      || !Array.isArray(security.sensitivePathsTouched)) {
+      stageIssues.push('payload.security requires a passed secret scan and sensitivePathsTouched');
+    }
+    if (!isNonEmptyString(payload.summary)) stageIssues.push('payload.summary is required');
   } else if (surfaceId === 'testing') {
     if (artifact.kind !== 'verification' && artifact.kind !== 'test_evidence') {
       stageIssues.push('kind must be verification or test_evidence');
