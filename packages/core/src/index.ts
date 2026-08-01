@@ -75,6 +75,32 @@ export {
   isModelSpendGuardEnabled,
   modelSpendGuardMessage,
 } from './runtime/model-spend-guard.js';
+export {
+  ManagedAgentWorkQueue,
+  getGlobalManagedAgentWorkQueue,
+  resetGlobalManagedAgentWorkQueue,
+} from './runtime/ManagedAgentWorkQueue.js';
+export { verifyManagedWorkerBearer } from './runtime/ManagedWorkerAuth.js';
+export {
+  ManagedArtifactContractError,
+  ManagedArtifactBindingError,
+  ManagedArtifactIdempotencyConflictError,
+  ManagedArtifactValidationError,
+  computeManagedArtifactContentHash,
+  validateManagedArtifactEnvelope,
+} from './runtime/ManagedArtifactContract.js';
+export type {
+  CommandEvidence,
+  ManagedArtifactEnvelope,
+  ManagedArtifactValidation,
+  TestEvidence,
+} from './runtime/ManagedArtifactContract.js';
+export type {
+  ManagedAgentWorkItem,
+  ManagedAgentWorkStatus,
+  ManagedAgentWorkerAudit,
+  ManagedAgentWorkerHeartbeat,
+} from './runtime/ManagedAgentWorkQueue.js';
 
 // ── 质量评估与遥测 ──
 export { OutputJudge } from './quality/judge.js';
@@ -236,6 +262,15 @@ export type {
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
 export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
+
+// ── Managed worker workspace provenance ──
+export { collectWorkspaceProvenance } from './runtime/WorkspaceProvenance.js';
+export type {
+  WorkspaceProvenance,
+  WorkspaceProvenanceInput,
+  SensitiveFinding,
+  SensitiveFindingType,
+} from './runtime/WorkspaceProvenance.js';
 
 // ── 国际化（新增 — 全栈中英展示协商）──
 export {

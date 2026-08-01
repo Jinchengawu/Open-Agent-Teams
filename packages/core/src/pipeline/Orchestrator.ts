@@ -1415,6 +1415,7 @@ ${JSON.stringify(artifacts, null, 2)}
       signal: options.signal,
       timeoutMs: surfaceDef.timeout ?? options.surfaceTimeoutMs ?? pipeline.context?.execution?.surfaceTimeoutMs,
       dryRun: options.dryRun ?? pipeline.context?.execution?.dryRun,
+      taskId: this.coordinationBindings.get(instance.id)?.taskIdsBySurface.get(surfaceId),
     });
     instance.surfaceResults.set(surfaceId, result);
     this.updateSurfaceTaskStatus(

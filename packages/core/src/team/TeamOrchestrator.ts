@@ -12,6 +12,7 @@ import { IntentRouter } from '../intent/IntentRouter.js';
 import { eventBus } from '../event/EventBus.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
+import { getGlobalManagedAgentWorkQueue, type ManagedAgentWorkQueue } from '../runtime/ManagedAgentWorkQueue.js';
 import { applyRuntimeModelSettings } from '../runtime/model-settings.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE, materializeTeamAgents } from '../team-profile/index.js';
 import { createA2AMessage, getGlobalInProcessA2ATransport, teamProfileAgentToA2AAgentCard } from '../a2a/index.js';
@@ -58,6 +59,7 @@ export class TeamOrchestrator implements IOrchestrator {
   private defaultModel: string;
   private apiKey: string;
   private baseUrl: string;
+  private managedAgentWorkQueue: ManagedAgentWorkQueue;
 
   constructor(config: TeamOrchestratorConfig) {
     this.agentConfigs = new Map();
@@ -79,6 +81,7 @@ export class TeamOrchestrator implements IOrchestrator {
     this.defaultModel = config.defaultModel;
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl;
+    this.managedAgentWorkQueue = config.managedAgentWorkQueue || getGlobalManagedAgentWorkQueue();
 
     // 初始化 Hermes Agent Client
     this.hermesClient = new HermesAgentClient();
@@ -168,6 +171,8 @@ export class TeamOrchestrator implements IOrchestrator {
     signal?: AbortSignal;
     timeoutMs?: number;
     maxTokens?: number;
+    surfaceId?: string;
+    taskId?: string;
   }): Promise<AgentRunResult> {
     this.syncHermesAgentRegistry();
     const config = this.agentConfigs.get(agentId);
@@ -176,8 +181,20 @@ export class TeamOrchestrator implements IOrchestrator {
     console.log(`[TeamOrchestrator] runAgent: ${agentId} → "${goal.substring(0, 60)}..."`);
 
     if (isModelSpendGuardEnabled()) {
-      console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}`);
-      return createGuardedAgentResult(agentId);
+      if (!this.managedAgentWorkQueue.hasActiveWorker(agentId)) {
+        console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}; no managed worker available`);
+        return createGuardedAgentResult(agentId);
+      }
+      console.log(`[TeamOrchestrator] MODEL_SPEND_GUARD queued managed external work for ${agentId}`);
+      return this.managedAgentWorkQueue.enqueueAndWait({
+        agentId,
+        goal,
+        sessionId,
+        surfaceId: options?.surfaceId,
+        taskId: options?.taskId,
+        signal: options?.signal,
+        timeoutMs: options?.timeoutMs,
+      });
     }
 
     const budgetSessionId = sessionId || agentId;
@@ -901,6 +918,7 @@ export function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }): TeamOrchestrator {
   const model = process.env.MODEL_NAME || 'mimo-v2.5-pro';
   const apiKey = process.env.API_KEY || '';
@@ -922,6 +940,7 @@ export function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
     workflowStateManager: options?.workflowStateManager,
     tokenBudgetManager: options?.tokenBudgetManager,
     extraCustomTools: docKanbanTools,
+    managedAgentWorkQueue: options?.managedAgentWorkQueue,
   });
 }
 
@@ -930,6 +949,7 @@ export function createOpenTeamOrchestrator(options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }): TeamOrchestrator {
   return createProfileTeamOrchestrator(OPEN_FRAMEWORK_TEAM_PROFILE, options);
 }
@@ -940,6 +960,7 @@ export function createDevTeamOrchestrator(options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }): TeamOrchestrator {
   return createOpenTeamOrchestrator(options);
 }

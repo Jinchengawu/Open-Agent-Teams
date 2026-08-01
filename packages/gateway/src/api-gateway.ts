@@ -99,7 +99,9 @@ function serializeWorkflow(workflow: any): Record<string, unknown> {
     updated_at: new Date(workflow.updatedAt).toISOString(),
     pipeline_url: isPipelineWorkflow ? `/pipeline?instanceId=${encodeURIComponent(workflow.id)}` : undefined,
     knowledge_url: coordination.projectId ? `/knowledge?projectId=${encodeURIComponent(coordination.projectId)}` : undefined,
-    kanban_url: coordination.projectId ? '/kanban?source=coordination' : undefined,
+    kanban_url: coordination.projectId
+      ? `/kanban?source=coordination&projectId=${encodeURIComponent(coordination.projectId)}`
+      : undefined,
   };
 }
 
@@ -110,7 +112,9 @@ function withPipelineNavigation(serialized: Record<string, any>): Record<string,
     ...serialized,
     pipeline_url: instanceId ? `/pipeline?instanceId=${encodeURIComponent(instanceId)}` : undefined,
     knowledge_url: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}` : undefined,
-    kanban_url: projectId ? '/kanban?source=coordination' : undefined,
+    kanban_url: projectId
+      ? `/kanban?source=coordination&projectId=${encodeURIComponent(projectId)}`
+      : undefined,
   };
 }
 
@@ -842,7 +846,9 @@ async function main(): Promise<void> {
           navigation: {
             pipeline_url: `/pipeline?instanceId=${encodeURIComponent(instanceId)}`,
             knowledge_url: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}` : undefined,
-            kanban_url: projectId ? '/kanban?source=coordination' : undefined,
+            kanban_url: projectId
+              ? `/kanban?source=coordination&projectId=${encodeURIComponent(projectId)}`
+              : undefined,
           },
         }));
         return;

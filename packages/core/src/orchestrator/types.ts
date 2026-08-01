@@ -51,6 +51,8 @@ export interface AgentRunResult {
   messages: LLMMessage[];
   tokenUsage: TokenUsage;
   toolCalls: ToolCallRecord[];
+  /** 结构化 Agent 产物与机器证据 */
+  artifacts?: Record<string, unknown>;
 }
 
 export interface TeamRunResult {
@@ -130,6 +132,8 @@ export interface TeamOrchestratorConfig {
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   /** 额外的自定义工具（如文档工具、看板工具） */
   extraCustomTools?: any[];
+  /** 模型消耗保护开启时，由外部 Agent 领取并完成工作的队列 */
+  managedAgentWorkQueue?: import('../runtime/ManagedAgentWorkQueue.js').ManagedAgentWorkQueue;
 }
 
 // ============================================================================

@@ -26,6 +26,7 @@ import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE } from './team-profile/index.js';
 import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
 import { getGlobalDocumentManager } from './knowledge/DocumentManager.js';
+import { ManagedAgentWorkQueue } from './runtime/ManagedAgentWorkQueue.js';
 
 // ============================================================================
 // Types
@@ -36,6 +37,8 @@ export interface AgentAppConfig {
   dataDir?: string;
   /** 进度回调（用于 Dashboard 实时展示） */
   onProgress?: (event: OrchestratorEvent) => void;
+  /** 可选的托管外部 Agent 队列（测试或定制 worker 注入） */
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }
 
 export interface AgentApp {
@@ -46,6 +49,7 @@ export interface AgentApp {
   pipelineOrchestrator: import('./pipeline/Orchestrator.js').PipelineOrchestrator;
   knowledgeCenter: import('./knowledge/KnowledgeCenter.js').KnowledgeCenter;
   documentManager: import('./knowledge/DocumentManager.js').DocumentManager;
+  managedAgentWorkQueue: ManagedAgentWorkQueue;
   close: () => Promise<void>;
 }
 
@@ -122,12 +126,16 @@ export async function createAgentApp(config: AgentAppConfig = {}): Promise<Agent
   // 初始化看板工具的数据库连接
   setKanbanDatabase(sessionManager.getDb());
   const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools(), createSendMessageTool()];
+  const managedAgentWorkQueue = config.managedAgentWorkQueue || new ManagedAgentWorkQueue({
+    database: sessionManager.getDb(),
+  });
 
   const orchestrator = createOpenTeamOrchestrator({
     onProgress: config.onProgress,
     workflowStateManager,
     tokenBudgetManager,
     extraCustomTools,
+    managedAgentWorkQueue,
   });
 
   // 创建知识中心与文档管理器
@@ -331,5 +339,5 @@ export async function createAgentApp(config: AgentAppConfig = {}): Promise<Agent
     sessionManager.close();
   };
 
-  return { app, sessionManager, orchestrator, tokenBudgetManager, pipelineOrchestrator, knowledgeCenter, documentManager, close };
+  return { app, sessionManager, orchestrator, tokenBudgetManager, pipelineOrchestrator, knowledgeCenter, documentManager, managedAgentWorkQueue, close };
 }
