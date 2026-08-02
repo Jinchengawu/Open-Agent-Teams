@@ -359,6 +359,8 @@ export function validateManagedArtifactEnvelope(
         || !Number.isInteger(entry.commandIndex)
         || Number(entry.commandIndex) < 0
         || Number(entry.commandIndex) >= commands.length
+        || !isRecord(commands[Number(entry.commandIndex)])
+        || commands[Number(entry.commandIndex)].exitCode !== 0
         || !nonEmptyStrings(entry.acceptanceIds)
         || entry.acceptanceIds.some((id) => !acceptanceIds.has(id));
     })) {
