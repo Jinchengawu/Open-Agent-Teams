@@ -141,6 +141,11 @@ export interface PipelineExecutionConfig {
   surfaceTimeoutMs?: number;
   /** 是否禁止仓库写入类副作用 */
   dryRun?: boolean;
+  /** Opt-in projection of optional implementation Surfaces from an accepted task_graph Artifact. */
+  taskGraphProjection?: {
+    sourceSurfaceId: string;
+    optionalSurfaceIds: string[];
+  };
 }
 
 /** 缓存配置 */

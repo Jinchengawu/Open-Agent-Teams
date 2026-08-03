@@ -43,11 +43,10 @@ function getMissingChecks(checks: Record<string, boolean>) {
 }
 
 export async function GET() {
-  const [instancesData, workflowsData, tasksData, documentsData] = await Promise.all([
+  const [instancesData, workflowsData, tasksData] = await Promise.all([
     fetchGatewayJson('/pipeline-instances?limit=1'),
     fetchGatewayJson('/v1/workflows?limit=1'),
     fetchGatewayJson('/api/v2/tasks'),
-    fetchGatewayJson('/api/v2/documents?limit=50'),
   ]);
 
   const gateReports = getCompletedDeliveryGateReports(20);
@@ -56,8 +55,11 @@ export async function GET() {
   const latestInstance = instancesData?.instances?.[0] ?? null;
   const latestWorkflow = workflowsData?.workflows?.[0] ?? null;
   const tasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
-  const documents = Array.isArray(documentsData?.documents) ? documentsData.documents : [];
   const projectId = latestInstance?.coordination?.projectId ?? latestWorkflow?.project_id ?? null;
+  const documentsData = await fetchGatewayJson(projectId
+    ? `/api/v2/documents?projectId=${encodeURIComponent(projectId)}&limit=50`
+    : '/api/v2/documents?limit=50');
+  const documents = Array.isArray(documentsData?.documents) ? documentsData.documents : [];
   const taskIdsBySurface = latestInstance?.coordination?.taskIdsBySurface || {};
   const documentIdsBySurface = latestInstance?.coordination?.documentIdsBySurface || {};
   const surfaceTaskCount = countObjectValues(taskIdsBySurface);
