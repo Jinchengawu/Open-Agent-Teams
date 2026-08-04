@@ -65,6 +65,17 @@ interface PipelineCoordinationBinding {
   docIdsBySurface: Map<string, string>;
 }
 
+interface ProjectedImplementationTask {
+  id: string;
+  title: string;
+  ownerAgent: string;
+  dependsOn: string[];
+  allowedPaths: string[];
+  acceptanceIds: string[];
+  expectedArtifactKind: string;
+  expectedMutation: boolean;
+}
+
 type PersistedPipelineContext = {
   kind?: 'pipeline';
   pipelineId?: string;
@@ -285,23 +296,26 @@ export class PipelineOrchestrator {
       // 按批次执行（支持并行）
       for (let batchIndex = 0; batchIndex < executionOrder.length; batchIndex++) {
         this.throwIfCancelled(signal);
-        const batch = this.projectImplementationBatch(pipeline, instance, executionOrder[batchIndex]);
-        console.log(`[PipelineOrchestrator] 执行批次: ${batch.join(', ') || '(无实现面)'}`);
-
-        // 并行执行当前批次
-        const batchPromises = batch.map((surfaceId) =>
-          this.executeSurface(pipeline, surfaceId, instance, initialInput, options),
+        const projectedBatches = this.projectImplementationBatches(
+          pipeline,
+          instance,
+          executionOrder[batchIndex],
         );
+        const batch = projectedBatches.flat();
+        let hasFailure = false;
 
-        await Promise.all(batchPromises);
-        this.throwIfCancelled(signal);
-        this.assertDryRunNoRepositorySideEffects(dryRunGuard);
-
-        // 检查是否有失败
-        const hasFailure = batch.some((sid) => {
-          const result = instance.surfaceResults.get(sid);
-          return result?.status === 'failed';
-        });
+        for (const projectedBatch of projectedBatches) {
+          console.log(`[PipelineOrchestrator] 执行批次: ${projectedBatch.join(', ') || '(无实现面)'}`);
+          await Promise.all(projectedBatch.map((surfaceId) =>
+            this.executeSurface(pipeline, surfaceId, instance, initialInput, options),
+          ));
+          this.throwIfCancelled(signal);
+          this.assertDryRunNoRepositorySideEffects(dryRunGuard);
+          hasFailure = projectedBatch.some((surfaceId) =>
+            instance.surfaceResults.get(surfaceId)?.status === 'failed',
+          );
+          if (hasFailure) break;
+        }
 
         if (hasFailure) {
           const failedSurface = batch.find((sid) => instance.surfaceResults.get(sid)?.status === 'failed');
@@ -919,57 +933,110 @@ ${JSON.stringify(artifacts, null, 2)}
   }
 
   /**
-   * Accepted planning Artifacts select the implementation role Surfaces for this run.
-   * Legacy/non-managed planning output keeps the static fan-out for compatibility.
+   * Accepted planning Artifacts define the implementation role Surfaces and their order.
+   * A configured projection fails closed instead of falling back to the static fan-out.
    */
-  private projectImplementationBatch(
+  private projectImplementationBatches(
     pipeline: PipelineDefinition,
     instance: PipelineInstance,
     batch: string[],
-  ): string[] {
+  ): string[][] {
     const implementationSurfaces = pipeline.surfaces.filter((surface) =>
       this.getTaskGraphProjection(pipeline)?.optionalSurfaceIds.includes(surface.id),
     );
     if (implementationSurfaces.length === 0
       || !batch.some((surfaceId) => implementationSurfaces.some((surface) => surface.id === surfaceId))) {
-      return batch;
+      return [batch];
     }
 
-    const projectedSurfaceIds = this.readProjectedImplementationSurfaceIds(instance, implementationSurfaces)
-      ?? new Set(implementationSurfaces.map((surface) => surface.id));
-    const binding = this.coordinationBindings.get(instance.id);
+    const projectedTasks = this.readProjectedImplementationTasks(instance, implementationSurfaces);
+    const surfaceByOwner = new Map(implementationSurfaces.map((surface) => [surface.agent, surface]));
 
+    const taskIds = new Set(projectedTasks.map((task) => task.id));
+    for (const task of projectedTasks) {
+      const unresolved = task.dependsOn.filter((dependencyId) => !taskIds.has(dependencyId));
+      if (unresolved.length > 0) {
+        throw new Error(
+          `task_graph code_change task ${task.id} depends on unprojected task ${unresolved.join(', ')}`,
+        );
+      }
+    }
+
+    const remaining = new Map(projectedTasks.map((task) => [task.id, task]));
+    const completed = new Set<string>();
+    const projectedBatches: string[][] = [];
+    while (remaining.size > 0) {
+      const ready = [...remaining.values()].filter((task) =>
+        task.dependsOn.every((dependencyId) => completed.has(dependencyId)),
+      );
+      if (ready.length === 0) {
+        throw new Error('task_graph projected code_change dependencies cannot be scheduled');
+      }
+      projectedBatches.push(ready.map((task) => surfaceByOwner.get(task.ownerAgent)!.id));
+      for (const task of ready) {
+        completed.add(task.id);
+        remaining.delete(task.id);
+      }
+    }
+
+    const binding = this.coordinationBindings.get(instance.id);
     if (binding && this.documentManager) {
-      for (const surface of implementationSurfaces) {
-        if (!projectedSurfaceIds.has(surface.id) || binding.taskIdsBySurface.has(surface.id)) continue;
-        const task = this.createCoordinationTask(binding.projectId, pipeline, instance, surface);
+      const planningArtifact = instance.surfaceResults.get(
+        this.getTaskGraphProjection(pipeline)!.sourceSurfaceId,
+      )!.artifacts!.managedArtifact as ManagedArtifactEnvelope;
+      for (const taskNode of projectedTasks) {
+        const surface = surfaceByOwner.get(taskNode.ownerAgent)!;
+        if (binding.taskIdsBySurface.has(surface.id)) continue;
+        const task = this.createProjectedCoordinationTask(
+          binding.projectId,
+          pipeline,
+          instance,
+          surface,
+          taskNode,
+          planningArtifact,
+        );
         binding.taskIdsBySurface.set(surface.id, task.id);
       }
       instance.coordination = this.serializeCoordinationBinding(instance.id);
       this.persistInstanceContext(instance);
     }
 
-    return batch.filter((surfaceId) =>
-      !implementationSurfaces.some((surface) => surface.id === surfaceId) || projectedSurfaceIds.has(surfaceId),
-    );
+    return projectedBatches;
   }
 
-  private readProjectedImplementationSurfaceIds(
+  private readProjectedImplementationTasks(
     instance: PipelineInstance,
     implementationSurfaces: SurfaceDefinition[],
-  ): Set<string> | undefined {
+  ): ProjectedImplementationTask[] {
     const projection = this.getTaskGraphProjection(
       this.pipelines.get(instance.pipelineId),
     );
-    if (!projection) return undefined;
+    if (!projection) throw new Error('task_graph projection configuration is missing');
     const artifact = instance.surfaceResults.get(projection.sourceSurfaceId)?.artifacts?.managedArtifact as
       ManagedArtifactEnvelope | undefined;
-    if (!artifact || !validateManagedArtifactEnvelope(projection.sourceSurfaceId, artifact).valid) return undefined;
+    if (!artifact) {
+      throw new Error(`task_graph projection requires an Artifact from ${projection.sourceSurfaceId}`);
+    }
+    const validation = validateManagedArtifactEnvelope(projection.sourceSurfaceId, artifact);
+    if (!validation.valid) {
+      throw new Error(`task_graph projection requires an accepted Artifact: ${validation.issues.join('; ')}`);
+    }
 
     const tasks = Array.isArray(artifact.payload.tasks)
       ? artifact.payload.tasks as Array<Record<string, unknown>>
       : [];
-    const implementationTasks = tasks.filter((task) => task.expectedArtifactKind === 'code_change');
+    const implementationTasks = tasks
+      .filter((task) => task.expectedArtifactKind === 'code_change')
+      .map((task) => ({
+        id: String(task.id),
+        title: String(task.title),
+        ownerAgent: String(task.ownerAgent),
+        dependsOn: [...task.dependsOn as string[]],
+        allowedPaths: [...task.allowedPaths as string[]],
+        acceptanceIds: [...task.acceptanceIds as string[]],
+        expectedArtifactKind: String(task.expectedArtifactKind),
+        expectedMutation: task.expectedMutation === true,
+      }));
     if (implementationTasks.length === 0) {
       throw new Error('Accepted task_graph has no code_change task for an optional implementation Surface');
     }
@@ -986,12 +1053,20 @@ ${JSON.stringify(artifacts, null, 2)}
       );
     }
 
-    const ownerAgents = new Set(implementationTasks
-      .map((task) => task.ownerAgent)
-      .filter((ownerAgent): ownerAgent is string => typeof ownerAgent === 'string'));
-    return new Set(implementationSurfaces
-      .filter((surface) => ownerAgents.has(surface.agent))
-      .map((surface) => surface.id));
+    const taskIdsByOwner = new Map<string, string[]>();
+    for (const task of implementationTasks) {
+      const taskIds = taskIdsByOwner.get(task.ownerAgent) ?? [];
+      taskIds.push(task.id);
+      taskIdsByOwner.set(task.ownerAgent, taskIds);
+    }
+    const duplicateOwner = [...taskIdsByOwner].find(([, taskIds]) => taskIds.length > 1);
+    if (duplicateOwner) {
+      throw new Error(
+        `multiple code_change tasks for ${duplicateOwner[0]} cannot be folded into one implementation Surface: ${duplicateOwner[1].join(', ')}`,
+      );
+    }
+
+    return implementationTasks;
   }
 
   private getTaskGraphProjection(
@@ -1019,6 +1094,49 @@ ${JSON.stringify(artifacts, null, 2)}
       ].filter(Boolean).join('\n'),
       surface.agent,
     );
+  }
+
+  private createProjectedCoordinationTask(
+    projectId: string,
+    pipeline: PipelineDefinition,
+    instance: PipelineInstance,
+    surface: SurfaceDefinition,
+    taskNode: ProjectedImplementationTask,
+    sourceArtifact: ManagedArtifactEnvelope,
+  ): Task {
+    if (!this.documentManager) throw new Error('DocumentManager is required for coordination tasks');
+    const canonicalTaskId = this.canonicalProjectedTaskId(instance.id, taskNode.id);
+    return this.documentManager.createTask(
+      projectId,
+      taskNode.title,
+      [
+        `Pipeline: ${pipeline.id}`,
+        `Instance: ${instance.id}`,
+        `Surface: ${surface.id}`,
+        `Source task: ${taskNode.id}`,
+      ].join('\n'),
+      taskNode.ownerAgent,
+      {
+        id: canonicalTaskId,
+        metadata: {
+          sourceTaskId: taskNode.id,
+          sourceArtifactId: sourceArtifact.artifactId,
+          surfaceId: surface.id,
+          dependsOn: taskNode.dependsOn.map((dependencyId) =>
+            this.canonicalProjectedTaskId(instance.id, dependencyId),
+          ),
+          sourceDependsOn: taskNode.dependsOn,
+          allowedPaths: taskNode.allowedPaths,
+          acceptanceIds: taskNode.acceptanceIds,
+          expectedArtifactKind: taskNode.expectedArtifactKind,
+          expectedMutation: taskNode.expectedMutation,
+        },
+      },
+    );
+  }
+
+  private canonicalProjectedTaskId(instanceId: string, sourceTaskId: string): string {
+    return `task-${instanceId}-node-${sourceTaskId}`;
   }
 
   private updateSurfaceTaskStatus(instanceId: string, surfaceId: string, status: Task['status']): void {

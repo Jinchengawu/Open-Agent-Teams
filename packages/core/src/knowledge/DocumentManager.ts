@@ -32,6 +32,7 @@ export interface Task {
   description: string;
   status: 'todo' | 'in_progress' | 'review' | 'done' | 'blocked';
   assignee: string; // Agent ID
+  metadata?: Record<string, any>;
   createdAt: number;
   updatedAt: number;
 }
@@ -124,10 +125,15 @@ export class DocumentManager {
         description TEXT,
         status TEXT NOT NULL DEFAULT 'todo',
         assignee TEXT,
+        metadata TEXT NOT NULL DEFAULT '{}',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
     `);
+    const taskColumns = this.db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
+    if (!taskColumns.some((column) => column.name === 'metadata')) {
+      this.db.exec("ALTER TABLE tasks ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'");
+    }
 
     // 文档主表（增强版）
     this.db.exec(`
@@ -252,15 +258,31 @@ export class DocumentManager {
   // 任务操作
   // ============================================================================
 
-  createTask(projectId: string, title: string, description?: string, assignee?: string): Task {
-    const id = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  createTask(
+    projectId: string,
+    title: string,
+    description?: string,
+    assignee?: string,
+    options: { id?: string; metadata?: Record<string, any> } = {},
+  ): Task {
+    const id = options.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = Date.now();
-    const task: Task = { id, projectId, title, description: description || '', status: 'todo', assignee: assignee || '', createdAt: now, updatedAt: now };
+    const task: Task = {
+      id,
+      projectId,
+      title,
+      description: description || '',
+      status: 'todo',
+      assignee: assignee || '',
+      metadata: options.metadata || {},
+      createdAt: now,
+      updatedAt: now,
+    };
 
     this.db.prepare(`
-      INSERT INTO tasks (id, project_id, title, description, status, assignee, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, projectId, title, task.description, 'todo', assignee || '', now, now);
+      INSERT INTO tasks (id, project_id, title, description, status, assignee, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, projectId, title, task.description, 'todo', assignee || '', JSON.stringify(task.metadata), now, now);
 
     return task;
   }
@@ -740,7 +762,9 @@ export class DocumentManager {
   private rowToTask(row: any): Task {
     return {
       id: row.id, projectId: row.project_id, title: row.title, description: row.description,
-      status: row.status, assignee: row.assignee, createdAt: row.created_at, updatedAt: row.updated_at,
+      status: row.status, assignee: row.assignee,
+      metadata: row.metadata ? JSON.parse(row.metadata) : {},
+      createdAt: row.created_at, updatedAt: row.updated_at,
     };
   }
 
