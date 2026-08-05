@@ -212,6 +212,7 @@ export interface PipelineInstance {
   coordination?: {
     projectId: string;
     taskIdsBySurface: Record<string, string>;
+    taskNodeIdsBySurface?: Record<string, string[]>;
     documentIdsBySurface: Record<string, string>;
   };
 }

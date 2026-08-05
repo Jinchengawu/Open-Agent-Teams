@@ -62,6 +62,7 @@ interface ConflictResolution {
 interface PipelineCoordinationBinding {
   projectId: string;
   taskIdsBySurface: Map<string, string>;
+  taskNodeIdsBySurface: Map<string, string[]>;
   docIdsBySurface: Map<string, string>;
 }
 
@@ -74,6 +75,12 @@ interface ProjectedImplementationTask {
   acceptanceIds: string[];
   expectedArtifactKind: string;
   expectedMutation: boolean;
+}
+
+interface SurfaceExecutionTarget {
+  surfaceId: string;
+  taskNode?: ProjectedImplementationTask;
+  taskId?: string;
 }
 
 type PersistedPipelineContext = {
@@ -305,20 +312,25 @@ export class PipelineOrchestrator {
         let hasFailure = false;
 
         for (const projectedBatch of projectedBatches) {
-          console.log(`[PipelineOrchestrator] 执行批次: ${projectedBatch.join(', ') || '(无实现面)'}`);
-          await Promise.all(projectedBatch.map((surfaceId) =>
-            this.executeSurface(pipeline, surfaceId, instance, initialInput, options),
+          console.log(`[PipelineOrchestrator] 执行批次: ${projectedBatch.map((target) =>
+            target.taskNode ? `${target.surfaceId}:${target.taskNode.id}` : target.surfaceId
+          ).join(', ') || '(无实现面)'}`);
+          await Promise.all(projectedBatch.map((target) =>
+            this.executeSurface(pipeline, target.surfaceId, instance, initialInput, options, target),
           ));
           this.throwIfCancelled(signal);
           this.assertDryRunNoRepositorySideEffects(dryRunGuard);
-          hasFailure = projectedBatch.some((surfaceId) =>
-            instance.surfaceResults.get(surfaceId)?.status === 'failed',
+          hasFailure = projectedBatch.some((target) =>
+            instance.surfaceResults.get(target.surfaceId)?.status === 'failed',
           );
           if (hasFailure) break;
         }
 
         if (hasFailure) {
-          const failedSurface = batch.find((sid) => instance.surfaceResults.get(sid)?.status === 'failed');
+          const failedTarget = batch.find((target) =>
+            instance.surfaceResults.get(target.surfaceId)?.status === 'failed'
+          );
+          const failedSurface = failedTarget?.surfaceId;
           const failedResult = failedSurface ? instance.surfaceResults.get(failedSurface) : undefined;
           console.error(`[PipelineOrchestrator] 批次执行失败，Pipeline 终止`);
           instance.status = 'failed';
@@ -332,7 +344,7 @@ export class PipelineOrchestrator {
         const loopEdges = pipeline.edges.filter((e) => {
           const downstream = Array.isArray(e.to) ? e.to : [e.to];
           // 如果当前批次包含下游面，且该边是循环边
-          return e.loop && downstream.some((toId) => batch.includes(toId));
+          return e.loop && downstream.some((toId) => batch.some((target) => target.surfaceId === toId));
         });
 
         for (const edge of loopEdges) {
@@ -922,6 +934,7 @@ ${JSON.stringify(artifacts, null, 2)}
       this.coordinationBindings.set(instance.id, {
         projectId: project.id,
         taskIdsBySurface,
+        taskNodeIdsBySurface: new Map(),
         docIdsBySurface: new Map(),
       });
       instance.coordination = this.serializeCoordinationBinding(instance.id);
@@ -940,13 +953,13 @@ ${JSON.stringify(artifacts, null, 2)}
     pipeline: PipelineDefinition,
     instance: PipelineInstance,
     batch: string[],
-  ): string[][] {
+  ): SurfaceExecutionTarget[][] {
     const implementationSurfaces = pipeline.surfaces.filter((surface) =>
       this.getTaskGraphProjection(pipeline)?.optionalSurfaceIds.includes(surface.id),
     );
     if (implementationSurfaces.length === 0
       || !batch.some((surfaceId) => implementationSurfaces.some((surface) => surface.id === surfaceId))) {
-      return [batch];
+      return [batch.map((surfaceId) => ({ surfaceId }))];
     }
 
     const projectedTasks = this.readProjectedImplementationTasks(instance, implementationSurfaces);
@@ -964,15 +977,26 @@ ${JSON.stringify(artifacts, null, 2)}
 
     const remaining = new Map(projectedTasks.map((task) => [task.id, task]));
     const completed = new Set<string>();
-    const projectedBatches: string[][] = [];
+    const projectedBatches: SurfaceExecutionTarget[][] = [];
     while (remaining.size > 0) {
-      const ready = [...remaining.values()].filter((task) =>
+      const readyCandidates = [...remaining.values()].filter((task) =>
         task.dependsOn.every((dependencyId) => completed.has(dependencyId)),
       );
-      if (ready.length === 0) {
+      if (readyCandidates.length === 0) {
         throw new Error('task_graph projected code_change dependencies cannot be scheduled');
       }
-      projectedBatches.push(ready.map((task) => surfaceByOwner.get(task.ownerAgent)!.id));
+      const ready: ProjectedImplementationTask[] = [];
+      const scheduledOwners = new Set<string>();
+      for (const task of readyCandidates) {
+        if (scheduledOwners.has(task.ownerAgent)) continue;
+        scheduledOwners.add(task.ownerAgent);
+        ready.push(task);
+      }
+      projectedBatches.push(ready.map((taskNode) => ({
+        surfaceId: surfaceByOwner.get(taskNode.ownerAgent)!.id,
+        taskNode,
+        taskId: this.canonicalProjectedTaskId(instance.id, taskNode.id),
+      })));
       for (const task of ready) {
         completed.add(task.id);
         remaining.delete(task.id);
@@ -986,7 +1010,6 @@ ${JSON.stringify(artifacts, null, 2)}
       )!.artifacts!.managedArtifact as ManagedArtifactEnvelope;
       for (const taskNode of projectedTasks) {
         const surface = surfaceByOwner.get(taskNode.ownerAgent)!;
-        if (binding.taskIdsBySurface.has(surface.id)) continue;
         const task = this.createProjectedCoordinationTask(
           binding.projectId,
           pipeline,
@@ -995,7 +1018,10 @@ ${JSON.stringify(artifacts, null, 2)}
           taskNode,
           planningArtifact,
         );
-        binding.taskIdsBySurface.set(surface.id, task.id);
+        const surfaceTaskIds = binding.taskNodeIdsBySurface.get(surface.id) ?? [];
+        surfaceTaskIds.push(task.id);
+        binding.taskNodeIdsBySurface.set(surface.id, surfaceTaskIds);
+        if (!binding.taskIdsBySurface.has(surface.id)) binding.taskIdsBySurface.set(surface.id, task.id);
       }
       instance.coordination = this.serializeCoordinationBinding(instance.id);
       this.persistInstanceContext(instance);
@@ -1050,19 +1076,6 @@ ${JSON.stringify(artifacts, null, 2)}
     if (unknownOwners.length > 0) {
       throw new Error(
         `task_graph code_change owner ${unknownOwners.join(', ')} does not map to an optional implementation Surface`,
-      );
-    }
-
-    const taskIdsByOwner = new Map<string, string[]>();
-    for (const task of implementationTasks) {
-      const taskIds = taskIdsByOwner.get(task.ownerAgent) ?? [];
-      taskIds.push(task.id);
-      taskIdsByOwner.set(task.ownerAgent, taskIds);
-    }
-    const duplicateOwner = [...taskIdsByOwner].find(([, taskIds]) => taskIds.length > 1);
-    if (duplicateOwner) {
-      throw new Error(
-        `multiple code_change tasks for ${duplicateOwner[0]} cannot be folded into one implementation Surface: ${duplicateOwner[1].join(', ')}`,
       );
     }
 
@@ -1141,21 +1154,41 @@ ${JSON.stringify(artifacts, null, 2)}
 
   private updateSurfaceTaskStatus(instanceId: string, surfaceId: string, status: Task['status']): void {
     const taskId = this.getSurfaceTaskId(instanceId, surfaceId);
+    this.updateTaskStatus(taskId, status);
+  }
+
+  private updateTaskStatus(taskId: string | undefined, status: Task['status']): void {
     if (!taskId || !this.documentManager) return;
 
     try {
       this.documentManager.updateTaskStatus(taskId, status);
     } catch (error) {
-      console.warn(`[PipelineOrchestrator] 任务状态更新失败: ${surfaceId} -> ${status}: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`[PipelineOrchestrator] 任务状态更新失败: ${taskId} -> ${status}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   private blockUnfinishedSurfaceTasks(pipeline: PipelineDefinition, instance: PipelineInstance): void {
     for (const surface of pipeline.surfaces) {
-      const result = instance.surfaceResults.get(surface.id);
-      if (result?.status === 'completed') continue;
-      this.updateSurfaceTaskStatus(instance.id, surface.id, 'blocked');
+      for (const taskId of this.getSurfaceTaskIds(instance.id, surface.id)) {
+        if (this.documentManager?.getTask(taskId)?.status === 'done') continue;
+        this.updateTaskStatus(taskId, 'blocked');
+      }
     }
+  }
+
+  private getSurfaceTaskIds(instanceId: string, surfaceId: string): string[] {
+    const liveBinding = this.coordinationBindings.get(instanceId);
+    const liveInstance = this.instances.get(instanceId)?.coordination;
+    const state = this.stateManager?.load(instanceId);
+    const persisted = (state?.context as PersistedPipelineContext | undefined)?.coordination;
+    return Array.from(new Set([
+      ...(liveBinding?.taskNodeIdsBySurface.get(surfaceId) ?? []),
+      ...(liveInstance?.taskNodeIdsBySurface?.[surfaceId] ?? []),
+      ...(persisted?.taskNodeIdsBySurface?.[surfaceId] ?? []),
+      liveBinding?.taskIdsBySurface.get(surfaceId),
+      liveInstance?.taskIdsBySurface?.[surfaceId],
+      persisted?.taskIdsBySurface?.[surfaceId],
+    ].filter((taskId): taskId is string => Boolean(taskId))));
   }
 
   private getSurfaceTaskId(instanceId: string, surfaceId: string): string | undefined {
@@ -1177,6 +1210,7 @@ ${JSON.stringify(artifacts, null, 2)}
     return {
       projectId: binding.projectId,
       taskIdsBySurface: Object.fromEntries(binding.taskIdsBySurface),
+      taskNodeIdsBySurface: Object.fromEntries(binding.taskNodeIdsBySurface),
       documentIdsBySurface: Object.fromEntries(binding.docIdsBySurface),
     };
   }
@@ -1312,9 +1346,13 @@ ${JSON.stringify(artifacts, null, 2)}
     if (!this.documentManager) return;
 
     const context = state.context as PersistedPipelineContext;
-    const taskIds = Object.values(context.coordination?.taskIdsBySurface ?? {});
+    const taskIds = Array.from(new Set([
+      ...Object.values(context.coordination?.taskIdsBySurface ?? {}),
+      ...Object.values(context.coordination?.taskNodeIdsBySurface ?? {}).flat(),
+    ]));
     for (const taskId of taskIds) {
       try {
+        if (this.documentManager.getTask(taskId)?.status === 'done') continue;
         this.documentManager.updateTaskStatus(taskId, 'blocked');
       } catch (error) {
         console.warn(`[PipelineOrchestrator] 中断任务状态更新失败: ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
@@ -1329,7 +1367,10 @@ ${JSON.stringify(artifacts, null, 2)}
     if (!coordination?.projectId) return;
     if (coordination.documentIdsBySurface?._experience) return;
 
-    const taskIds = Object.values(coordination.taskIdsBySurface || {});
+    const taskIds = Array.from(new Set([
+      ...Object.values(coordination.taskIdsBySurface || {}),
+      ...Object.values(coordination.taskNodeIdsBySurface || {}).flat(),
+    ]));
     const existingDocIds = Object.values(coordination.documentIdsBySurface || {});
     const activeSurfaces = pipeline.surfaces.filter((surface) =>
       Boolean(instance.surfaceResults.get(surface.id) || coordination.taskIdsBySurface?.[surface.id]),
@@ -1534,6 +1575,7 @@ ${JSON.stringify(artifacts, null, 2)}
     instance: PipelineInstance,
     initialInput?: Record<string, any>,
     options: PipelineExecuteOptions = {},
+    executionTarget: SurfaceExecutionTarget = { surfaceId },
   ): Promise<SurfaceResult> {
     this.throwIfCancelled(options.signal);
     const surfaceDef = pipeline.surfaces.find((s) => s.id === surfaceId);
@@ -1543,7 +1585,15 @@ ${JSON.stringify(artifacts, null, 2)}
 
     console.log(`[PipelineOrchestrator] 执行面: ${surfaceId} (${surfaceDef.name})`);
     instance.currentSurface = surfaceId;
-    this.updateSurfaceTaskStatus(instance.id, surfaceId, 'in_progress');
+    const executionTaskId = executionTarget.taskId
+      ?? this.coordinationBindings.get(instance.id)?.taskIdsBySurface.get(surfaceId);
+    const binding = this.coordinationBindings.get(instance.id);
+    if (executionTarget.taskNode && executionTaskId && binding) {
+      binding.taskIdsBySurface.set(surfaceId, executionTaskId);
+      instance.coordination = this.serializeCoordinationBinding(instance.id);
+      this.persistInstanceContext(instance);
+    }
+    this.updateTaskStatus(executionTaskId, 'in_progress');
 
     // 创建面实例（使用 Pipeline instance ID 作为统一预算 session）
     const surface = createSurface(surfaceDef, this.teamOrchestrator, instance.id);
@@ -1618,7 +1668,7 @@ ${JSON.stringify(artifacts, null, 2)}
       logs: ['Surface execution started'],
     };
     instance.surfaceResults.set(surfaceId, runningResult);
-    this.updateSurfaceTaskStatus(instance.id, surfaceId, 'in_progress');
+    this.updateTaskStatus(executionTaskId, 'in_progress');
 
     const stepIndex = Math.max(0, pipeline.surfaces.findIndex((s) => s.id === surfaceId));
     this.stateManager?.updateStep(instance.id, stepIndex, {
@@ -1634,13 +1684,22 @@ ${JSON.stringify(artifacts, null, 2)}
       signal: options.signal,
       timeoutMs: surfaceDef.timeout ?? options.surfaceTimeoutMs ?? pipeline.context?.execution?.surfaceTimeoutMs,
       dryRun: options.dryRun ?? pipeline.context?.execution?.dryRun,
-      taskId: this.coordinationBindings.get(instance.id)?.taskIdsBySurface.get(surfaceId),
+      taskId: executionTaskId,
+      taskContract: executionTarget.taskNode ? {
+        sourceTaskId: executionTarget.taskNode.id,
+        title: executionTarget.taskNode.title,
+        ownerAgent: executionTarget.taskNode.ownerAgent,
+        dependsOn: executionTarget.taskNode.dependsOn,
+        acceptanceIds: executionTarget.taskNode.acceptanceIds,
+        allowedPaths: executionTarget.taskNode.allowedPaths,
+        expectedArtifactKind: executionTarget.taskNode.expectedArtifactKind,
+        expectedMutation: executionTarget.taskNode.expectedMutation,
+      } : undefined,
       workspacePolicy: options.workspacePolicies?.[surfaceId],
     });
     instance.surfaceResults.set(surfaceId, result);
-    this.updateSurfaceTaskStatus(
-      instance.id,
-      surfaceId,
+    this.updateTaskStatus(
+      executionTaskId,
       result.status === 'completed' ? 'done' : result.status === 'failed' || result.status === 'cancelled' ? 'blocked' : 'in_progress',
     );
 

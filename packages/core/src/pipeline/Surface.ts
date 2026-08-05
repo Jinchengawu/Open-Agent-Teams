@@ -25,6 +25,7 @@ export interface SurfaceExecuteOptions {
   timeoutMs?: number;
   dryRun?: boolean;
   taskId?: string;
+  taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
   workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
 }
 
@@ -182,6 +183,7 @@ export class Surface {
         timeoutMs: options.timeoutMs ?? this.definition.timeout,
         surfaceId: this.id,
         taskId: options.taskId,
+        taskContract: options.taskContract,
         workspacePolicy: options.workspacePolicy,
       });
       if (!agentResult.success) {

@@ -74,6 +74,20 @@ export class ManagedArtifactIdempotencyConflictError extends ManagedArtifactVali
   }
 }
 
+export class ManagedArtifactAcceptanceError extends ManagedArtifactValidationError {
+  constructor(surfaceId: string, issues: string[]) {
+    super('ARTIFACT_ACCEPTANCE_UNMAPPED', 422, surfaceId, issues);
+    this.name = 'ManagedArtifactAcceptanceError';
+  }
+}
+
+export class ManagedArtifactTaskScopeError extends ManagedArtifactValidationError {
+  constructor(surfaceId: string, issues: string[]) {
+    super('ARTIFACT_OUT_OF_SCOPE', 403, surfaceId, issues);
+    this.name = 'ManagedArtifactTaskScopeError';
+  }
+}
+
 function nonEmptyStrings(value: unknown): value is string[] {
   return Array.isArray(value) && value.length > 0
     && value.every((entry) => typeof entry === 'string' && entry.trim().length > 0);

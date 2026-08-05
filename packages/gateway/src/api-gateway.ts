@@ -32,6 +32,7 @@ import { randomUUID } from 'node:crypto';
 import { loadGatewayConfig } from './config/types.js';
 import { writeAuditLog } from './middleware/auditLogger.js';
 import { executeRoute } from './router/index.js';
+import { flattenCoordinationTaskBindings } from './coordination-task-bindings.js';
 
 // 加载项目根目录的 .env 文件
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -87,7 +88,7 @@ function serializeWorkflow(workflow: any): Record<string, unknown> {
     pipeline_instance_id: isPipelineWorkflow ? workflow.id : undefined,
     pipeline_id: context.pipelineId,
     project_id: coordination.projectId,
-    coordination_task_count: coordination.taskIdsBySurface ? Object.keys(coordination.taskIdsBySurface).length : 0,
+    coordination_task_count: flattenCoordinationTaskBindings(coordination).length,
     goal: workflow.goal,
     status: workflow.status,
     current_step: workflow.currentStep,
@@ -816,23 +817,25 @@ async function main(): Promise<void> {
         const coordination = serialized.coordination;
         const dm = agentApp.documentManager;
         const project = coordination?.projectId ? dm.getProject(coordination.projectId) : null;
-        const taskIdsBySurface = coordination?.taskIdsBySurface || {};
         const documentIdsBySurface = coordination?.documentIdsBySurface || {};
         const projectId = coordination?.projectId ? String(coordination.projectId) : '';
         const taskById: Record<string, unknown> = {};
         const documentsByTaskId: Record<string, unknown[]> = {};
-        const bindings = Object.entries(taskIdsBySurface).map(([surfaceId, taskId]) => {
-          const task = dm.getTask(String(taskId));
-          const documents = dm.getDocumentsByTask(String(taskId));
-          taskById[String(taskId)] = task;
-          documentsByTaskId[String(taskId)] = documents;
+        const bindings = flattenCoordinationTaskBindings(coordination).map((binding) => {
+          const { surfaceId, taskId, nodeIndex, isPrimary } = binding;
+          const task = dm.getTask(taskId);
+          const documents = dm.getDocumentsByTask(taskId);
+          taskById[taskId] = task;
+          documentsByTaskId[taskId] = documents;
           return {
             surfaceId,
             taskId,
+            nodeIndex,
+            isPrimary,
             task,
             documentId: documentIdsBySurface[surfaceId],
             documents,
-            knowledge_url: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(String(taskId))}` : undefined,
+            knowledge_url: projectId ? `/knowledge?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(taskId)}` : undefined,
           };
         });
 

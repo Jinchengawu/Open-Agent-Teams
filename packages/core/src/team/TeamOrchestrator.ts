@@ -173,6 +173,7 @@ export class TeamOrchestrator implements IOrchestrator {
     maxTokens?: number;
     surfaceId?: string;
     taskId?: string;
+    taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
     workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
   }): Promise<AgentRunResult> {
     this.syncHermesAgentRegistry();
@@ -193,6 +194,7 @@ export class TeamOrchestrator implements IOrchestrator {
         sessionId,
         surfaceId: options?.surfaceId,
         taskId: options?.taskId,
+        taskContract: options?.taskContract,
         workspacePolicy: options?.workspacePolicy,
         signal: options?.signal,
         timeoutMs: options?.timeoutMs,

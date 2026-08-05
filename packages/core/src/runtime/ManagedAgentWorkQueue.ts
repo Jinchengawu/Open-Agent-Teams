@@ -5,6 +5,8 @@ import {
   ManagedArtifactContractError,
   ManagedArtifactBindingError,
   ManagedArtifactIdempotencyConflictError,
+  ManagedArtifactAcceptanceError,
+  ManagedArtifactTaskScopeError,
   validateManagedArtifactEnvelope,
   type ManagedArtifactEnvelope,
 } from './ManagedArtifactContract.js';
@@ -32,6 +34,7 @@ export interface ManagedAgentWorkItem {
   sessionId?: string;
   surfaceId?: string;
   taskId?: string;
+  taskContract?: ManagedTaskContract;
   attemptId: string;
   status: ManagedAgentWorkStatus;
   createdAt: number;
@@ -42,6 +45,17 @@ export interface ManagedAgentWorkItem {
   output?: string;
   artifact?: ManagedArtifactEnvelope;
   workspaceSnapshot?: ManagedWorkspaceSnapshot;
+}
+
+export interface ManagedTaskContract {
+  sourceTaskId: string;
+  title: string;
+  ownerAgent: string;
+  dependsOn: string[];
+  acceptanceIds: string[];
+  allowedPaths: string[];
+  expectedArtifactKind: string;
+  expectedMutation: boolean;
 }
 
 export interface ManagedAgentWorkerHeartbeat {
@@ -78,6 +92,28 @@ interface AcceptedArtifactRecord {
   contentHash: string;
   workerId: string;
   claimTokenHash: string;
+}
+
+function narrowWorkspacePolicy(
+  policy: ManagedWorkspacePolicy,
+  contract: ManagedTaskContract,
+): ManagedWorkspacePolicy {
+  if (contract.acceptanceIds.length === 0) throw new Error('task contract acceptanceIds are required');
+  if (contract.allowedPaths.length === 0) throw new Error('task contract allowedPaths are required');
+  const outsideSurfacePolicy = contract.allowedPaths.filter((taskPath) =>
+    !policy.allowedPaths.some((surfacePath) => pathScopeContains(surfacePath, taskPath)),
+  );
+  if (outsideSurfacePolicy.length > 0) {
+    throw new Error(`task contract allowedPaths exceed the Surface workspace policy: ${outsideSurfacePolicy.join(', ')}`);
+  }
+  return { ...policy, allowedPaths: [...contract.allowedPaths] };
+}
+
+function pathScopeContains(parentScope: string, childScope: string): boolean {
+  const normalize = (value: string) => value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+  const parent = normalize(parentScope).replace(/\/\*\*$/, '');
+  const child = normalize(childScope).replace(/\/\*\*$/, '');
+  return parent === '' || parent === '.' || child === parent || child.startsWith(`${parent}/`);
 }
 
 export class ManagedAgentWorkQueue {
@@ -179,12 +215,28 @@ export class ManagedAgentWorkQueue {
       .map((item) => ({ ...item }));
   }
 
+  getArtifact(artifactId: string): ManagedArtifactEnvelope | undefined {
+    if (!this.acceptedArtifacts.has(artifactId)) return undefined;
+    const artifact = [...this.items.values()]
+      .find((item) => item.artifact?.artifactId === artifactId)?.artifact;
+    return artifact ? structuredClone(artifact) : undefined;
+  }
+
+  listArtifacts(filter: { taskId?: string } = {}): ManagedArtifactEnvelope[] {
+    return [...this.items.values()]
+      .filter((item) => !filter.taskId || item.taskId === filter.taskId)
+      .filter((item) => item.artifact && this.acceptedArtifacts.has(item.artifact.artifactId))
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((item) => structuredClone(item.artifact!));
+  }
+
   enqueueAndWait(input: {
     agentId: string;
     goal: string;
     sessionId?: string;
     surfaceId?: string;
     taskId?: string;
+    taskContract?: ManagedTaskContract;
     workspacePolicy?: ManagedWorkspacePolicy;
     timeoutMs?: number;
     signal?: AbortSignal;
@@ -195,10 +247,13 @@ export class ManagedAgentWorkQueue {
 
     const id = `managed-work-${randomUUID()}`;
     const now = this.now();
+    const workspacePolicy = input.taskContract && input.workspacePolicy
+      ? narrowWorkspacePolicy(input.workspacePolicy, input.taskContract)
+      : input.workspacePolicy;
     const workspaceSnapshot = (
       input.surfaceId === 'frontend' || input.surfaceId === 'backend'
-    ) && input.workspacePolicy
-      ? captureManagedWorkspaceSnapshot(input.workspacePolicy)
+    ) && workspacePolicy
+      ? captureManagedWorkspaceSnapshot(workspacePolicy)
       : undefined;
     this.items.set(id, {
       id,
@@ -207,6 +262,16 @@ export class ManagedAgentWorkQueue {
       sessionId: input.sessionId,
       surfaceId: input.surfaceId,
       taskId: input.taskId,
+      taskContract: input.taskContract ? {
+        sourceTaskId: input.taskContract.sourceTaskId,
+        title: input.taskContract.title,
+        ownerAgent: input.taskContract.ownerAgent,
+        dependsOn: [...input.taskContract.dependsOn],
+        acceptanceIds: [...input.taskContract.acceptanceIds],
+        allowedPaths: [...input.taskContract.allowedPaths],
+        expectedArtifactKind: input.taskContract.expectedArtifactKind,
+        expectedMutation: input.taskContract.expectedMutation,
+      } : undefined,
       attemptId: `attempt-${id}-01`,
       status: 'pending',
       createdAt: now,
@@ -269,6 +334,24 @@ export class ManagedAgentWorkQueue {
     toolCalls?: AgentRunResult['toolCalls'];
   }): ManagedAgentWorkItem {
     const item = this.requireItem(workItemId);
+    if ((item.surfaceId === 'frontend' || item.surfaceId === 'backend')
+      && item.taskContract && input.artifact) {
+      const acceptanceIds = [...(input.artifact.acceptanceIds ?? [])].sort();
+      const expectedAcceptanceIds = [...item.taskContract.acceptanceIds].sort();
+      if (JSON.stringify(acceptanceIds) !== JSON.stringify(expectedAcceptanceIds)) {
+        throw new ManagedArtifactAcceptanceError(item.surfaceId, [
+          'artifact acceptanceIds do not match the task contract',
+        ]);
+      }
+      const scope = input.artifact.payload?.scope as Record<string, unknown> | undefined;
+      const allowedPaths = Array.isArray(scope?.allowedPaths) ? [...scope.allowedPaths].sort() : [];
+      const expectedAllowedPaths = [...item.taskContract.allowedPaths].sort();
+      if (JSON.stringify(allowedPaths) !== JSON.stringify(expectedAllowedPaths)) {
+        throw new ManagedArtifactTaskScopeError(item.surfaceId, [
+          'artifact scope.allowedPaths do not match the task contract',
+        ]);
+      }
+    }
     if (item.surfaceId) {
       const validation = validateManagedArtifactEnvelope(item.surfaceId, input.artifact, {
         sessionId: item.sessionId,
@@ -403,7 +486,8 @@ export class ManagedAgentWorkQueue {
         lease_expires_at INTEGER,
         error TEXT,
         output TEXT,
-        artifact_json TEXT
+        artifact_json TEXT,
+        task_contract_json TEXT
         ,workspace_snapshot_json TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_managed_work_status_created
@@ -448,10 +532,13 @@ export class ManagedAgentWorkQueue {
     if (!workItemColumns.some((column) => column.name === 'workspace_snapshot_json')) {
       this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN workspace_snapshot_json TEXT');
     }
+    if (!workItemColumns.some((column) => column.name === 'task_contract_json')) {
+      this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN task_contract_json TEXT');
+    }
 
     const rows = this.database.prepare(`
       SELECT id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-             claimed_by, lease_expires_at, error, output, artifact_json, workspace_snapshot_json
+             claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json
       FROM managed_agent_work_items
       ORDER BY created_at ASC
     `).all() as Array<Record<string, unknown>>;
@@ -472,6 +559,7 @@ export class ManagedAgentWorkQueue {
         error: row.error ? String(row.error) : undefined,
         output: row.output ? String(row.output) : undefined,
         artifact: this.parseArtifact(row.artifact_json),
+        taskContract: this.parseTaskContract(row.task_contract_json),
         workspaceSnapshot: this.parseWorkspaceSnapshot(row.workspace_snapshot_json),
       };
       if (item.status === 'pending' || item.status === 'claimed') {
@@ -505,8 +593,8 @@ export class ManagedAgentWorkQueue {
     this.database?.prepare(`
       INSERT INTO managed_agent_work_items
         (id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-         claimed_by, lease_expires_at, error, output, artifact_json, workspace_snapshot_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         surface_id = excluded.surface_id,
         task_id = excluded.task_id,
@@ -518,6 +606,7 @@ export class ManagedAgentWorkQueue {
         error = excluded.error,
         output = excluded.output,
         artifact_json = excluded.artifact_json
+        ,task_contract_json = excluded.task_contract_json
         ,workspace_snapshot_json = excluded.workspace_snapshot_json
     `).run(
       item.id,
@@ -535,6 +624,7 @@ export class ManagedAgentWorkQueue {
       item.error ?? null,
       item.output ?? null,
       item.artifact ? JSON.stringify(item.artifact) : null,
+      item.taskContract ? JSON.stringify(item.taskContract) : null,
       item.workspaceSnapshot ? JSON.stringify(item.workspaceSnapshot) : null,
     );
   }
@@ -575,6 +665,27 @@ export class ManagedAgentWorkQueue {
     try {
       const parsed = JSON.parse(String(value));
       return parsed && typeof parsed === 'object' ? parsed as ManagedWorkspaceSnapshot : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseTaskContract(value: unknown): ManagedTaskContract | undefined {
+    if (!value) return undefined;
+    try {
+      const parsed = JSON.parse(String(value)) as Partial<ManagedTaskContract>;
+      return Array.isArray(parsed.acceptanceIds) && Array.isArray(parsed.allowedPaths)
+        ? {
+          sourceTaskId: String(parsed.sourceTaskId ?? ''),
+          title: String(parsed.title ?? ''),
+          ownerAgent: String(parsed.ownerAgent ?? ''),
+          dependsOn: Array.isArray(parsed.dependsOn) ? parsed.dependsOn.map(String) : [],
+          acceptanceIds: parsed.acceptanceIds.map(String),
+          allowedPaths: parsed.allowedPaths.map(String),
+          expectedArtifactKind: String(parsed.expectedArtifactKind ?? ''),
+          expectedMutation: parsed.expectedMutation === true,
+        }
+        : undefined;
     } catch {
       return undefined;
     }

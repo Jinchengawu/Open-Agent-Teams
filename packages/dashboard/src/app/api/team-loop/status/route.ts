@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports';
+import { flattenCoordinationTaskBindings } from '@/lib/coordination-task-bindings';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -63,6 +64,8 @@ export async function GET() {
   const taskIdsBySurface = latestInstance?.coordination?.taskIdsBySurface || {};
   const documentIdsBySurface = latestInstance?.coordination?.documentIdsBySurface || {};
   const surfaceTaskCount = countObjectValues(taskIdsBySurface);
+  const taskNodeCount = flattenCoordinationTaskBindings(latestInstance?.coordination).length;
+  const effectiveTaskCount = taskNodeCount || surfaceTaskCount;
   const surfaceDocumentCount = countObjectValues(documentIdsBySurface);
   const projectTasks = projectId ? tasks.filter((task: any) => task.projectId === projectId) : [];
   const projectDocuments = projectId ? documents.filter((doc: any) => doc.projectId === projectId) : [];
@@ -76,7 +79,7 @@ export async function GET() {
     deliveryGateOk: Boolean(evidenceGate?.ok),
     latestPipelinePresent: Boolean(latestInstance?.id),
     projectBound: Boolean(projectId),
-    surfaceTasksBound: surfaceTaskCount > 0,
+    surfaceTasksBound: effectiveTaskCount > 0,
     projectTasksPresent: projectTasks.length > 0,
     surfaceDocumentsBound: surfaceDocumentCount > 0,
     boundDocumentsPresent: boundProjectDocuments.length > 0,
@@ -110,7 +113,7 @@ export async function GET() {
           status: latestWorkflow.status,
           pipelineId: latestWorkflow.pipeline_id || latestWorkflow.template,
           projectId: latestWorkflow.project_id || projectId,
-          taskCount: latestWorkflow.coordination_task_count ?? surfaceTaskCount,
+          taskCount: latestWorkflow.coordination_task_count ?? effectiveTaskCount,
           href: latestWorkflow.pipeline_url || (latestInstance?.id ? `/pipeline?instanceId=${latestInstance.id}` : null),
         }
       : null,
@@ -121,6 +124,7 @@ export async function GET() {
           pipelineId: latestInstance.pipelineId,
           projectId,
           surfaceTaskCount,
+          taskNodeCount,
           surfaceDocumentCount,
           currentSurface: latestInstance.currentSurface || null,
           href: latestInstance.pipeline_url || `/pipeline?instanceId=${latestInstance.id}`,
@@ -131,6 +135,7 @@ export async function GET() {
       taskCount: projectTasks.length,
       statusCounts: taskStatusCounts,
       surfaceTaskCount,
+      taskNodeCount,
       href: projectId ? `/kanban?source=coordination` : null,
     },
     documents: {
