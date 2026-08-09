@@ -26,6 +26,7 @@ export interface SurfaceExecuteOptions {
   dryRun?: boolean;
   taskId?: string;
   taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
+  inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
   workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
 }
 
@@ -184,6 +185,7 @@ export class Surface {
         surfaceId: this.id,
         taskId: options.taskId,
         taskContract: options.taskContract,
+        inputArtifactRefs: options.inputArtifactRefs,
         workspacePolicy: options.workspacePolicy,
       });
       if (!agentResult.success) {

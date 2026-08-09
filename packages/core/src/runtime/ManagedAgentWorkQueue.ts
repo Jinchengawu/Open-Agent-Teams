@@ -35,6 +35,7 @@ export interface ManagedAgentWorkItem {
   surfaceId?: string;
   taskId?: string;
   taskContract?: ManagedTaskContract;
+  inputArtifactRefs?: ManagedArtifactReference[];
   attemptId: string;
   status: ManagedAgentWorkStatus;
   createdAt: number;
@@ -45,6 +46,13 @@ export interface ManagedAgentWorkItem {
   output?: string;
   artifact?: ManagedArtifactEnvelope;
   workspaceSnapshot?: ManagedWorkspaceSnapshot;
+}
+
+/** Immutable upstream Artifact binding supplied to a managed worker. */
+export interface ManagedArtifactReference {
+  surfaceId: string;
+  artifactId: string;
+  contentHash: string;
 }
 
 export interface ManagedTaskContract {
@@ -167,7 +175,7 @@ export class ManagedAgentWorkQueue {
   hasActiveWorker(agentId?: string): boolean {
     this.expireWorkersAndClaims();
     return [...this.workers.values()].some((worker) =>
-      !agentId || worker.agentIds.size === 0 || worker.agentIds.has(agentId),
+      !agentId || worker.agentIds.has(agentId),
     );
   }
 
@@ -237,6 +245,7 @@ export class ManagedAgentWorkQueue {
     surfaceId?: string;
     taskId?: string;
     taskContract?: ManagedTaskContract;
+    inputArtifactRefs?: ManagedArtifactReference[];
     workspacePolicy?: ManagedWorkspacePolicy;
     timeoutMs?: number;
     signal?: AbortSignal;
@@ -272,6 +281,7 @@ export class ManagedAgentWorkQueue {
         expectedArtifactKind: input.taskContract.expectedArtifactKind,
         expectedMutation: input.taskContract.expectedMutation,
       } : undefined,
+      inputArtifactRefs: input.inputArtifactRefs?.map((reference) => ({ ...reference })),
       attemptId: `attempt-${id}-01`,
       status: 'pending',
       createdAt: now,
@@ -487,7 +497,8 @@ export class ManagedAgentWorkQueue {
         error TEXT,
         output TEXT,
         artifact_json TEXT,
-        task_contract_json TEXT
+        task_contract_json TEXT,
+        input_artifact_refs_json TEXT
         ,workspace_snapshot_json TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_managed_work_status_created
@@ -535,10 +546,14 @@ export class ManagedAgentWorkQueue {
     if (!workItemColumns.some((column) => column.name === 'task_contract_json')) {
       this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN task_contract_json TEXT');
     }
+    if (!workItemColumns.some((column) => column.name === 'input_artifact_refs_json')) {
+      this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN input_artifact_refs_json TEXT');
+    }
 
     const rows = this.database.prepare(`
       SELECT id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-             claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json
+             claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json,
+             input_artifact_refs_json
       FROM managed_agent_work_items
       ORDER BY created_at ASC
     `).all() as Array<Record<string, unknown>>;
@@ -560,6 +575,7 @@ export class ManagedAgentWorkQueue {
         output: row.output ? String(row.output) : undefined,
         artifact: this.parseArtifact(row.artifact_json),
         taskContract: this.parseTaskContract(row.task_contract_json),
+        inputArtifactRefs: this.parseArtifactReferences(row.input_artifact_refs_json),
         workspaceSnapshot: this.parseWorkspaceSnapshot(row.workspace_snapshot_json),
       };
       if (item.status === 'pending' || item.status === 'claimed') {
@@ -593,8 +609,9 @@ export class ManagedAgentWorkQueue {
     this.database?.prepare(`
       INSERT INTO managed_agent_work_items
         (id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
-         claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json,
+         input_artifact_refs_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         surface_id = excluded.surface_id,
         task_id = excluded.task_id,
@@ -608,6 +625,7 @@ export class ManagedAgentWorkQueue {
         artifact_json = excluded.artifact_json
         ,task_contract_json = excluded.task_contract_json
         ,workspace_snapshot_json = excluded.workspace_snapshot_json
+        ,input_artifact_refs_json = excluded.input_artifact_refs_json
     `).run(
       item.id,
       item.agentId,
@@ -626,6 +644,7 @@ export class ManagedAgentWorkQueue {
       item.artifact ? JSON.stringify(item.artifact) : null,
       item.taskContract ? JSON.stringify(item.taskContract) : null,
       item.workspaceSnapshot ? JSON.stringify(item.workspaceSnapshot) : null,
+      item.inputArtifactRefs ? JSON.stringify(item.inputArtifactRefs) : null,
     );
   }
 
@@ -686,6 +705,26 @@ export class ManagedAgentWorkQueue {
           expectedMutation: parsed.expectedMutation === true,
         }
         : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseArtifactReferences(value: unknown): ManagedArtifactReference[] | undefined {
+    if (!value) return undefined;
+    try {
+      const parsed = JSON.parse(String(value));
+      if (!Array.isArray(parsed) || parsed.some((reference) => !reference || typeof reference !== 'object'
+        || typeof reference.surfaceId !== 'string' || !reference.surfaceId.trim()
+        || typeof reference.artifactId !== 'string' || !reference.artifactId.trim()
+        || typeof reference.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(reference.contentHash))) {
+        return undefined;
+      }
+      return parsed.map((reference) => ({
+        surfaceId: reference.surfaceId,
+        artifactId: reference.artifactId,
+        contentHash: reference.contentHash,
+      }));
     } catch {
       return undefined;
     }
