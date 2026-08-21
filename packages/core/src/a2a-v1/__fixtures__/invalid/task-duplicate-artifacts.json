@@ -1,0 +1,8 @@
+{
+  "id": "task-with-duplicate-artifacts",
+  "status": { "state": "TASK_STATE_COMPLETED" },
+  "artifacts": [
+    { "artifactId": "artifact-duplicate", "parts": [{ "text": "first" }] },
+    { "artifactId": "artifact-duplicate", "parts": [{ "text": "second" }] }
+  ]
+}

@@ -16,6 +16,7 @@ export interface KanbanEvent {
     payload: {
         taskId: string;
         projectId?: string;
+        documentId?: string;
         title?: string;
         status?: TaskStatus;
         oldStatus?: TaskStatus;
@@ -38,6 +39,8 @@ export interface WorkflowEvent {
         error?: string;
         tokenUsage?: TokenUsage;
         agentResults?: string[];
+        /** Durable-first compatibility marker. Untrusted legacy callers are never assigned a scope. */
+        scopeStatus?: 'durable' | 'unscoped';
     };
 }
 export interface MeetingEvent {
@@ -46,6 +49,7 @@ export interface MeetingEvent {
     timestamp: number;
     payload: {
         meetingId: string;
+        projectId?: string;
         topic?: string;
         round?: number;
         totalRounds?: number;

@@ -28,6 +28,7 @@ export interface SurfaceExecuteOptions {
   taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
   inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
   workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
+  trustedRuntimeScope?: { tenantId: string; projectId: string };
 }
 
 /**
@@ -187,6 +188,10 @@ export class Surface {
         taskContract: options.taskContract,
         inputArtifactRefs: options.inputArtifactRefs,
         workspacePolicy: options.workspacePolicy,
+        ...(options.trustedRuntimeScope ? {
+          telemetryScope: { opsEligible: true as const, ...options.trustedRuntimeScope },
+          memory: { enabled: true as const, context: { trusted: true as const, ...options.trustedRuntimeScope, agentId: this.agent } },
+        } : {}),
       });
       if (!agentResult.success) {
         throw new Error(`Agent ${this.agent} 执行失败: ${agentResult.output || 'unknown error'}`);

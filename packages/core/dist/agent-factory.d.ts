@@ -12,11 +12,14 @@ import { SessionManager } from './session/SessionManager.js';
 import { TokenBudgetManager } from './telemetry/TokenBudgetManager.js';
 import { TeamOrchestrator } from './team/TeamOrchestrator.js';
 import type { OrchestratorEvent } from './orchestrator/types.js';
+import { ManagedAgentWorkQueue } from './runtime/ManagedAgentWorkQueue.js';
 export interface AgentAppConfig {
     /** 数据库目录，默认 ~/.open-agent-teams/data */
     dataDir?: string;
     /** 进度回调（用于 Dashboard 实时展示） */
     onProgress?: (event: OrchestratorEvent) => void;
+    /** 可选的托管外部 Agent 队列（测试或定制 worker 注入） */
+    managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }
 export interface AgentApp {
     app: express.Application;
@@ -26,6 +29,7 @@ export interface AgentApp {
     pipelineOrchestrator: import('./pipeline/Orchestrator.js').PipelineOrchestrator;
     knowledgeCenter: import('./knowledge/KnowledgeCenter.js').KnowledgeCenter;
     documentManager: import('./knowledge/DocumentManager.js').DocumentManager;
+    managedAgentWorkQueue: ManagedAgentWorkQueue;
     close: () => Promise<void>;
 }
 export declare function createAgentApp(config?: AgentAppConfig): Promise<AgentApp>;

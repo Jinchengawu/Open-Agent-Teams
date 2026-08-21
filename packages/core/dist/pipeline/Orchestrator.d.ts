@@ -162,8 +162,20 @@ export declare class PipelineOrchestrator {
      * 创建本次 Pipeline 的项目、任务、文档绑定脉络
      */
     private createCoordinationBinding;
+    /**
+     * Accepted planning Artifacts define the implementation role Surfaces and their order.
+     * A configured projection fails closed instead of falling back to the static fan-out.
+     */
+    private projectImplementationBatches;
+    private readProjectedImplementationTasks;
+    private getTaskGraphProjection;
+    private createCoordinationTask;
+    private createProjectedCoordinationTask;
+    private canonicalProjectedTaskId;
     private updateSurfaceTaskStatus;
+    private updateTaskStatus;
     private blockUnfinishedSurfaceTasks;
+    private getSurfaceTaskIds;
     private getSurfaceTaskId;
     private serializeCoordinationBinding;
     private createDryRunGuard;

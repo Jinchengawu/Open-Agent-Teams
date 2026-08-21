@@ -68,6 +68,23 @@ export type {
 // ── 意图路由（新增）──
 export { IntentRouter } from './intent/IntentRouter.js';
 
+// ── 长程交付复杂度治理（规则优先，可审计）──
+export {
+  DeliveryGovernancePolicyError,
+  assessDeliveryExecutionChange,
+  assessDeliveryGovernance,
+  resolveDeliveryMode,
+} from './governance/DeliveryComplexityGovernance.js';
+export type {
+  ComplexityProfile,
+  DeliveryExecutionChange,
+  DeliveryGovernanceAssessment,
+  DeliveryGovernanceFacts,
+  DeliveryMode,
+  DeliveryReplanDecision,
+  DeliveryWorkLevel,
+} from './governance/DeliveryComplexityGovernance.js';
+
 // ── 模型消耗保护（Codex 回填模式）──
 export {
   createGuardedAgentResult,
@@ -237,6 +254,9 @@ export {
   teamProfileToA2AAgentCards,
   resetGlobalInProcessA2ATransport,
 } from './a2a/index.js';
+
+// ── A2A v1 bounded contract (parallel to the legacy 0.3 namespace) ──
+export * from './a2a-v1/index.js';
 export type {
   A2AAgentCapabilities,
   A2AAgentCard,
@@ -262,6 +282,25 @@ export type {
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
 export type { TokenBudget, BudgetCheckResult } from './telemetry/TokenBudgetManager.js';
+export { BillingSourceRegistry, ProviderBillingReconciler } from './telemetry/BillingReconciliation.js';
+export type {
+  BillingReconciliationResult, BillingSourceBinding, ProviderBillingSource,
+  ProviderBillingStatement, StoredProviderBillingStatement,
+} from './telemetry/BillingReconciliation.js';
+export { BillingImportScheduler } from './telemetry/BillingImportScheduler.js';
+export type { BillingImportClaim, BillingImportSchedule } from './telemetry/BillingImportScheduler.js';
+export { createOperationalEvent, isOperationalEventStale, DurableOperationalEventStore, OperationalEventCompatibilityAdapter } from './telemetry/operational-events.js';
+export type {
+  CreateOperationalEventInput, DataCompleteness, MeasurementStatus,
+  OperationalDimensions, OperationalEvent, OperationalEventKind,
+} from './telemetry/operational-events.js';
+export { OperationalSloEvaluator } from './telemetry/OperationalSloEvaluator.js';
+export type { OperationalSloPolicy, OperationalSloResult } from './telemetry/OperationalSloEvaluator.js';
+export { OperationalSloMonitor, OperationalSloPolicyStore } from './telemetry/OperationalSloPolicyStore.js';
+export type {
+  CreateOperationalSloPolicy, OperationalSloAlert, OperationalSloAlertSink,
+  OperationalSloEvaluation, ReviseOperationalSloPolicy, SloTransition, StoredOperationalSloPolicy,
+} from './telemetry/OperationalSloPolicyStore.js';
 
 // ── Managed worker workspace provenance ──
 export { collectWorkspaceProvenance } from './runtime/WorkspaceProvenance.js';
@@ -281,6 +320,75 @@ export type {
   ManagedWorkspacePolicy,
   ManagedWorkspaceSnapshot,
 } from './runtime/ManagedCodeChangeVerification.js';
+export { RuntimeAdmissionController, RuntimeAdmissionError } from './runtime/RuntimeAdmissionController.js';
+export { RuntimeLifecycleConflictError, SqliteRuntimeLifecycleStore } from './runtime/RuntimeLifecycle.js';
+export type { RuntimeLifecycleKind, RuntimeLifecyclePort, RuntimeLifecycleRecord, RuntimeLifecycleState, RuntimeRestartDecision, RuntimeShutdownReceipt } from './runtime/RuntimeLifecycle.js';
+export type {
+  RuntimeAdmissionLimits,
+  RuntimeAdmissionRequest,
+  RuntimeAdmissionSnapshot,
+} from './runtime/RuntimeAdmissionController.js';
+export {
+  ResilientCallExecutor,
+  ResilienceRejectedError,
+  isRetryableCallFailure,
+} from './runtime/ResilientCallExecutor.js';
+export type {
+  ExplicitFallback,
+  ResiliencePolicy,
+  ResilientFallbackEvidence,
+  ResilientCallEvidence,
+  ResilientCallResult,
+} from './runtime/ResilientCallExecutor.js';
+export { assertSandboxIsolation, SandboxAdmissionError } from './runtime/ExecutionSandbox.js';
+export type {
+  ExecutionSandbox,
+  PreparedSandbox,
+  SandboxAttestation,
+  SandboxIsolationLevel,
+  SandboxResourceLimits,
+  SandboxResult,
+  SandboxSpec,
+} from './runtime/ExecutionSandbox.js';
+export { DEFAULT_ARTIFACT_CONTENT_POLICY, DefaultArtifactContentInspector } from './runtime/ArtifactContentInspector.js';
+export type { ArtifactContentInspection, ArtifactContentInspectionPolicy, ArtifactContentInspector } from './runtime/ArtifactContentInspector.js';
+export { EphemeralCapabilityBroker, CapabilityRejectedError } from './runtime/EphemeralCapabilityBroker.js';
+export type {
+  CapabilityRevocationReceipt,
+  CapabilityScope,
+  CapabilityValidation,
+  IssuedCapability,
+} from './runtime/EphemeralCapabilityBroker.js';
+export {
+  CredentialProviderRejectedError,
+  LocalStsCredentialProvider,
+  redactCredentialDiagnostic,
+  verifyEphemeralCredentialRevocationReceipt,
+} from './runtime/EphemeralCredentialProvider.js';
+export type {
+  EphemeralCredentialProvider,
+  EphemeralCredentialRequest,
+  EphemeralCredentialRevocationReceipt,
+  EphemeralCredentialScope,
+  EphemeralCredentialValidation,
+  IssuedEphemeralCredential,
+} from './runtime/EphemeralCredentialProvider.js';
+export { KvmUnavailableError, QemuKvmRuntimeProbe } from './runtime/MicroVmRuntimeProbe.js';
+export type { MicroVmProbeCommandRunner, MicroVmProbeReceipt } from './runtime/MicroVmRuntimeProbe.js';
+export { SyntheticPressureHarness } from './runtime/SyntheticPressureHarness.js';
+export type {
+  SyntheticPressureConfig,
+  SyntheticPressureReport,
+  SyntheticPressureThresholds,
+} from './runtime/SyntheticPressureHarness.js';
+export { StagedGitWorkspaceManager } from './runtime/StagedGitWorkspace.js';
+export type { StagedGitWorkspace, StagedGitWorkspaceSpec } from './runtime/StagedGitWorkspace.js';
+export { VerificationPolicyRegistry } from './runtime/VerificationPolicyRegistry.js';
+export type {
+  ServerVerificationEvidence,
+  VerificationPolicyBinding,
+  VerificationPolicySpec,
+} from './runtime/VerificationPolicyRegistry.js';
 
 // ── 国际化（新增 — 全栈中英展示协商）──
 export {

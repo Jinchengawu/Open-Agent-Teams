@@ -11,6 +11,11 @@ export interface TestEvidence extends CommandEvidence {
   name?: string;
 }
 
+export type ManagedChangedFile =
+  | { path: string; operation: 'added'; afterHash: string; beforeHash?: never }
+  | { path: string; operation: 'modified'; beforeHash: string; afterHash: string }
+  | { path: string; operation: 'deleted'; beforeHash: string; afterHash?: never };
+
 export interface ManagedArtifactEnvelope {
   schemaVersion: 'productive-delivery-artifact/v1';
   artifactId: string;
@@ -328,12 +333,24 @@ export function validateManagedArtifactEnvelope(
         }
         if (!['added', 'modified', 'deleted'].includes(String(change.operation))) {
           stageIssues.push('each changed file operation must be added, modified, or deleted');
-        }
-        if (!isNonEmptyString(change.beforeHash)) {
-          stageIssues.push('each changed file requires beforeHash');
-        }
-        if (change.operation !== 'deleted' && !isNonEmptyString(change.afterHash)) {
-          stageIssues.push('each non-deleted changed file requires afterHash');
+        } else if (change.operation === 'added') {
+          if (Object.hasOwn(change, 'beforeHash')) {
+            stageIssues.push('each added changed file must omit beforeHash');
+          }
+          if (!isNonEmptyString(change.afterHash)) {
+            stageIssues.push('each added changed file requires afterHash');
+          }
+        } else if (change.operation === 'modified') {
+          if (!isNonEmptyString(change.beforeHash) || !isNonEmptyString(change.afterHash)) {
+            stageIssues.push('each modified changed file requires beforeHash and afterHash');
+          }
+        } else {
+          if (!isNonEmptyString(change.beforeHash)) {
+            stageIssues.push('each deleted changed file requires beforeHash');
+          }
+          if (Object.hasOwn(change, 'afterHash')) {
+            stageIssues.push('each deleted changed file must omit afterHash');
+          }
         }
       }
     }

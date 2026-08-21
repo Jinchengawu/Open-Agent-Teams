@@ -17,6 +17,11 @@ export interface HermesInstance {
     tags: string[];
     skills: string[];
     timeout_ms: number;
+    role?: string;
+    description?: string;
+    system_prompt?: string;
+    source?: 'config' | 'dashboard';
+    home_dir?: string;
 }
 export interface HermesConfig {
     instances: HermesInstance[];

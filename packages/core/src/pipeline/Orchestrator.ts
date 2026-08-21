@@ -17,7 +17,7 @@ import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { eventBus } from '../event/EventBus.js';
 import type { TeamOrchestrator } from '../team/TeamOrchestrator.js';
-import type { WorkflowState, WorkflowStateManager } from '../session/WorkflowStateManager.js';
+import type { WorkflowState, WorkflowStateManager, WorkflowStepState } from '../session/WorkflowStateManager.js';
 import { Surface, createSurface } from './Surface.js';
 import { pipelineInstanceToA2ATask } from '../a2a/converters.js';
 import type {
@@ -36,6 +36,11 @@ import {
   validateManagedArtifactEnvelope,
   type ManagedArtifactEnvelope,
 } from '../runtime/ManagedArtifactContract.js';
+import {
+  assessDeliveryGovernance,
+  type ComplexityProfile,
+  type DeliveryMode,
+} from '../governance/DeliveryComplexityGovernance.js';
 
 // ============================================================================
 // 循环编排状态
@@ -89,6 +94,7 @@ type PersistedPipelineContext = {
   pipelineName?: string;
   surfaceIds?: string[];
   coordination?: PipelineInstance['coordination'];
+  metadata?: Record<string, unknown>;
   execution?: {
     dryRun?: boolean;
     surfaceTimeoutMs?: number;
@@ -239,14 +245,17 @@ export class PipelineOrchestrator {
       pipelineId,
       status: 'running',
       surfaceResults: new Map(),
+      executionResults: new Map(),
       startedAt: now,
       workflowStateId: `pipeline-${now}`,
+      metadata: options.metadata,
     };
 
     this.instances.set(instance.id, instance);
     this.loopStates.set(instance.id, new Map());
     this.stateManager?.createState(`Pipeline: ${pipeline.name}`, pipeline.surfaces.length, instance.id, {
       kind: 'pipeline',
+      taskId: pipeline.name,
       pipelineId,
       pipelineName: pipeline.name,
       surfaceIds: pipeline.surfaces.map((surface) => surface.id),
@@ -254,6 +263,7 @@ export class PipelineOrchestrator {
         dryRun: options.dryRun ?? pipeline.context?.execution?.dryRun,
         surfaceTimeoutMs: options.surfaceTimeoutMs ?? pipeline.context?.execution?.surfaceTimeoutMs,
       },
+      metadata: options.metadata,
     });
     this.createCoordinationBinding(pipeline, instance);
 
@@ -270,8 +280,8 @@ export class PipelineOrchestrator {
 
     console.log(`[PipelineOrchestrator] Pipeline "${pipeline.name}" 开始执行 (instance: ${instance.id})`);
 
-    // 发布 Pipeline 开始事件
-    eventBus.emit({
+    // Without a state manager this remains an explicitly unscoped legacy path.
+    if (!this.stateManager) eventBus.emit({
       type: 'workflow.started',
       source: 'workflow',
       timestamp: now,
@@ -418,8 +428,8 @@ export class PipelineOrchestrator {
         instance.status = 'completed';
         instance.completedAt = Date.now();
 
-        // 发布 Pipeline 完成事件
-        eventBus.emit({
+        if (this.stateManager) this.stateManager.complete(instance.id, 'Pipeline 执行完成');
+        else eventBus.emit({
           type: 'workflow.completed',
           source: 'workflow',
           timestamp: Date.now(),
@@ -430,7 +440,6 @@ export class PipelineOrchestrator {
             output: 'Pipeline 执行完成',
           },
         });
-        this.stateManager?.complete(instance.id, 'Pipeline 执行完成');
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -438,8 +447,10 @@ export class PipelineOrchestrator {
       instance.error = errorMsg;
       instance.completedAt = Date.now();
 
-      // 发布 Pipeline 失败/取消事件
-      eventBus.emit({
+      if (this.stateManager) {
+        if (signal?.aborted) this.stateManager.cancel(instance.id, errorMsg);
+        else this.stateManager.fail(instance.id, errorMsg);
+      } else eventBus.emit({
         type: signal?.aborted ? 'workflow.cancelled' : 'workflow.failed',
         source: 'workflow',
         timestamp: Date.now(),
@@ -499,9 +510,14 @@ export class PipelineOrchestrator {
     for (const [key, value] of instance.surfaceResults) {
       surfaceResults[key] = value;
     }
+    const executionResults: Record<string, SurfaceResult> = {};
+    for (const [key, value] of instance.executionResults ?? []) {
+      executionResults[key] = value;
+    }
     return {
       ...instance,
       surfaceResults,
+      executionResults,
       coordination: this.serializeCoordinationBinding(instance.id) ?? instance.coordination,
       a2aTask: pipelineInstanceToA2ATask(instance),
     };
@@ -561,7 +577,7 @@ export class PipelineOrchestrator {
       this.capturePipelineExperience(pipeline, instance);
     }
 
-    eventBus.emit({
+    if (!this.stateManager) eventBus.emit({
       type: 'workflow.cancelled',
       source: 'workflow',
       timestamp: Date.now(),
@@ -963,6 +979,7 @@ ${JSON.stringify(artifacts, null, 2)}
     }
 
     const projectedTasks = this.readProjectedImplementationTasks(instance, implementationSurfaces);
+    this.enforceTaskGraphGovernance(pipeline, instance);
     const surfaceByOwner = new Map(implementationSurfaces.map((surface) => [surface.agent, surface]));
 
     const taskIds = new Set(projectedTasks.map((task) => task.id));
@@ -1028,6 +1045,54 @@ ${JSON.stringify(artifacts, null, 2)}
     }
 
     return projectedBatches;
+  }
+
+  private enforceTaskGraphGovernance(pipeline: PipelineDefinition, instance: PipelineInstance): void {
+    const governance = instance.metadata?.governance as {
+      profile?: ComplexityProfile;
+      selectedMode?: DeliveryMode;
+    } | undefined;
+    const projection = this.getTaskGraphProjection(pipeline);
+    if (!governance?.profile || !governance.selectedMode || !projection) return;
+
+    const artifact = instance.surfaceResults.get(projection.sourceSurfaceId)?.artifacts?.managedArtifact as
+      ManagedArtifactEnvelope | undefined;
+    const tasks = Array.isArray(artifact?.payload.tasks)
+      ? artifact.payload.tasks as Array<Record<string, unknown>>
+      : [];
+    if (tasks.length === 0) return;
+
+    const normalizedTasks = tasks.map((task) => ({
+      id: String(task.id),
+      ownerAgent: String(task.ownerAgent),
+      dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn.map(String) : [],
+    }));
+    const assessment = assessDeliveryGovernance({
+      stage: 'task_graph',
+      profile: governance.profile,
+      confidence: 1,
+      independentOutcomeCount: 1,
+      repositoryCount: 1,
+      roleAgentCount: new Set(normalizedTasks.map((task) => task.ownerAgent)).size,
+      estimatedTaskCount: normalizedTasks.length,
+      criticalPathLength: longestTaskGraphPath(normalizedTasks),
+      hasUnifiedCompletionDefinition: true,
+      hasExternalDependencies: false,
+      hasIrreversibleChange: governance.profile.risk >= 2,
+    });
+    const quickExceeded = governance.selectedMode === 'quick' && normalizedTasks.length > 3;
+    if (assessment.workLevel !== 'program' && !quickExceeded) return;
+
+    const selectedMode = assessment.workLevel === 'program' ? 'program' : 'standard';
+    instance.metadata = {
+      ...instance.metadata,
+      governance: { ...assessment, selectedMode, replanRequired: true },
+    };
+    this.persistInstanceContext(instance);
+    const reason = quickExceeded
+      ? `Quick 规划产生 ${normalizedTasks.length} 个任务，超过上限 3；请改用 Standard。`
+      : assessment.reasons.join(' ');
+    throw new Error(`DELIVERY_REPLAN_REQUIRED: ${reason}`);
   }
 
   private readProjectedImplementationTasks(
@@ -1273,7 +1338,8 @@ ${JSON.stringify(artifacts, null, 2)}
       instance.completedAt = Date.now();
 
       if (!alreadyFailedForSameReason) {
-        eventBus.emit({
+        if (this.stateManager) this.stateManager.fail(instance.id, errorMsg);
+        else eventBus.emit({
           type: 'workflow.failed',
           source: 'workflow',
           timestamp: Date.now(),
@@ -1293,6 +1359,7 @@ ${JSON.stringify(artifacts, null, 2)}
 
     this.stateManager.updateContext(instance.id, {
       coordination: this.serializeCoordinationBinding(instance.id) ?? instance.coordination,
+      metadata: instance.metadata,
     });
   }
 
@@ -1420,6 +1487,9 @@ ${JSON.stringify(artifacts, null, 2)}
           pipelineId: pipeline.id,
           status: instance.status,
           error: instance.error,
+          taskCount: taskIds.length,
+          artifactCount: existingDocIds.length,
+          runMetadata: instance.metadata,
           capturedAt: Date.now(),
         },
       });
@@ -1463,19 +1533,23 @@ ${JSON.stringify(artifacts, null, 2)}
     if (context.kind !== 'pipeline' || !context.pipelineId) return null;
 
     const surfaceResults = new Map<string, SurfaceResult>();
+    const executionResults = new Map<string, SurfaceResult>();
     const surfaceIds = context.surfaceIds || [];
 
     for (const step of state.steps) {
-      const surfaceId = surfaceIds[step.index] || step.goal || `step-${step.index}`;
-      surfaceResults.set(surfaceId, {
+      const surfaceId = step.executionNodeId?.split(':')[0] || surfaceIds[step.index] || step.goal || `step-${step.index}`;
+      const restoredResult: SurfaceResult = {
         surfaceId,
+        executionNodeId: step.executionNodeId,
         status: step.status,
         artifacts: step.output ? { output: step.output } : undefined,
         logs: [],
         startedAt: step.startedAt,
         completedAt: step.completedAt,
         error: step.error,
-      });
+      };
+      surfaceResults.set(surfaceId, restoredResult);
+      if (step.executionNodeId) executionResults.set(step.executionNodeId, restoredResult);
     }
 
     const startedAt = state.createdAt;
@@ -1487,11 +1561,13 @@ ${JSON.stringify(artifacts, null, 2)}
       pipelineId: context.pipelineId,
       status: state.status,
       surfaceResults,
+      executionResults,
       currentSurface,
       startedAt,
       completedAt: terminal ? state.updatedAt : undefined,
       error: state.error,
       workflowStateId: state.id,
+      metadata: context.metadata,
       coordination: context.coordination,
     };
   }
@@ -1663,15 +1739,25 @@ ${JSON.stringify(artifacts, null, 2)}
 
     const runningResult: SurfaceResult = {
       surfaceId,
+      executionNodeId: executionTarget.taskNode
+        ? `${surfaceId}:${executionTarget.taskNode.id}`
+        : `surface:${surfaceId}`,
       status: 'running',
       startedAt: Date.now(),
       logs: ['Surface execution started'],
     };
     instance.surfaceResults.set(surfaceId, runningResult);
+    instance.executionResults ??= new Map();
+    instance.executionResults.set(runningResult.executionNodeId!, runningResult);
     this.updateTaskStatus(executionTaskId, 'in_progress');
 
     const stepIndex = Math.max(0, pipeline.surfaces.findIndex((s) => s.id === surfaceId));
-    this.stateManager?.updateStep(instance.id, stepIndex, {
+    const updateWorkflowExecution = executionTarget.taskNode
+      ? (updates: Partial<WorkflowStepState>) =>
+          this.stateManager?.updateExecutionNode(instance.id, runningResult.executionNodeId!, updates)
+      : (updates: Partial<WorkflowStepState>) =>
+          this.stateManager?.updateStep(instance.id, stepIndex, updates);
+    updateWorkflowExecution({
       agentId: surfaceDef.agent,
       goal: surfaceDef.workflow?.goal || surfaceDef.name,
       output: '',
@@ -1697,13 +1783,15 @@ ${JSON.stringify(artifacts, null, 2)}
       } : undefined,
       workspacePolicy: options.workspacePolicies?.[surfaceId],
     });
+    result.executionNodeId = runningResult.executionNodeId;
     instance.surfaceResults.set(surfaceId, result);
+    instance.executionResults.set(result.executionNodeId!, result);
     this.updateTaskStatus(
       executionTaskId,
       result.status === 'completed' ? 'done' : result.status === 'failed' || result.status === 'cancelled' ? 'blocked' : 'in_progress',
     );
 
-    this.stateManager?.updateStep(instance.id, stepIndex, {
+    updateWorkflowExecution({
       agentId: surfaceDef.agent,
       goal: surfaceDef.workflow?.goal || surfaceDef.name,
       output: result.artifacts?.output || result.error || '',
@@ -1780,6 +1868,26 @@ ${JSON.stringify(artifacts, null, 2)}
 
     return pipeline as PipelineDefinition;
   }
+}
+
+function longestTaskGraphPath(tasks: Array<{ id: string; dependsOn: string[] }>): number {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  const memo = new Map<string, number>();
+  const visiting = new Set<string>();
+  const depth = (taskId: string): number => {
+    const cached = memo.get(taskId);
+    if (cached !== undefined) return cached;
+    if (visiting.has(taskId)) return tasks.length + 1;
+    visiting.add(taskId);
+    const task = byId.get(taskId);
+    const value = task && task.dependsOn.length > 0
+      ? 1 + Math.max(...task.dependsOn.map((dependencyId) => depth(dependencyId)))
+      : 1;
+    visiting.delete(taskId);
+    memo.set(taskId, value);
+    return value;
+  };
+  return tasks.length > 0 ? Math.max(...tasks.map((task) => depth(task.id))) : 0;
 }
 
 /**

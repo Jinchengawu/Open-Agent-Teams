@@ -103,6 +103,7 @@ export interface OrchestratorAgentInfo {
 export interface OrchestratorStatus {
   teamAgents: OrchestratorAgentInfo[];
   sharedMemory: boolean;
+  admission?: import('../runtime/RuntimeAdmissionController.js').RuntimeAdmissionSnapshot;
 }
 
 // ============================================================================
@@ -124,6 +125,11 @@ export interface TeamOrchestratorConfig {
   /** Role Agent used for arbitration or conflict resolution */
   arbitrationAgentId?: string;
   maxConcurrency?: number;
+  maxConcurrencyPerAgent?: number;
+  maxConcurrencyPerModel?: number;
+  maxConcurrencyPerSession?: number;
+  maxAdmissionQueueDepth?: number;
+  maxAdmissionQueueWaitMs?: number;
   maxDelegationDepth?: number;
   onProgress?: (event: OrchestratorEvent) => void;
   /** 工作流状态管理器（可选 — 用于断点续传） */

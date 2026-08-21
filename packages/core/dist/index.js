@@ -24,6 +24,9 @@ export { TeamOrchestrator, createTeamOrchestrator, createProfileTeamOrchestrator
 export { IntentRouter } from './intent/IntentRouter.js';
 // ── 模型消耗保护（Codex 回填模式）──
 export { createGuardedAgentResult, createGuardedRoutingDecision, isModelSpendGuardEnabled, modelSpendGuardMessage, } from './runtime/model-spend-guard.js';
+export { ManagedAgentWorkQueue, getGlobalManagedAgentWorkQueue, resetGlobalManagedAgentWorkQueue, } from './runtime/ManagedAgentWorkQueue.js';
+export { verifyManagedWorkerBearer } from './runtime/ManagedWorkerAuth.js';
+export { ManagedArtifactContractError, ManagedArtifactBindingError, ManagedArtifactIdempotencyConflictError, ManagedArtifactValidationError, computeManagedArtifactContentHash, validateManagedArtifactEnvelope, } from './runtime/ManagedArtifactContract.js';
 // ── 质量评估与遥测 ──
 export { OutputJudge } from './quality/judge.js';
 export { EventBus as TelemetryEventBus, createEvent, generateEventId } from './telemetry/events.js';
@@ -44,8 +47,29 @@ export { DocumentManager, createDocumentManager, getGlobalDocumentManager, reset
 export { MessageBus, getGlobalMessageBus, resetGlobalMessageBus } from './event/MessageBus.js';
 // ── A2A 语义模型（内部统一 Agent 通信语言）──
 export { a2aMessageToAgentMessage, agentMessageToA2AMessage, createHermesA2AAdapters, createA2ADataPart, createA2AMessage, createA2ATextPart, getAgentIdFromCard, getGlobalInProcessA2ATransport, HermesA2AAgentAdapter, HttpA2AClient, InProcessA2ATransport, isA2ATask, isTerminalA2ATaskState, partsToText, pipelineInstanceToA2ATask, pipelineStatusToA2AState, surfaceResultToA2AArtifact, surfaceStatusToA2AState, SqliteA2AHistoryStore, teamProfileAgentToA2AAgentCard, teamProfileToA2AAgentCards, resetGlobalInProcessA2ATransport, } from './a2a/index.js';
+// ── A2A v1 bounded contract (parallel to the legacy 0.3 namespace) ──
+export * from './a2a-v1/index.js';
 // ── Token 预算管理（新增 — Phase 5: 成本控制）──
 export { TokenBudgetManager, getGlobalTokenBudgetManager, resetGlobalTokenBudgetManager } from './telemetry/TokenBudgetManager.js';
+export { BillingSourceRegistry, ProviderBillingReconciler } from './telemetry/BillingReconciliation.js';
+export { BillingImportScheduler } from './telemetry/BillingImportScheduler.js';
+export { createOperationalEvent, isOperationalEventStale, DurableOperationalEventStore, OperationalEventCompatibilityAdapter } from './telemetry/operational-events.js';
+export { OperationalSloEvaluator } from './telemetry/OperationalSloEvaluator.js';
+export { OperationalSloMonitor, OperationalSloPolicyStore } from './telemetry/OperationalSloPolicyStore.js';
+// ── Managed worker workspace provenance ──
+export { collectWorkspaceProvenance } from './runtime/WorkspaceProvenance.js';
+export { captureManagedWorkspaceSnapshot, verifyManagedCodeChange, ManagedCodeChangeVerificationError, } from './runtime/ManagedCodeChangeVerification.js';
+export { RuntimeAdmissionController, RuntimeAdmissionError } from './runtime/RuntimeAdmissionController.js';
+export { RuntimeLifecycleConflictError, SqliteRuntimeLifecycleStore } from './runtime/RuntimeLifecycle.js';
+export { ResilientCallExecutor, ResilienceRejectedError, isRetryableCallFailure, } from './runtime/ResilientCallExecutor.js';
+export { assertSandboxIsolation, SandboxAdmissionError } from './runtime/ExecutionSandbox.js';
+export { DEFAULT_ARTIFACT_CONTENT_POLICY, DefaultArtifactContentInspector } from './runtime/ArtifactContentInspector.js';
+export { EphemeralCapabilityBroker, CapabilityRejectedError } from './runtime/EphemeralCapabilityBroker.js';
+export { CredentialProviderRejectedError, LocalStsCredentialProvider, redactCredentialDiagnostic, verifyEphemeralCredentialRevocationReceipt, } from './runtime/EphemeralCredentialProvider.js';
+export { KvmUnavailableError, QemuKvmRuntimeProbe } from './runtime/MicroVmRuntimeProbe.js';
+export { SyntheticPressureHarness } from './runtime/SyntheticPressureHarness.js';
+export { StagedGitWorkspaceManager } from './runtime/StagedGitWorkspace.js';
+export { VerificationPolicyRegistry } from './runtime/VerificationPolicyRegistry.js';
 // ── 国际化（新增 — 全栈中英展示协商）──
 export { normalizeLocale, negotiateLocale, isSupportedLocale, pickText, localizeAgent, localizeAgents, } from './i18n/index.js';
 // ── HTTP API 层 ──

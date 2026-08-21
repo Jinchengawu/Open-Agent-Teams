@@ -6,6 +6,7 @@
  * - 使用 HermesAgentClient 通过 HTTP 调用 Hermes 实例（端口 8201-8205）
  * - Hermes 已自带工具、记忆、RAG，平台层只负责编排和通信
  */
+import { type ManagedAgentWorkQueue } from '../runtime/ManagedAgentWorkQueue.js';
 import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
 import type { TeamProfile } from '../team-profile/index.js';
 import type { A2AMessage, A2ASendMessageRequest, A2ASendMessageResult } from '../a2a/index.js';
@@ -19,7 +20,7 @@ export declare class TeamOrchestrator implements IOrchestrator {
     private workflowStateManager?;
     private tokenBudgetManager?;
     private extraCustomTools;
-    private maxConcurrency;
+    private admissionController;
     private maxDelegationDepth;
     private profileId;
     private profileName;
@@ -27,7 +28,12 @@ export declare class TeamOrchestrator implements IOrchestrator {
     private arbitrationAgentId;
     private profile?;
     private onProgress?;
+    private defaultModel;
+    private apiKey;
+    private baseUrl;
+    private managedAgentWorkQueue;
     constructor(config: TeamOrchestratorConfig);
+    private syncHermesAgentRegistry;
     /**
      * runAgent — 单 Agent 执行
      * 直接调用 Hermes Agent 实例，让 Hermes 处理工具、记忆、RAG
@@ -36,6 +42,11 @@ export declare class TeamOrchestrator implements IOrchestrator {
         signal?: AbortSignal;
         timeoutMs?: number;
         maxTokens?: number;
+        surfaceId?: string;
+        taskId?: string;
+        taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
+        inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
+        workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
     }): Promise<AgentRunResult>;
     /**
      * runTeam — 多 Agent 协作执行
@@ -106,18 +117,38 @@ export declare function createTeamOrchestrator(agents: TeamAgentConfig[], model?
     defaultAgentId?: string;
     arbitrationAgentId?: string;
     profile?: TeamProfile;
+    maxConcurrency?: number;
+    maxConcurrencyPerAgent?: number;
+    maxConcurrencyPerModel?: number;
+    maxConcurrencyPerSession?: number;
+    maxAdmissionQueueDepth?: number;
+    maxAdmissionQueueWaitMs?: number;
 }): TeamOrchestrator;
 export declare function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
     onProgress?: (event: OrchestratorEvent) => void;
     workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
     tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
     extraCustomTools?: any[];
+    managedAgentWorkQueue?: ManagedAgentWorkQueue;
+    maxConcurrency?: number;
+    maxConcurrencyPerAgent?: number;
+    maxConcurrencyPerModel?: number;
+    maxConcurrencyPerSession?: number;
+    maxAdmissionQueueDepth?: number;
+    maxAdmissionQueueWaitMs?: number;
 }): TeamOrchestrator;
 export declare function createOpenTeamOrchestrator(options?: {
     onProgress?: (event: OrchestratorEvent) => void;
     workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
     tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
     extraCustomTools?: any[];
+    managedAgentWorkQueue?: ManagedAgentWorkQueue;
+    maxConcurrency?: number;
+    maxConcurrencyPerAgent?: number;
+    maxConcurrencyPerModel?: number;
+    maxConcurrencyPerSession?: number;
+    maxAdmissionQueueDepth?: number;
+    maxAdmissionQueueWaitMs?: number;
 }): TeamOrchestrator;
 /** @deprecated Use createOpenTeamOrchestrator or createProfileTeamOrchestrator. */
 export declare function createDevTeamOrchestrator(options?: {
@@ -125,5 +156,6 @@ export declare function createDevTeamOrchestrator(options?: {
     workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
     tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
     extraCustomTools?: any[];
+    managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }): TeamOrchestrator;
 //# sourceMappingURL=TeamOrchestrator.d.ts.map

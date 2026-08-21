@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { posix, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { isManagedPathAllowed } from './ManagedAllowedPaths.js';
 
 export interface WorkspaceProvenanceInput {
   workspaceRoot: string;
@@ -93,13 +94,6 @@ function parseDiffPaths(output: string): string[] {
     }
   }
   return paths;
-}
-
-function isAllowed(path: string, allowedPaths: string[]): boolean {
-  return allowedPaths.some((candidate) => {
-    const normalized = toRepositoryPath(candidate).replace(/\/\*\*$/, '').replace(/\/$/, '');
-    return normalized === '.' || normalized === '' || path === normalized || path.startsWith(`${normalized}/`);
-  });
 }
 
 function fileFingerprint(repositoryRoot: string, path: string): string {
@@ -259,7 +253,7 @@ export function collectWorkspaceProvenance(
     diffRedacted: safeDiff.redacted,
     workspaceFingerprint,
     workspaceFingerprintMatchesBefore: workspaceFingerprint === input.workspaceFingerprintBefore,
-    outOfScopePaths: changedPaths.filter((path) => !isAllowed(path, input.allowedPaths)),
+    outOfScopePaths: changedPaths.filter((path) => !isManagedPathAllowed(path, input.allowedPaths)),
     sensitiveFindings,
     fileFingerprints,
   };

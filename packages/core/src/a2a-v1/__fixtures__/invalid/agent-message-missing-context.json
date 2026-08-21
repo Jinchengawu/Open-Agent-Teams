@@ -1,0 +1,5 @@
+{
+  "messageId": "message-agent-without-context",
+  "role": "ROLE_AGENT",
+  "parts": [{ "text": "A server message requires its context." }]
+}

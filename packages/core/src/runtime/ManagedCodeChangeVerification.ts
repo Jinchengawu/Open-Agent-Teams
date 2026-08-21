@@ -1,4 +1,3 @@
-import { posix } from 'node:path';
 import {
   ManagedArtifactValidationError,
   type ManagedArtifactEnvelope,
@@ -6,6 +5,7 @@ import {
 import {
   collectWorkspaceProvenance,
 } from './WorkspaceProvenance.js';
+import { isManagedPathAllowed } from './ManagedAllowedPaths.js';
 
 export interface ManagedWorkspacePolicy {
   workspaceRoot: string;
@@ -99,7 +99,7 @@ export function verifyManagedCodeChange(
     );
   }
 
-  const outOfScopePaths = changedPaths.filter((path) => !isAllowed(path, snapshot.allowedPaths));
+  const outOfScopePaths = changedPaths.filter((path) => !isManagedPathAllowed(path, snapshot.allowedPaths));
   if (outOfScopePaths.length > 0) {
     throw verificationError(
       'ARTIFACT_OUT_OF_SCOPE',
@@ -163,15 +163,27 @@ export function verifyManagedCodeChange(
     if (claim.operation !== operation) {
       evidenceIssues.push('payload.changedFiles[' + path + '].operation must be ' + operation);
     }
-    if (claim.beforeHash !== beforeHash) {
-      evidenceIssues.push('payload.changedFiles[' + path + '].beforeHash does not match');
-    }
-    if (operation === 'deleted') {
-      if (claim.afterHash !== undefined && claim.afterHash !== null) {
+    if (operation === 'added') {
+      if (Object.hasOwn(claim, 'beforeHash')) {
+        evidenceIssues.push('payload.changedFiles[' + path + '].beforeHash must be omitted for an addition');
+      }
+      if (claim.afterHash !== afterHash) {
+        evidenceIssues.push('payload.changedFiles[' + path + '].afterHash does not match');
+      }
+    } else if (operation === 'deleted') {
+      if (claim.beforeHash !== beforeHash) {
+        evidenceIssues.push('payload.changedFiles[' + path + '].beforeHash does not match');
+      }
+      if (Object.hasOwn(claim, 'afterHash')) {
         evidenceIssues.push('payload.changedFiles[' + path + '].afterHash must be omitted for a deletion');
       }
-    } else if (claim.afterHash !== afterHash) {
-      evidenceIssues.push('payload.changedFiles[' + path + '].afterHash does not match');
+    } else {
+      if (claim.beforeHash !== beforeHash) {
+        evidenceIssues.push('payload.changedFiles[' + path + '].beforeHash does not match');
+      }
+      if (claim.afterHash !== afterHash) {
+        evidenceIssues.push('payload.changedFiles[' + path + '].afterHash does not match');
+      }
     }
   }
 
@@ -226,15 +238,6 @@ function fileOperation(
   if (!beforeExists && afterExists) return 'added';
   if (beforeExists && !afterExists) return 'deleted';
   return 'modified';
-}
-
-function isAllowed(path: string, allowedPaths: string[]): boolean {
-  return allowedPaths.some((candidate) => {
-    const normalized = candidate.replace(/\\/g, posix.sep).replace(/^\.\//, '')
-      .replace(/\/\*\*$/, '').replace(/\/$/, '');
-    return normalized === '.' || normalized === ''
-      || path === normalized || path.startsWith(normalized + '/');
-  });
 }
 
 function recordValue(value: unknown): Record<string, any> | undefined {

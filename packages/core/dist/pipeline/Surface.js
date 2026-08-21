@@ -143,6 +143,15 @@ export class Surface {
             const agentResult = await this.orchestrator.runAgent(this.agent, goal, this.sessionId, {
                 signal: options.signal,
                 timeoutMs: options.timeoutMs ?? this.definition.timeout,
+                surfaceId: this.id,
+                taskId: options.taskId,
+                taskContract: options.taskContract,
+                inputArtifactRefs: options.inputArtifactRefs,
+                workspacePolicy: options.workspacePolicy,
+                ...(options.trustedRuntimeScope ? {
+                    telemetryScope: { opsEligible: true, ...options.trustedRuntimeScope },
+                    memory: { enabled: true, context: { trusted: true, ...options.trustedRuntimeScope, agentId: this.agent } },
+                } : {}),
             });
             if (!agentResult.success) {
                 throw new Error(`Agent ${this.agent} 执行失败: ${agentResult.output || 'unknown error'}`);
@@ -154,6 +163,7 @@ export class Surface {
             result.artifacts = {
                 output: agentResult.output,
                 ...this.extractArtifacts(agentResult.output),
+                ...(agentResult.artifacts || {}),
             };
             result.tokenUsage = {
                 input_tokens: agentResult.tokenUsage?.input_tokens || 0,

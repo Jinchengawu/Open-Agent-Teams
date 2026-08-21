@@ -1,0 +1,5 @@
+{
+  "messageId": "message-invalid-role",
+  "role": "user",
+  "parts": [{ "text": "Legacy v0.3 role must not pass as v1." }]
+}

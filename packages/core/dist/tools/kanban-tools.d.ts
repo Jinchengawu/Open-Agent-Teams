@@ -24,7 +24,7 @@ export declare function createKanbanTools(): (import("@open-multi-agent/core").T
     assignee?: string | undefined;
     limit?: number | undefined;
 }> | import("@open-multi-agent/core").ToolDefinition<{
-    assignee: string;
     task_id: string;
+    assignee: string;
 }>)[];
 //# sourceMappingURL=kanban-tools.d.ts.map

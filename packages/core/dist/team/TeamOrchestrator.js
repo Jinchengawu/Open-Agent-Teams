@@ -11,6 +11,9 @@ import { IntentRouter } from '../intent/IntentRouter.js';
 import { eventBus } from '../event/EventBus.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
+import { getGlobalManagedAgentWorkQueue } from '../runtime/ManagedAgentWorkQueue.js';
+import { applyRuntimeModelSettings } from '../runtime/model-settings.js';
+import { RuntimeAdmissionController } from '../runtime/RuntimeAdmissionController.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE, materializeTeamAgents } from '../team-profile/index.js';
 import { createA2AMessage, getGlobalInProcessA2ATransport, teamProfileAgentToA2AAgentCard } from '../a2a/index.js';
 // ============================================================================
@@ -24,7 +27,7 @@ export class TeamOrchestrator {
     workflowStateManager;
     tokenBudgetManager;
     extraCustomTools = [];
-    maxConcurrency;
+    admissionController;
     maxDelegationDepth;
     profileId;
     profileName;
@@ -32,6 +35,10 @@ export class TeamOrchestrator {
     arbitrationAgentId;
     profile;
     onProgress;
+    defaultModel;
+    apiKey;
+    baseUrl;
+    managedAgentWorkQueue;
     constructor(config) {
         this.agentConfigs = new Map();
         for (const a of config.agents) {
@@ -39,7 +46,14 @@ export class TeamOrchestrator {
         }
         this.workflowStateManager = config.workflowStateManager;
         this.tokenBudgetManager = config.tokenBudgetManager;
-        this.maxConcurrency = config.maxConcurrency ?? 5;
+        this.admissionController = new RuntimeAdmissionController({
+            maxGlobal: config.maxConcurrency ?? 5,
+            maxPerAgent: config.maxConcurrencyPerAgent ?? 2,
+            maxPerModel: config.maxConcurrencyPerModel ?? 3,
+            maxPerSession: config.maxConcurrencyPerSession ?? 2,
+            maxQueueDepth: config.maxAdmissionQueueDepth ?? 100,
+            maxQueueWaitMs: config.maxAdmissionQueueWaitMs ?? 30_000,
+        });
         this.maxDelegationDepth = config.maxDelegationDepth ?? 3;
         this.profileId = config.profileId || 'custom';
         this.profileName = config.profileName || 'Custom Agent Team';
@@ -48,29 +62,70 @@ export class TeamOrchestrator {
         this.arbitrationAgentId = this.resolveAgentId(config.arbitrationAgentId || this.defaultAgentId);
         this.onProgress = config.onProgress;
         this.extraCustomTools = config.extraCustomTools || [];
+        this.defaultModel = config.defaultModel;
+        this.apiKey = config.apiKey;
+        this.baseUrl = config.baseUrl;
+        this.managedAgentWorkQueue = config.managedAgentWorkQueue || getGlobalManagedAgentWorkQueue();
         // 初始化 Hermes Agent Client
         this.hermesClient = new HermesAgentClient();
+        const activeAgents = this.syncHermesAgentRegistry();
         // 初始化 IntentRouter（用于路由决策）
         this.intentRouter = new IntentRouter({
             model: config.defaultModel,
             baseURL: config.baseUrl,
             apiKey: config.apiKey,
             defaultAgentId: this.defaultAgentId,
-        }, config.agents);
-        // 初始化 MessageBus
-        const messageBus = getGlobalMessageBus({ verbose: true });
-        // 注册所有 Agent 到 MessageBus
-        for (const agent of config.agents) {
-            messageBus.registerAgent(agent.id, async (msg) => {
-                console.log(`[MessageBus] ${msg.from} → ${msg.to}: ${msg.content.substring(0, 50)}...`);
-            });
-        }
+        }, activeAgents);
         this.registerA2AAgents();
-        console.log(`[TeamOrchestrator] 已注册 ${config.agents.length} 个 Agent 到 MessageBus`);
+        console.log(`[TeamOrchestrator] 已注册 ${activeAgents.length} 个 Agent 到 MessageBus`);
         console.log(`[TeamOrchestrator] 使用 Hermes Agent Client (端口 8201-8205)`);
         console.log(`[TeamOrchestrator] Team Profile: ${this.profileName} (${this.profileId}), default=${this.defaultAgentId}`);
         console.log(`[TeamOrchestrator] customTools 数量: ${this.extraCustomTools.length}`);
         console.log(`[TeamOrchestrator] customTools 名称: ${this.extraCustomTools.map((t) => t.name || t.toolName || 'unknown').join(', ')}`);
+    }
+    syncHermesAgentRegistry() {
+        this.hermesClient = new HermesAgentClient();
+        let changed = false;
+        for (const instance of this.hermesClient.getInstances()) {
+            if (this.agentConfigs.has(instance.id))
+                continue;
+            changed = true;
+            this.agentConfigs.set(instance.id, {
+                id: instance.id,
+                name: instance.label,
+                role: instance.role || instance.description || `${instance.label} — Dashboard-created Hermes Agent`,
+                systemPrompt: instance.system_prompt ||
+                    `You are ${instance.label}. Your responsibility is: ${instance.role || instance.description || 'complete professional deliverables for the user goal'}. Keep boundaries clear and produce executable outputs.`,
+                model: this.defaultModel,
+                apiKey: this.apiKey,
+                baseUrl: this.baseUrl,
+                expertise: instance.tags.length > 0 ? instance.tags : instance.skills,
+                tools: instance.skills,
+                typicalTasks: [instance.description || instance.role || `${instance.label} professional task`],
+            });
+        }
+        for (const [agentId, agent] of this.agentConfigs.entries()) {
+            this.agentConfigs.set(agentId, applyRuntimeModelSettings(agent));
+        }
+        const activeAgents = Array.from(this.agentConfigs.values());
+        if (changed) {
+            this.intentRouter = new IntentRouter({
+                model: this.defaultModel,
+                baseURL: this.baseUrl,
+                apiKey: this.apiKey,
+                defaultAgentId: this.defaultAgentId,
+            }, activeAgents);
+        }
+        const messageBus = getGlobalMessageBus({ verbose: true });
+        for (const agent of activeAgents) {
+            messageBus.registerAgent(agent.id, async (msg) => {
+                console.log(`[MessageBus] ${msg.from} → ${msg.to}: ${msg.content.substring(0, 50)}...`);
+            });
+        }
+        if (changed) {
+            this.registerA2AAgents();
+        }
+        return activeAgents;
     }
     // ============================================================================
     // 单 Agent 执行
@@ -80,41 +135,68 @@ export class TeamOrchestrator {
      * 直接调用 Hermes Agent 实例，让 Hermes 处理工具、记忆、RAG
      */
     async runAgent(agentId, goal, sessionId, options) {
+        this.syncHermesAgentRegistry();
         const config = this.agentConfigs.get(agentId);
         if (!config)
             throw new Error(`Agent "${agentId}" not found`);
-        console.log(`[TeamOrchestrator] runAgent: ${agentId} → "${goal.substring(0, 60)}..."`);
-        if (isModelSpendGuardEnabled()) {
-            console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}`);
-            return createGuardedAgentResult(agentId);
-        }
-        const budgetSessionId = sessionId || agentId;
-        this.checkBudget(budgetSessionId, 5000);
-        const hermesResult = await this.hermesClient.callAgent(agentId, goal, {
-            systemPrompt: config.systemPrompt,
-            maxTokens: options?.maxTokens || 4000,
+        const releaseAdmission = await this.admissionController.acquire({
+            agentId,
+            modelId: config.model,
             sessionId,
             signal: options?.signal,
-            timeoutMs: options?.timeoutMs,
         });
-        // 跟踪 Token 使用
-        this.trackTokenUsage(budgetSessionId, hermesResult.tokenUsage);
-        // 转换为平台标准格式
-        const agentResult = {
-            success: hermesResult.success,
-            output: hermesResult.output,
-            messages: hermesResult.messages.map((m) => ({
-                role: m.role,
-                content: m.content,
-            })),
-            tokenUsage: hermesResult.tokenUsage,
-            toolCalls: hermesResult.toolCalls.map((tc) => ({
-                toolName: tc.toolName,
-                input: {},
-                output: tc.result || '',
-            })),
-        };
-        return agentResult;
+        try {
+            console.log(`[TeamOrchestrator] runAgent: ${agentId} → "${goal.substring(0, 60)}..."`);
+            if (isModelSpendGuardEnabled()) {
+                if (!this.managedAgentWorkQueue.hasActiveWorker(agentId)) {
+                    console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}; no managed worker available`);
+                    return createGuardedAgentResult(agentId);
+                }
+                console.log(`[TeamOrchestrator] MODEL_SPEND_GUARD queued managed external work for ${agentId}`);
+                return this.managedAgentWorkQueue.enqueueAndWait({
+                    agentId,
+                    goal,
+                    sessionId,
+                    surfaceId: options?.surfaceId,
+                    taskId: options?.taskId,
+                    taskContract: options?.taskContract,
+                    inputArtifactRefs: options?.inputArtifactRefs,
+                    workspacePolicy: options?.workspacePolicy,
+                    signal: options?.signal,
+                    timeoutMs: options?.timeoutMs,
+                });
+            }
+            const budgetSessionId = sessionId || agentId;
+            this.checkBudget(budgetSessionId, 5000);
+            const hermesResult = await this.hermesClient.callAgent(agentId, goal, {
+                systemPrompt: config.systemPrompt,
+                maxTokens: options?.maxTokens || 4000,
+                sessionId,
+                signal: options?.signal,
+                timeoutMs: options?.timeoutMs,
+            });
+            // 跟踪 Token 使用
+            this.trackTokenUsage(budgetSessionId, hermesResult.tokenUsage);
+            // 转换为平台标准格式
+            const agentResult = {
+                success: hermesResult.success,
+                output: hermesResult.output,
+                messages: hermesResult.messages.map((m) => ({
+                    role: m.role,
+                    content: m.content,
+                })),
+                tokenUsage: hermesResult.tokenUsage,
+                toolCalls: hermesResult.toolCalls.map((tc) => ({
+                    toolName: tc.toolName,
+                    input: {},
+                    output: tc.result || '',
+                })),
+            };
+            return agentResult;
+        }
+        finally {
+            releaseAdmission();
+        }
     }
     // ============================================================================
     // Team 模式（多 Agent 并行/串行）
@@ -124,6 +206,7 @@ export class TeamOrchestrator {
      * 由 IntentRouter 分析目标，决定哪些 Agent 参与，然后并行/串行调用 Hermes
      */
     async runTeam(goal, options) {
+        this.syncHermesAgentRegistry();
         console.log(`[TeamOrchestrator] runTeam: "${goal.substring(0, 60)}..." | sessionId: ${options?.sessionId || 'none'}`);
         const workflowId = `team-${Date.now()}`;
         const sessionId = options?.sessionId;
@@ -236,6 +319,7 @@ export class TeamOrchestrator {
      * 所有 Agent 顺序执行，共享上下文，每人从自己的专业角度发表意见
      */
     async runMeeting(goal, sessionId, options = {}) {
+        this.syncHermesAgentRegistry();
         console.log(`[TeamOrchestrator] runMeeting: "${goal.substring(0, 60)}..." | sessionId: ${sessionId || 'none'}`);
         const agentIds = this.resolveMeetingAgentIds(options.participantAgentIds);
         const agentCount = agentIds.length;
@@ -282,6 +366,7 @@ export class TeamOrchestrator {
      * runMeetingWithProgress — 带实时进度的圆桌会议（并发控制 + 重试）
      */
     async runMeetingWithProgress(goal, onProgress, options = {}) {
+        this.syncHermesAgentRegistry();
         const MAX_CONCURRENT = 2;
         const MAX_RETRIES = 3;
         const BASE_DELAY = 2000;
@@ -588,12 +673,14 @@ export class TeamOrchestrator {
     // 状态查询
     // ============================================================================
     getStatus() {
+        this.syncHermesAgentRegistry();
         return {
             teamAgents: Array.from(this.agentConfigs.values()).map((a) => ({
                 name: a.id,
                 model: a.model || 'default',
             })),
             sharedMemory: true, // MessageBus 提供共享通信能力
+            admission: this.admissionController.snapshot(),
         };
     }
     /**
@@ -696,6 +783,12 @@ export function createTeamOrchestrator(agents, model, options) {
         defaultAgentId: options?.defaultAgentId,
         arbitrationAgentId: options?.arbitrationAgentId,
         profile: options?.profile,
+        maxConcurrency: options?.maxConcurrency,
+        maxConcurrencyPerAgent: options?.maxConcurrencyPerAgent,
+        maxConcurrencyPerModel: options?.maxConcurrencyPerModel,
+        maxConcurrencyPerSession: options?.maxConcurrencyPerSession,
+        maxAdmissionQueueDepth: options?.maxAdmissionQueueDepth,
+        maxAdmissionQueueWaitMs: options?.maxAdmissionQueueWaitMs,
     });
 }
 export function createProfileTeamOrchestrator(profile, options) {
@@ -718,6 +811,13 @@ export function createProfileTeamOrchestrator(profile, options) {
         workflowStateManager: options?.workflowStateManager,
         tokenBudgetManager: options?.tokenBudgetManager,
         extraCustomTools: docKanbanTools,
+        managedAgentWorkQueue: options?.managedAgentWorkQueue,
+        maxConcurrency: options?.maxConcurrency,
+        maxConcurrencyPerAgent: options?.maxConcurrencyPerAgent,
+        maxConcurrencyPerModel: options?.maxConcurrencyPerModel,
+        maxConcurrencyPerSession: options?.maxConcurrencyPerSession,
+        maxAdmissionQueueDepth: options?.maxAdmissionQueueDepth,
+        maxAdmissionQueueWaitMs: options?.maxAdmissionQueueWaitMs,
     });
 }
 export function createOpenTeamOrchestrator(options) {

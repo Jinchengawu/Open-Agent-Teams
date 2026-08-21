@@ -27,6 +27,16 @@ export type ManagedAgentWorkStatus =
   | 'timed_out'
   | 'interrupted';
 
+export class ManagedWorkItemStateError extends Error {
+  constructor(
+    readonly code: 'WORK_ITEM_NOT_CLAIMED' | 'WORK_ITEM_INVALID_CLAIM',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ManagedWorkItemStateError';
+  }
+}
+
 export interface ManagedAgentWorkItem {
   id: string;
   agentId: string;
@@ -40,6 +50,7 @@ export interface ManagedAgentWorkItem {
   status: ManagedAgentWorkStatus;
   createdAt: number;
   updatedAt: number;
+  deadlineAt?: number;
   claimedBy?: string;
   leaseExpiresAt?: number;
   error?: string;
@@ -69,12 +80,14 @@ export interface ManagedTaskContract {
 export interface ManagedAgentWorkerHeartbeat {
   workerId: string;
   agentIds?: string[];
+  surfaceIds?: string[];
   ttlMs?: number;
 }
 
 export interface ManagedAgentWorkerAudit {
   workerId: string;
   agentIds: string[];
+  surfaceIds: string[];
   lastSeenAt: number;
   expiresAt: number;
   active: boolean;
@@ -83,6 +96,7 @@ export interface ManagedAgentWorkerAudit {
 interface ManagedAgentWorker {
   workerId: string;
   agentIds: Set<string>;
+  surfaceIds: Set<string>;
   lastSeenAt: number;
   expiresAt: number;
 }
@@ -156,26 +170,28 @@ export class ManagedAgentWorkQueue {
     this.workers.set(input.workerId, {
       workerId: input.workerId,
       agentIds: new Set(input.agentIds ?? []),
+      surfaceIds: new Set(input.surfaceIds ?? []),
       lastSeenAt,
       expiresAt,
     });
     this.database?.prepare(`
       INSERT INTO managed_agent_worker_heartbeats
-        (worker_id, process_id, agent_ids, last_seen_at, expires_at)
-      VALUES (?, ?, ?, ?, ?)
+        (worker_id, process_id, agent_ids, surface_ids, last_seen_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(worker_id) DO UPDATE SET
         process_id = excluded.process_id,
         agent_ids = excluded.agent_ids,
+        surface_ids = excluded.surface_ids,
         last_seen_at = excluded.last_seen_at,
         expires_at = excluded.expires_at
-    `).run(input.workerId, this.processId, JSON.stringify(input.agentIds ?? []), lastSeenAt, expiresAt);
+    `).run(input.workerId, this.processId, JSON.stringify(input.agentIds ?? []), JSON.stringify(input.surfaceIds ?? []), lastSeenAt, expiresAt);
     return { workerId: input.workerId, expiresAt };
   }
 
-  hasActiveWorker(agentId?: string): boolean {
+  hasActiveWorker(agentId?: string, surfaceId?: string): boolean {
     this.expireWorkersAndClaims();
     return [...this.workers.values()].some((worker) =>
-      !agentId || worker.agentIds.has(agentId),
+      (!agentId || worker.agentIds.has(agentId)) && (!surfaceId || worker.surfaceIds.has(surfaceId)),
     );
   }
 
@@ -185,28 +201,37 @@ export class ManagedAgentWorkQueue {
       return [...this.workers.values()].map((worker) => ({
         workerId: worker.workerId,
         agentIds: [...worker.agentIds],
+        surfaceIds: [...worker.surfaceIds],
         lastSeenAt: worker.lastSeenAt,
         expiresAt: worker.expiresAt,
         active: true,
       }));
     }
     const rows = this.database.prepare(`
-      SELECT worker_id, process_id, agent_ids, last_seen_at, expires_at
+      SELECT worker_id, process_id, agent_ids, surface_ids, last_seen_at, expires_at
       FROM managed_agent_worker_heartbeats
       ORDER BY last_seen_at DESC
     `).all() as Array<Record<string, unknown>>;
     return rows.map((row) => {
       let agentIds: string[] = [];
+      let surfaceIds: string[] = [];
       try {
         const parsed = JSON.parse(String(row.agent_ids));
         if (Array.isArray(parsed)) agentIds = parsed.map(String);
       } catch {
         agentIds = [];
       }
+      try {
+        const parsed = JSON.parse(String(row.surface_ids));
+        if (Array.isArray(parsed)) surfaceIds = parsed.map(String);
+      } catch {
+        surfaceIds = [];
+      }
       const workerId = String(row.worker_id);
       return {
         workerId,
         agentIds,
+        surfaceIds,
         lastSeenAt: Number(row.last_seen_at),
         expiresAt: Number(row.expires_at),
         active: row.process_id === this.processId && this.workers.has(workerId),
@@ -256,6 +281,7 @@ export class ManagedAgentWorkQueue {
 
     const id = `managed-work-${randomUUID()}`;
     const now = this.now();
+    const timeoutMs = input.timeoutMs ?? this.defaultWorkTimeoutMs;
     const workspacePolicy = input.taskContract && input.workspacePolicy
       ? narrowWorkspacePolicy(input.workspacePolicy, input.taskContract)
       : input.workspacePolicy;
@@ -286,6 +312,7 @@ export class ManagedAgentWorkQueue {
       status: 'pending',
       createdAt: now,
       updatedAt: now,
+      deadlineAt: now + timeoutMs,
       workspaceSnapshot,
     });
     this.persistItem(this.items.get(id)!);
@@ -294,13 +321,13 @@ export class ManagedAgentWorkQueue {
       const finishWithFailure = (status: 'cancelled' | 'timed_out', message: string) => {
         const item = this.items.get(id);
         if (!item || !this.pendingRequests.has(id)) return;
+        const retainClaimForTelemetry = status === 'timed_out' && item.status === 'claimed';
         item.status = status;
         item.error = message;
         item.updatedAt = this.now();
         this.persistItem(item);
-        this.settle(id, this.failureResult(message));
+        this.settle(id, this.failureResult(message), retainClaimForTelemetry ? { retainClaimTokenMs: 500 } : undefined);
       };
-      const timeoutMs = input.timeoutMs ?? this.defaultWorkTimeoutMs;
       const timeout = setTimeout(
         () => finishWithFailure('timed_out', `Managed external Agent work timed out after ${timeoutMs}ms`),
         timeoutMs,
@@ -400,7 +427,10 @@ export class ManagedAgentWorkQueue {
           ]);
         }
         if (accepted.workerId !== input.workerId || accepted.claimTokenHash !== claimTokenHash) {
-          throw new Error(`Invalid claim for work item ${workItemId}`);
+          throw new ManagedWorkItemStateError(
+            'WORK_ITEM_INVALID_CLAIM',
+            `Invalid claim for work item ${workItemId}`,
+          );
         }
         return { ...item };
       }
@@ -436,6 +466,20 @@ export class ManagedAgentWorkQueue {
     claimToken: string;
     error: string;
   }): ManagedAgentWorkItem {
+    const terminalItem = this.requireItem(workItemId);
+    if (terminalItem.status === 'timed_out') {
+      if (terminalItem.claimedBy !== input.workerId || this.claimTokens.get(workItemId) !== input.claimToken) {
+        throw new ManagedWorkItemStateError(
+          'WORK_ITEM_INVALID_CLAIM',
+          `Invalid claim for work item ${workItemId}`,
+        );
+      }
+      terminalItem.error = [terminalItem.error, `workerFailure=${input.error}`].filter(Boolean).join('; ');
+      terminalItem.updatedAt = this.now();
+      this.persistItem(terminalItem);
+      this.claimTokens.delete(workItemId);
+      return { ...terminalItem };
+    }
     const item = this.requireClaim(workItemId, input.workerId, input.claimToken);
     item.status = 'failed';
     item.error = input.error;
@@ -454,9 +498,11 @@ export class ManagedAgentWorkQueue {
   private requireClaim(workItemId: string, workerId: string, claimToken: string): ManagedAgentWorkItem {
     this.expireWorkersAndClaims();
     const item = this.requireItem(workItemId);
-    if (item.status !== 'claimed') throw new Error(`Work item ${workItemId} is not claimed`);
+    if (item.status !== 'claimed') {
+      throw new ManagedWorkItemStateError('WORK_ITEM_NOT_CLAIMED', `Work item ${workItemId} is not claimed`);
+    }
     if (item.claimedBy !== workerId || this.claimTokens.get(workItemId) !== claimToken) {
-      throw new Error(`Invalid claim for work item ${workItemId}`);
+      throw new ManagedWorkItemStateError('WORK_ITEM_INVALID_CLAIM', `Invalid claim for work item ${workItemId}`);
     }
     return item;
   }
@@ -500,6 +546,7 @@ export class ManagedAgentWorkQueue {
         task_contract_json TEXT,
         input_artifact_refs_json TEXT
         ,workspace_snapshot_json TEXT
+        ,deadline_at INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_managed_work_status_created
         ON managed_agent_work_items(status, created_at);
@@ -507,6 +554,7 @@ export class ManagedAgentWorkQueue {
         worker_id TEXT PRIMARY KEY,
         process_id TEXT NOT NULL,
         agent_ids TEXT NOT NULL DEFAULT '[]',
+        surface_ids TEXT NOT NULL DEFAULT '[]',
         last_seen_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
       );
@@ -520,6 +568,12 @@ export class ManagedAgentWorkQueue {
         accepted_at INTEGER NOT NULL
       );
     `);
+    const heartbeatColumns = (
+      this.database.prepare('PRAGMA table_info(managed_agent_worker_heartbeats)').all()
+    ) as Array<{ name: string }>;
+    if (!heartbeatColumns.some((column) => column.name === 'surface_ids')) {
+      this.database.exec("ALTER TABLE managed_agent_worker_heartbeats ADD COLUMN surface_ids TEXT NOT NULL DEFAULT '[]'");
+    }
     const workItemColumns = (
       this.database.prepare('PRAGMA table_info(managed_agent_work_items)').all()
     ) as Array<{ name: string }>;
@@ -549,11 +603,14 @@ export class ManagedAgentWorkQueue {
     if (!workItemColumns.some((column) => column.name === 'input_artifact_refs_json')) {
       this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN input_artifact_refs_json TEXT');
     }
+    if (!workItemColumns.some((column) => column.name === 'deadline_at')) {
+      this.database.exec('ALTER TABLE managed_agent_work_items ADD COLUMN deadline_at INTEGER');
+    }
 
     const rows = this.database.prepare(`
       SELECT id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
              claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json,
-             input_artifact_refs_json
+             input_artifact_refs_json, deadline_at
       FROM managed_agent_work_items
       ORDER BY created_at ASC
     `).all() as Array<Record<string, unknown>>;
@@ -569,6 +626,7 @@ export class ManagedAgentWorkQueue {
         status: String(row.status) as ManagedAgentWorkStatus,
         createdAt: Number(row.created_at),
         updatedAt: Number(row.updated_at),
+        deadlineAt: row.deadline_at === null ? undefined : Number(row.deadline_at),
         claimedBy: row.claimed_by ? String(row.claimed_by) : undefined,
         leaseExpiresAt: row.lease_expires_at === null ? undefined : Number(row.lease_expires_at),
         error: row.error ? String(row.error) : undefined,
@@ -610,8 +668,8 @@ export class ManagedAgentWorkQueue {
       INSERT INTO managed_agent_work_items
         (id, agent_id, goal, session_id, surface_id, task_id, attempt_id, status, created_at, updated_at,
          claimed_by, lease_expires_at, error, output, artifact_json, task_contract_json, workspace_snapshot_json,
-         input_artifact_refs_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         input_artifact_refs_json, deadline_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         surface_id = excluded.surface_id,
         task_id = excluded.task_id,
@@ -626,6 +684,7 @@ export class ManagedAgentWorkQueue {
         ,task_contract_json = excluded.task_contract_json
         ,workspace_snapshot_json = excluded.workspace_snapshot_json
         ,input_artifact_refs_json = excluded.input_artifact_refs_json
+        ,deadline_at = excluded.deadline_at
     `).run(
       item.id,
       item.agentId,
@@ -645,6 +704,7 @@ export class ManagedAgentWorkQueue {
       item.taskContract ? JSON.stringify(item.taskContract) : null,
       item.workspaceSnapshot ? JSON.stringify(item.workspaceSnapshot) : null,
       item.inputArtifactRefs ? JSON.stringify(item.inputArtifactRefs) : null,
+      item.deadlineAt ?? null,
     );
   }
 
@@ -730,13 +790,25 @@ export class ManagedAgentWorkQueue {
     }
   }
 
-  private settle(workItemId: string, result: AgentRunResult): void {
+  private settle(
+    workItemId: string,
+    result: AgentRunResult,
+    options: { retainClaimTokenMs: number } | undefined = undefined,
+  ): void {
     const pending = this.pendingRequests.get(workItemId);
     if (!pending) return;
     clearTimeout(pending.timeout);
     if (pending.onAbort) pending.signal?.removeEventListener('abort', pending.onAbort);
     this.pendingRequests.delete(workItemId);
-    this.claimTokens.delete(workItemId);
+    if (options) {
+      const retainedToken = this.claimTokens.get(workItemId);
+      const cleanup = setTimeout(() => {
+        if (this.claimTokens.get(workItemId) === retainedToken) this.claimTokens.delete(workItemId);
+      }, options.retainClaimTokenMs);
+      cleanup.unref?.();
+    } else {
+      this.claimTokens.delete(workItemId);
+    }
     pending.resolve(result);
   }
 

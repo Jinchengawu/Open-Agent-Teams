@@ -10,9 +10,12 @@
  * 与 SessionManager 共享同一个 SQLite 数据库实例。
  */
 import type { Database } from 'better-sqlite3';
+import type { WorkflowEvent } from '../event/types.js';
 import type { AgentRunResult, TokenUsage } from '../orchestrator/types.js';
+import { type OperationalEvent } from '../telemetry/operational-events.js';
 export interface WorkflowStepState {
     index: number;
+    executionNodeId?: string;
     agentId: string;
     goal: string;
     output: string;
@@ -39,15 +42,39 @@ export interface WorkflowState {
     createdAt: number;
     updatedAt: number;
 }
+/** Explicit server-owned scope. Values in WorkflowContext are never promoted into this boundary. */
+export interface WorkflowTrustedScope {
+    trusted: true;
+    tenantId: string;
+    projectId: string;
+    agentId?: string;
+    sessionId?: string;
+    taskId?: string;
+    attemptId?: string;
+}
+interface OperationalEventStorePort {
+    appendIfAbsent(event: OperationalEvent): {
+        event: OperationalEvent;
+        inserted: boolean;
+    };
+}
+export interface WorkflowStateManagerOptions {
+    operationalEventStore?: OperationalEventStorePort;
+    legacyEmit?: (event: WorkflowEvent) => void;
+    now?: () => Date;
+}
 export declare class WorkflowStateManager {
     private db;
-    constructor(db: Database);
+    private readonly operationalEventStore;
+    private readonly legacyEmit;
+    private readonly now;
+    constructor(db: Database, options?: WorkflowStateManagerOptions);
     private initSchema;
     private migrateCancelledStatusConstraint;
     /**
      * 创建并保存新的工作流状态
      */
-    createState(goal: string, totalSteps: number, id?: string, context?: WorkflowContext): WorkflowState;
+    createState(goal: string, totalSteps: number, id?: string, context?: WorkflowContext, trustedScope?: WorkflowTrustedScope): WorkflowState;
     /**
      * 合并更新工作流上下文，用于持久化 Pipeline 元数据、协作绑定等恢复信息。
      */
@@ -56,6 +83,7 @@ export declare class WorkflowStateManager {
      * 保存工作流状态到 SQLite
      */
     save(state: WorkflowState): void;
+    private saveStatement;
     /**
      * 从 SQLite 加载工作流状态
      */
@@ -64,6 +92,13 @@ export declare class WorkflowStateManager {
      * 更新步骤状态
      */
     updateStep(workflowId: string, stepIndex: number, updates: Partial<WorkflowStepState> & {
+        agentResult?: AgentRunResult;
+    }): void;
+    /**
+     * Update a projected execution node without reusing the static Surface index.
+     * The stable node id is the recovery identity; array position is presentation only.
+     */
+    updateExecutionNode(workflowId: string, executionNodeId: string, updates: Partial<WorkflowStepState> & {
         agentResult?: AgentRunResult;
     }): void;
     /**
@@ -90,5 +125,12 @@ export declare class WorkflowStateManager {
      * 删除工作流状态
      */
     delete(workflowId: string): void;
+    private persistThenEmit;
+    private saveTrustedScope;
+    private loadTrustedScope;
+    private assertTrustedScope;
+    private sameTrustedScope;
+    private isTerminal;
 }
+export {};
 //# sourceMappingURL=WorkflowStateManager.d.ts.map

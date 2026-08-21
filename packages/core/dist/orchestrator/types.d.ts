@@ -41,6 +41,8 @@ export interface AgentRunResult {
     messages: LLMMessage[];
     tokenUsage: TokenUsage;
     toolCalls: ToolCallRecord[];
+    /** 结构化 Agent 产物与机器证据 */
+    artifacts?: Record<string, unknown>;
 }
 export interface TeamRunResult {
     success: boolean;
@@ -106,6 +108,7 @@ export interface OrchestratorAgentInfo {
 export interface OrchestratorStatus {
     teamAgents: OrchestratorAgentInfo[];
     sharedMemory: boolean;
+    admission?: import('../runtime/RuntimeAdmissionController.js').RuntimeAdmissionSnapshot;
 }
 export interface TeamOrchestratorConfig {
     agents: TeamAgentConfig[];
@@ -122,6 +125,11 @@ export interface TeamOrchestratorConfig {
     /** Role Agent used for arbitration or conflict resolution */
     arbitrationAgentId?: string;
     maxConcurrency?: number;
+    maxConcurrencyPerAgent?: number;
+    maxConcurrencyPerModel?: number;
+    maxConcurrencyPerSession?: number;
+    maxAdmissionQueueDepth?: number;
+    maxAdmissionQueueWaitMs?: number;
     maxDelegationDepth?: number;
     onProgress?: (event: OrchestratorEvent) => void;
     /** 工作流状态管理器（可选 — 用于断点续传） */
@@ -130,6 +138,8 @@ export interface TeamOrchestratorConfig {
     tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
     /** 额外的自定义工具（如文档工具、看板工具） */
     extraCustomTools?: any[];
+    /** 模型消耗保护开启时，由外部 Agent 领取并完成工作的队列 */
+    managedAgentWorkQueue?: import('../runtime/ManagedAgentWorkQueue.js').ManagedAgentWorkQueue;
 }
 /**
  * 路由决策结果 — LLM 输出的结构化决策
