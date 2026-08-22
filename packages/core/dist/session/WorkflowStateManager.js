@@ -10,10 +10,22 @@
  * 与 SessionManager 共享同一个 SQLite 数据库实例。
  */
 import { eventBus } from '../event/EventBus.js';
+import { createOperationalEvent, DurableOperationalEventStore, } from '../telemetry/operational-events.js';
+function getBoundTaskId(context) {
+    return typeof context.taskId === 'string' && context.taskId.trim()
+        ? context.taskId
+        : undefined;
+}
 export class WorkflowStateManager {
     db;
-    constructor(db) {
+    operationalEventStore;
+    legacyEmit;
+    now;
+    constructor(db, options = {}) {
         this.db = db;
+        this.operationalEventStore = options.operationalEventStore ?? new DurableOperationalEventStore(db);
+        this.legacyEmit = options.legacyEmit ?? ((event) => eventBus.emit(event));
+        this.now = options.now ?? (() => new Date());
         this.initSchema();
     }
     initSchema() {
@@ -33,6 +45,17 @@ export class WorkflowStateManager {
       )
     `);
         this.migrateCancelledStatusConstraint();
+        this.db.exec(`
+      CREATE TABLE IF NOT EXISTS workflow_trusted_scopes (
+        workflow_id TEXT PRIMARY KEY REFERENCES workflow_states(id) ON DELETE CASCADE,
+        tenant_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        agent_id TEXT,
+        session_id TEXT,
+        task_id TEXT,
+        attempt_id TEXT
+      )
+    `);
     }
     migrateCancelledStatusConstraint() {
         const table = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'workflow_states'").get();
@@ -70,8 +93,21 @@ export class WorkflowStateManager {
     /**
      * 创建并保存新的工作流状态
      */
-    createState(goal, totalSteps, id, context = {}) {
+    createState(goal, totalSteps, id, context = {}, trustedScope) {
+        this.assertTrustedScope(trustedScope);
         const workflowId = id || `wf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const existing = this.load(workflowId);
+        if (existing) {
+            if (existing.goal !== goal || existing.totalSteps !== totalSteps
+                || JSON.stringify(existing.context) !== JSON.stringify(context)) {
+                throw new Error(`Workflow ${workflowId} workflow identity conflict`);
+            }
+            if (!this.sameTrustedScope(this.loadTrustedScope(workflowId), trustedScope)) {
+                throw new Error(`Workflow ${workflowId} trusted scope conflict`);
+            }
+            return existing;
+        }
+        const now = this.now().getTime();
         const state = {
             id: workflowId,
             goal,
@@ -81,18 +117,16 @@ export class WorkflowStateManager {
             steps: [],
             context,
             tokenUsage: { input_tokens: 0, output_tokens: 0 },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
+            createdAt: now,
+            updatedAt: now,
         };
-        this.save(state);
-        // 触发工作流开始事件
-        eventBus.emit({
+        this.persistThenEmit(state, trustedScope, 'started', {
             type: 'workflow.started',
             source: 'workflow',
-            timestamp: Date.now(),
+            timestamp: now,
             payload: {
                 workflowId,
-                taskId: goal.substring(0, 50),
+                taskId: getBoundTaskId(context),
                 totalSteps,
             },
         });
@@ -117,15 +151,27 @@ export class WorkflowStateManager {
      * 保存工作流状态到 SQLite
      */
     save(state) {
+        this.saveStatement(state);
+    }
+    saveStatement(state) {
         const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO workflow_states (
+      INSERT INTO workflow_states (
         id, goal, status, current_step, total_steps,
         steps, context, token_usage, error, created_at, updated_at
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-      )
+      ) ON CONFLICT(id) DO UPDATE SET
+        goal=excluded.goal,
+        status=excluded.status,
+        current_step=excluded.current_step,
+        total_steps=excluded.total_steps,
+        steps=excluded.steps,
+        context=excluded.context,
+        token_usage=excluded.token_usage,
+        error=excluded.error,
+        updated_at=excluded.updated_at
     `);
-        stmt.run(state.id, state.goal, state.status, state.currentStep, state.totalSteps, JSON.stringify(state.steps), JSON.stringify(state.context), JSON.stringify(state.tokenUsage), state.error || null, new Date(state.createdAt).toISOString(), new Date().toISOString());
+        stmt.run(state.id, state.goal, state.status, state.currentStep, state.totalSteps, JSON.stringify(state.steps), JSON.stringify(state.context), JSON.stringify(state.tokenUsage), state.error || null, new Date(state.createdAt).toISOString(), new Date(state.updatedAt).toISOString());
     }
     /**
      * 从 SQLite 加载工作流状态
@@ -172,6 +218,8 @@ export class WorkflowStateManager {
         // 更新步骤字段
         if (updates.agentId)
             step.agentId = updates.agentId;
+        if (updates.executionNodeId)
+            step.executionNodeId = updates.executionNodeId;
         if (updates.goal)
             step.goal = updates.goal;
         if (updates.output !== undefined)
@@ -191,20 +239,39 @@ export class WorkflowStateManager {
             state.tokenUsage.output_tokens += updates.agentResult.tokenUsage?.output_tokens || 0;
         }
         state.currentStep = stepIndex;
-        state.updatedAt = Date.now();
-        this.save(state);
-        // 触发步骤完成事件
-        eventBus.emit({
+        state.updatedAt = this.now().getTime();
+        // Checkpoints remain durable workflow state, but only a real completion may
+        // consume the stable step_completed event identity.
+        if (step.status !== 'completed') {
+            this.save(state);
+            return;
+        }
+        this.persistThenEmit(state, this.loadTrustedScope(workflowId), `step:${stepIndex}:completed`, {
             type: 'workflow.step_completed',
             source: 'workflow',
-            timestamp: Date.now(),
+            timestamp: state.updatedAt,
             payload: {
                 workflowId,
+                taskId: getBoundTaskId(state.context),
                 stepIndex,
                 totalSteps: state.totalSteps,
                 output: step.output?.substring(0, 200),
             },
         });
+    }
+    /**
+     * Update a projected execution node without reusing the static Surface index.
+     * The stable node id is the recovery identity; array position is presentation only.
+     */
+    updateExecutionNode(workflowId, executionNodeId, updates) {
+        const state = this.load(workflowId);
+        if (!state) {
+            console.error(`[WorkflowStateManager] 工作流 ${workflowId} 不存在，无法更新执行节点`);
+            return;
+        }
+        const existing = state.steps.find((step) => step.executionNodeId === executionNodeId);
+        const stepIndex = existing?.index ?? Math.max(-1, ...state.steps.map((step) => step.index)) + 1;
+        this.updateStep(workflowId, stepIndex, { ...updates, executionNodeId });
     }
     /**
      * 完成工作流
@@ -213,18 +280,18 @@ export class WorkflowStateManager {
         const state = this.load(workflowId);
         if (!state)
             return;
+        if (this.isTerminal(state.status))
+            return;
         state.status = 'completed';
         state.currentStep = state.totalSteps;
-        state.updatedAt = Date.now();
-        this.save(state);
-        // 触发工作流完成事件
-        eventBus.emit({
+        state.updatedAt = this.now().getTime();
+        this.persistThenEmit(state, this.loadTrustedScope(workflowId), 'completed', {
             type: 'workflow.completed',
             source: 'workflow',
-            timestamp: Date.now(),
+            timestamp: state.updatedAt,
             payload: {
                 workflowId,
-                taskId: state.goal.substring(0, 50),
+                taskId: getBoundTaskId(state.context),
                 output: finalOutput?.substring(0, 200),
                 tokenUsage: state.tokenUsage,
             },
@@ -237,18 +304,18 @@ export class WorkflowStateManager {
         const state = this.load(workflowId);
         if (!state)
             return;
+        if (this.isTerminal(state.status))
+            return;
         state.status = 'failed';
         state.error = error;
-        state.updatedAt = Date.now();
-        this.save(state);
-        // 触发工作流失败事件
-        eventBus.emit({
+        state.updatedAt = this.now().getTime();
+        this.persistThenEmit(state, this.loadTrustedScope(workflowId), 'failed', {
             type: 'workflow.failed',
             source: 'workflow',
-            timestamp: Date.now(),
+            timestamp: state.updatedAt,
             payload: {
                 workflowId,
-                taskId: state.goal.substring(0, 50),
+                taskId: getBoundTaskId(state.context),
                 error,
             },
         });
@@ -260,17 +327,18 @@ export class WorkflowStateManager {
         const state = this.load(workflowId);
         if (!state)
             return;
+        if (this.isTerminal(state.status))
+            return;
         state.status = 'cancelled';
         state.error = reason;
-        state.updatedAt = Date.now();
-        this.save(state);
-        eventBus.emit({
+        state.updatedAt = this.now().getTime();
+        this.persistThenEmit(state, this.loadTrustedScope(workflowId), 'cancelled', {
             type: 'workflow.cancelled',
             source: 'workflow',
-            timestamp: Date.now(),
+            timestamp: state.updatedAt,
             payload: {
                 workflowId,
-                taskId: state.goal.substring(0, 50),
+                taskId: getBoundTaskId(state.context),
                 error: reason,
             },
         });
@@ -318,6 +386,82 @@ export class WorkflowStateManager {
      */
     delete(workflowId) {
         this.db.prepare('DELETE FROM workflow_states WHERE id = ?').run(workflowId);
+    }
+    persistThenEmit(state, trustedScope, lifecycleKey, legacyEvent) {
+        let shouldEmit = true;
+        const durableEvent = trustedScope ? createOperationalEvent({
+            kind: lifecycleKey === 'completed' || lifecycleKey === 'failed' || lifecycleKey === 'cancelled' ? 'outcome' : 'task',
+            dimensions: {
+                tenantId: trustedScope.tenantId,
+                projectId: trustedScope.projectId,
+                agentId: trustedScope.agentId,
+                sessionId: trustedScope.sessionId,
+                taskId: trustedScope.taskId ?? getBoundTaskId(state.context) ?? state.id,
+                attemptId: trustedScope.attemptId,
+            },
+            source: 'workflow-state-manager',
+            sourceEventId: `workflow:${state.id}:${lifecycleKey}`,
+            observedAt: new Date(state.updatedAt).toISOString(),
+            completeness: 'complete',
+            measurementStatus: 'unmeasured',
+            payload: { workflowId: state.id, lifecycle: lifecycleKey, status: state.status },
+        }, { now: this.now }) : undefined;
+        this.db.transaction(() => {
+            this.saveStatement(state);
+            if (trustedScope)
+                this.saveTrustedScope(state.id, trustedScope);
+            if (durableEvent)
+                shouldEmit = this.operationalEventStore.appendIfAbsent(durableEvent).inserted;
+        })();
+        if (shouldEmit) {
+            this.legacyEmit({
+                ...legacyEvent,
+                payload: { ...legacyEvent.payload, scopeStatus: trustedScope ? 'durable' : 'unscoped' },
+            });
+        }
+    }
+    saveTrustedScope(workflowId, scope) {
+        this.db.prepare(`INSERT INTO workflow_trusted_scopes
+      (workflow_id,tenant_id,project_id,agent_id,session_id,task_id,attempt_id)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(workflow_id) DO NOTHING`).run(workflowId, scope.tenantId, scope.projectId, scope.agentId ?? null, scope.sessionId ?? null, scope.taskId ?? null, scope.attemptId ?? null);
+        const persisted = this.loadTrustedScope(workflowId);
+        if (!this.sameTrustedScope(persisted, scope)) {
+            throw new Error(`Workflow ${workflowId} trusted scope is immutable`);
+        }
+    }
+    loadTrustedScope(workflowId) {
+        const row = this.db.prepare(`SELECT tenant_id,project_id,agent_id,session_id,task_id,attempt_id
+      FROM workflow_trusted_scopes WHERE workflow_id=?`).get(workflowId);
+        if (!row)
+            return undefined;
+        return {
+            trusted: true,
+            tenantId: row.tenant_id, projectId: row.project_id,
+            ...(row.agent_id ? { agentId: row.agent_id } : {}),
+            ...(row.session_id ? { sessionId: row.session_id } : {}),
+            ...(row.task_id ? { taskId: row.task_id } : {}),
+            ...(row.attempt_id ? { attemptId: row.attempt_id } : {}),
+        };
+    }
+    assertTrustedScope(scope) {
+        if (!scope)
+            return;
+        if (scope.trusted !== true || !scope.tenantId.trim() || !scope.projectId.trim()) {
+            throw new Error('trusted workflow scope requires non-empty tenantId and projectId');
+        }
+    }
+    sameTrustedScope(left, right) {
+        if (!left || !right)
+            return left === right;
+        return left.tenantId === right.tenantId
+            && left.projectId === right.projectId
+            && left.agentId === right.agentId
+            && left.sessionId === right.sessionId
+            && left.taskId === right.taskId
+            && left.attemptId === right.attemptId;
+    }
+    isTerminal(status) {
+        return status === 'completed' || status === 'failed' || status === 'cancelled';
     }
 }
 //# sourceMappingURL=WorkflowStateManager.js.map

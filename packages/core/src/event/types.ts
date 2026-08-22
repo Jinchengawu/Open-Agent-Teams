@@ -31,6 +31,7 @@ export interface KanbanEvent {
   payload: {
     taskId: string;
     projectId?: string;
+    documentId?: string;
     title?: string;
     status?: TaskStatus;
     oldStatus?: TaskStatus;
@@ -65,6 +66,8 @@ export interface WorkflowEvent {
     error?: string;             // 错误信息
     tokenUsage?: TokenUsage;        // Token 消耗
     agentResults?: string[];    // 参与 Agent 的结果摘要
+    /** Durable-first compatibility marker. Untrusted legacy callers are never assigned a scope. */
+    scopeStatus?: 'durable' | 'unscoped';
   };
 }
 
@@ -82,6 +85,7 @@ export interface MeetingEvent {
   timestamp: number;
   payload: {
     meetingId: string;
+    projectId?: string;
     topic?: string;
     round?: number;
     totalRounds?: number;

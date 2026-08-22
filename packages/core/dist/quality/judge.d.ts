@@ -28,6 +28,11 @@ export interface EvaluationRequest {
 export interface LLMCaller {
     call(prompt: string): Promise<string>;
 }
+export interface JudgeResponse {
+    scores: Record<EvaluationDimension, number>;
+    feedback: string;
+    suggestions: string[];
+}
 export declare class OutputJudge {
     private llm;
     private evaluations;
@@ -47,4 +52,5 @@ export declare class OutputJudge {
     /** 清空评估历史 */
     clear(): void;
 }
+export declare function isJudgeResponse(value: unknown, dimensions: EvaluationDimension[]): value is JudgeResponse;
 //# sourceMappingURL=judge.d.ts.map

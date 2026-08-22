@@ -1,0 +1,8 @@
+{
+  "messageId": "message-demo-001",
+  "contextId": "context-demo-001",
+  "taskId": "task-demo-001",
+  "role": "ROLE_USER",
+  "parts": [{ "text": "Implement the accepted task graph.", "mediaType": "text/plain" }],
+  "referenceTaskIds": ["task-prerequisite-001"]
+}

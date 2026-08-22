@@ -1,0 +1,6 @@
+{
+  "artifactId": "artifact-demo-001",
+  "name": "delivery-report",
+  "description": "A bounded example artifact.",
+  "parts": [{ "data": { "status": "verified" }, "mediaType": "application/json" }]
+}

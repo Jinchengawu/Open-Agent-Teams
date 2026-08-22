@@ -22,6 +22,7 @@ export interface Task {
     description: string;
     status: 'todo' | 'in_progress' | 'review' | 'done' | 'blocked';
     assignee: string;
+    metadata?: Record<string, any>;
     createdAt: number;
     updatedAt: number;
 }
@@ -79,7 +80,10 @@ export declare class DocumentManager {
     createProject(name: string, description?: string): Project;
     getProject(id: string): Project | null;
     listProjects(): Project[];
-    createTask(projectId: string, title: string, description?: string, assignee?: string): Task;
+    createTask(projectId: string, title: string, description?: string, assignee?: string, options?: {
+        id?: string;
+        metadata?: Record<string, any>;
+    }): Task;
     getTask(id: string): Task | null;
     listTasks(projectId?: string): Task[];
     listTasksByAssignee(assignee: string): Task[];

@@ -24,6 +24,7 @@ import { createPipelineOrchestrator } from './pipeline/Orchestrator.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE } from './team-profile/index.js';
 import { getGlobalKnowledgeCenter } from './knowledge/KnowledgeCenter.js';
 import { getGlobalDocumentManager } from './knowledge/DocumentManager.js';
+import { ManagedAgentWorkQueue } from './runtime/ManagedAgentWorkQueue.js';
 // 从 AgentRunResult 中提取格式化输出（兼容 content 为 string 或 block[]）
 function extractOutput(agentResult) {
     const allText = [];
@@ -95,11 +96,15 @@ export async function createAgentApp(config = {}) {
     // 初始化看板工具的数据库连接
     setKanbanDatabase(sessionManager.getDb());
     const extraCustomTools = [...createDocumentTools(), ...createDocumentToolsV2(), ...createKanbanTools(), createSendMessageTool()];
+    const managedAgentWorkQueue = config.managedAgentWorkQueue || new ManagedAgentWorkQueue({
+        database: sessionManager.getDb(),
+    });
     const orchestrator = createOpenTeamOrchestrator({
         onProgress: config.onProgress,
         workflowStateManager,
         tokenBudgetManager,
         extraCustomTools,
+        managedAgentWorkQueue,
     });
     // 创建知识中心与文档管理器
     const knowledgeCenter = getGlobalKnowledgeCenter({ dbPath: path.join(dataDir, 'knowledge.db') });
@@ -278,6 +283,6 @@ export async function createAgentApp(config = {}) {
         await orchestrator.shutdown();
         sessionManager.close();
     };
-    return { app, sessionManager, orchestrator, tokenBudgetManager, pipelineOrchestrator, knowledgeCenter, documentManager, close };
+    return { app, sessionManager, orchestrator, tokenBudgetManager, pipelineOrchestrator, knowledgeCenter, documentManager, managedAgentWorkQueue, close };
 }
 //# sourceMappingURL=agent-factory.js.map

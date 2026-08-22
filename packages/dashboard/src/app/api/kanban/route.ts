@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
+import { flattenCoordinationTaskBindings } from '@/lib/coordination-task-bindings';
 
 const DB_PATH = process.env.SESSION_DB_PATH || `${process.env.HOME}/.dev-agent/data/sessions.db`;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8400';
@@ -52,10 +53,9 @@ async function fetchPipelineTaskLinks(): Promise<Map<string, PipelineTaskLink>> 
     if (!res.ok) return links;
     const data = await res.json();
     for (const instance of data.instances || []) {
-      const taskIdsBySurface = instance.coordination?.taskIdsBySurface || {};
-      for (const [surfaceId, taskId] of Object.entries(taskIdsBySurface)) {
-        if (!taskId || links.has(String(taskId))) continue;
-        links.set(String(taskId), {
+      for (const { surfaceId, taskId } of flattenCoordinationTaskBindings(instance.coordination)) {
+        if (links.has(taskId)) continue;
+        links.set(taskId, {
           pipelineInstanceId: instance.id,
           pipelineId: instance.pipelineId,
           surfaceId,

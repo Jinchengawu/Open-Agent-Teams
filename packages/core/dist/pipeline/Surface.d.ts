@@ -16,6 +16,14 @@ export interface SurfaceExecuteOptions {
     signal?: AbortSignal;
     timeoutMs?: number;
     dryRun?: boolean;
+    taskId?: string;
+    taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
+    inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
+    workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
+    trustedRuntimeScope?: {
+        tenantId: string;
+        projectId: string;
+    };
 }
 /**
  * Surface（面）执行器

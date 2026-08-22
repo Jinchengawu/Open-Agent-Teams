@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCompletedDeliveryGateReports } from '@/lib/delivery-gate-reports';
+import { flattenCoordinationTaskBindings } from '@/lib/coordination-task-bindings';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -43,11 +44,10 @@ function getMissingChecks(checks: Record<string, boolean>) {
 }
 
 export async function GET() {
-  const [instancesData, workflowsData, tasksData, documentsData] = await Promise.all([
+  const [instancesData, workflowsData, tasksData] = await Promise.all([
     fetchGatewayJson('/pipeline-instances?limit=1'),
     fetchGatewayJson('/v1/workflows?limit=1'),
     fetchGatewayJson('/api/v2/tasks'),
-    fetchGatewayJson('/api/v2/documents?limit=50'),
   ]);
 
   const gateReports = getCompletedDeliveryGateReports(20);
@@ -56,11 +56,16 @@ export async function GET() {
   const latestInstance = instancesData?.instances?.[0] ?? null;
   const latestWorkflow = workflowsData?.workflows?.[0] ?? null;
   const tasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
-  const documents = Array.isArray(documentsData?.documents) ? documentsData.documents : [];
   const projectId = latestInstance?.coordination?.projectId ?? latestWorkflow?.project_id ?? null;
+  const documentsData = await fetchGatewayJson(projectId
+    ? `/api/v2/documents?projectId=${encodeURIComponent(projectId)}&limit=50`
+    : '/api/v2/documents?limit=50');
+  const documents = Array.isArray(documentsData?.documents) ? documentsData.documents : [];
   const taskIdsBySurface = latestInstance?.coordination?.taskIdsBySurface || {};
   const documentIdsBySurface = latestInstance?.coordination?.documentIdsBySurface || {};
   const surfaceTaskCount = countObjectValues(taskIdsBySurface);
+  const taskNodeCount = flattenCoordinationTaskBindings(latestInstance?.coordination).length;
+  const effectiveTaskCount = taskNodeCount || surfaceTaskCount;
   const surfaceDocumentCount = countObjectValues(documentIdsBySurface);
   const projectTasks = projectId ? tasks.filter((task: any) => task.projectId === projectId) : [];
   const projectDocuments = projectId ? documents.filter((doc: any) => doc.projectId === projectId) : [];
@@ -74,7 +79,7 @@ export async function GET() {
     deliveryGateOk: Boolean(evidenceGate?.ok),
     latestPipelinePresent: Boolean(latestInstance?.id),
     projectBound: Boolean(projectId),
-    surfaceTasksBound: surfaceTaskCount > 0,
+    surfaceTasksBound: effectiveTaskCount > 0,
     projectTasksPresent: projectTasks.length > 0,
     surfaceDocumentsBound: surfaceDocumentCount > 0,
     boundDocumentsPresent: boundProjectDocuments.length > 0,
@@ -108,7 +113,7 @@ export async function GET() {
           status: latestWorkflow.status,
           pipelineId: latestWorkflow.pipeline_id || latestWorkflow.template,
           projectId: latestWorkflow.project_id || projectId,
-          taskCount: latestWorkflow.coordination_task_count ?? surfaceTaskCount,
+          taskCount: latestWorkflow.coordination_task_count ?? effectiveTaskCount,
           href: latestWorkflow.pipeline_url || (latestInstance?.id ? `/pipeline?instanceId=${latestInstance.id}` : null),
         }
       : null,
@@ -119,6 +124,7 @@ export async function GET() {
           pipelineId: latestInstance.pipelineId,
           projectId,
           surfaceTaskCount,
+          taskNodeCount,
           surfaceDocumentCount,
           currentSurface: latestInstance.currentSurface || null,
           href: latestInstance.pipeline_url || `/pipeline?instanceId=${latestInstance.id}`,
@@ -129,6 +135,7 @@ export async function GET() {
       taskCount: projectTasks.length,
       statusCounts: taskStatusCounts,
       surfaceTaskCount,
+      taskNodeCount,
       href: projectId ? `/kanban?source=coordination` : null,
     },
     documents: {

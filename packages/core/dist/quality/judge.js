@@ -18,7 +18,7 @@ export class OutputJudge {
         const prompt = this.buildPrompt(request, dimensions);
         try {
             const response = await this.llm.call(prompt);
-            const result = this.parseResponse(response, request.agentId, request.taskType);
+            const result = this.parseResponse(response, request.agentId, request.taskType, dimensions);
             this.evaluations.push(result);
             return result;
         }
@@ -71,13 +71,15 @@ ${dimensionList}
         return descriptions[dim];
     }
     /** 解析 LLM 响应 */
-    parseResponse(response, agentId, taskType) {
+    parseResponse(response, agentId, taskType, dimensions) {
         try {
             // 尝试提取 JSON
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (!jsonMatch)
                 throw new Error('No JSON found in response');
             const parsed = JSON.parse(jsonMatch[0]);
+            if (!isJudgeResponse(parsed, dimensions))
+                throw new Error('Judge response failed schema validation');
             const scores = parsed.scores;
             // 计算总分
             const scoreValues = Object.values(scores);
@@ -87,8 +89,8 @@ ${dimensionList}
                 taskType,
                 scores,
                 overallScore: Math.round(overallScore * 10) / 10,
-                feedback: parsed.feedback ?? '',
-                suggestions: parsed.suggestions ?? [],
+                feedback: parsed.feedback,
+                suggestions: parsed.suggestions,
                 timestamp: new Date().toISOString(),
             };
         }
@@ -123,5 +125,25 @@ ${dimensionList}
     clear() {
         this.evaluations = [];
     }
+}
+export function isJudgeResponse(value, dimensions) {
+    if (!value || typeof value !== 'object')
+        return false;
+    const record = value;
+    if (Object.keys(record).some((key) => !['scores', 'feedback', 'suggestions'].includes(key))
+        || typeof record.feedback !== 'string'
+        || !Array.isArray(record.suggestions)
+        || record.suggestions.some((suggestion) => typeof suggestion !== 'string')
+        || !record.scores || typeof record.scores !== 'object' || Array.isArray(record.scores))
+        return false;
+    const scores = record.scores;
+    const expectedDimensions = [...new Set(dimensions)].sort();
+    if (JSON.stringify(Object.keys(scores).sort()) !== JSON.stringify(expectedDimensions))
+        return false;
+    return expectedDimensions.every((dimension) => {
+        const score = scores[dimension];
+        return typeof score === 'number'
+            && Number.isFinite(score) && score >= 1 && score <= 10;
+    });
 }
 //# sourceMappingURL=judge.js.map

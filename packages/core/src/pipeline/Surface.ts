@@ -24,6 +24,11 @@ export interface SurfaceExecuteOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   dryRun?: boolean;
+  taskId?: string;
+  taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
+  inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
+  workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
+  trustedRuntimeScope?: { tenantId: string; projectId: string };
 }
 
 /**
@@ -178,6 +183,15 @@ export class Surface {
       const agentResult = await this.orchestrator.runAgent(this.agent, goal, this.sessionId, {
         signal: options.signal,
         timeoutMs: options.timeoutMs ?? this.definition.timeout,
+        surfaceId: this.id,
+        taskId: options.taskId,
+        taskContract: options.taskContract,
+        inputArtifactRefs: options.inputArtifactRefs,
+        workspacePolicy: options.workspacePolicy,
+        ...(options.trustedRuntimeScope ? {
+          telemetryScope: { opsEligible: true as const, ...options.trustedRuntimeScope },
+          memory: { enabled: true as const, context: { trusted: true as const, ...options.trustedRuntimeScope, agentId: this.agent } },
+        } : {}),
       });
       if (!agentResult.success) {
         throw new Error(`Agent ${this.agent} 执行失败: ${agentResult.output || 'unknown error'}`);
@@ -190,6 +204,7 @@ export class Surface {
       result.artifacts = {
         output: agentResult.output,
         ...this.extractArtifacts(agentResult.output),
+        ...(agentResult.artifacts || {}),
       };
       result.tokenUsage = {
         input_tokens: agentResult.tokenUsage?.input_tokens || 0,

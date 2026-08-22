@@ -1,0 +1,11 @@
+{
+  "protocolVersion": "0.3.0",
+  "name": "Legacy card",
+  "description": "Uses the removed v0.3 interface fields.",
+  "version": "0.1.0",
+  "capabilities": {},
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "skills": [],
+  "preferredTransport": "HTTP+JSON"
+}

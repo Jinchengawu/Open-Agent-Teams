@@ -1,0 +1,10 @@
+{
+  "id": "task-demo-001",
+  "contextId": "context-demo-001",
+  "status": {
+    "state": "TASK_STATE_WORKING",
+    "timestamp": "2026-08-13T10:00:00.000Z"
+  },
+  "artifacts": [],
+  "history": []
+}

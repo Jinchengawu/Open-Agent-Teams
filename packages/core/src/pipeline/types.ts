@@ -141,6 +141,11 @@ export interface PipelineExecutionConfig {
   surfaceTimeoutMs?: number;
   /** 是否禁止仓库写入类副作用 */
   dryRun?: boolean;
+  /** Opt-in projection of optional implementation Surfaces from an accepted task_graph Artifact. */
+  taskGraphProjection?: {
+    sourceSurfaceId: string;
+    optionalSurfaceIds: string[];
+  };
 }
 
 /** 缓存配置 */
@@ -167,6 +172,8 @@ export type SurfaceStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'f
 export interface SurfaceResult {
   /** 面 ID */
   surfaceId: string;
+  /** 单次可恢复执行节点 ID；同一面可有多个节点 */
+  executionNodeId?: string;
   /** 状态 */
   status: SurfaceStatus;
   /** 输出产物 */
@@ -193,6 +200,8 @@ export interface PipelineInstance {
   status: PipelineStatus;
   /** 各面结果 */
   surfaceResults: Map<string, SurfaceResult>;
+  /** 按 executionNodeId 保留每次节点结果，避免同 Surface 多任务覆盖 */
+  executionResults?: Map<string, SurfaceResult>;
   /** 当前执行的面 */
   currentSurface?: string;
   /** 开始时间 */
@@ -203,10 +212,14 @@ export interface PipelineInstance {
   error?: string;
   /** 持久化工作流 ID（通常等于实例 ID） */
   workflowStateId?: string;
+  /** 可审计的运行级元数据，例如治理画像与最终选择的执行模式。 */
+  metadata?: Record<string, unknown>;
+  trustedRuntimeScope?: { tenantId: string; projectId: string };
   /** 项目/任务/文档绑定投影，用于 Dashboard 展示协作脉络 */
   coordination?: {
     projectId: string;
     taskIdsBySurface: Record<string, string>;
+    taskNodeIdsBySurface?: Record<string, string[]>;
     documentIdsBySurface: Record<string, string>;
   };
 }
@@ -217,8 +230,16 @@ export interface PipelineExecuteOptions {
   signal?: AbortSignal;
   /** 本次执行是否禁止仓库写入类副作用 */
   dryRun?: boolean;
+  /** Server-authenticated scope. Never populate from initialInput or Pipeline metadata. */
+  trustedRuntimeScope?: { tenantId: string; projectId: string };
   /** Surface 默认超时（毫秒） */
   surfaceTimeoutMs?: number;
+  /** Delivery-scoped Surface timeout overrides keyed by Surface ID. */
+  surfaceTimeouts?: Record<string, number>;
+  /** Delivery-scoped workspace policies keyed by implementation Surface ID. */
+  workspacePolicies?: Record<string, import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy>;
+  /** 与执行实例共同持久化的可审计元数据。 */
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================

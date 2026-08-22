@@ -12,7 +12,9 @@ import { IntentRouter } from '../intent/IntentRouter.js';
 import { eventBus } from '../event/EventBus.js';
 import { getGlobalMessageBus } from '../event/MessageBus.js';
 import { createGuardedAgentResult, isModelSpendGuardEnabled } from '../runtime/model-spend-guard.js';
+import { getGlobalManagedAgentWorkQueue, type ManagedAgentWorkQueue } from '../runtime/ManagedAgentWorkQueue.js';
 import { applyRuntimeModelSettings } from '../runtime/model-settings.js';
+import { RuntimeAdmissionController } from '../runtime/RuntimeAdmissionController.js';
 import { OPEN_FRAMEWORK_TEAM_PROFILE, materializeTeamAgents } from '../team-profile/index.js';
 import { createA2AMessage, getGlobalInProcessA2ATransport, teamProfileAgentToA2AAgentCard } from '../a2a/index.js';
 import type { IOrchestrator } from '../orchestrator/IOrchestrator.js';
@@ -47,7 +49,7 @@ export class TeamOrchestrator implements IOrchestrator {
   private workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   private tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   private extraCustomTools: any[] = [];
-  private maxConcurrency: number;
+  private admissionController: RuntimeAdmissionController;
   private maxDelegationDepth: number;
   private profileId: string;
   private profileName: string;
@@ -58,6 +60,7 @@ export class TeamOrchestrator implements IOrchestrator {
   private defaultModel: string;
   private apiKey: string;
   private baseUrl: string;
+  private managedAgentWorkQueue: ManagedAgentWorkQueue;
 
   constructor(config: TeamOrchestratorConfig) {
     this.agentConfigs = new Map();
@@ -67,7 +70,14 @@ export class TeamOrchestrator implements IOrchestrator {
 
     this.workflowStateManager = config.workflowStateManager;
     this.tokenBudgetManager = config.tokenBudgetManager;
-    this.maxConcurrency = config.maxConcurrency ?? 5;
+    this.admissionController = new RuntimeAdmissionController({
+      maxGlobal: config.maxConcurrency ?? 5,
+      maxPerAgent: config.maxConcurrencyPerAgent ?? 2,
+      maxPerModel: config.maxConcurrencyPerModel ?? 3,
+      maxPerSession: config.maxConcurrencyPerSession ?? 2,
+      maxQueueDepth: config.maxAdmissionQueueDepth ?? 100,
+      maxQueueWaitMs: config.maxAdmissionQueueWaitMs ?? 30_000,
+    });
     this.maxDelegationDepth = config.maxDelegationDepth ?? 3;
     this.profileId = config.profileId || 'custom';
     this.profileName = config.profileName || 'Custom Agent Team';
@@ -79,6 +89,7 @@ export class TeamOrchestrator implements IOrchestrator {
     this.defaultModel = config.defaultModel;
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl;
+    this.managedAgentWorkQueue = config.managedAgentWorkQueue || getGlobalManagedAgentWorkQueue();
 
     // 初始化 Hermes Agent Client
     this.hermesClient = new HermesAgentClient();
@@ -168,16 +179,44 @@ export class TeamOrchestrator implements IOrchestrator {
     signal?: AbortSignal;
     timeoutMs?: number;
     maxTokens?: number;
+    surfaceId?: string;
+    taskId?: string;
+    taskContract?: import('../runtime/ManagedAgentWorkQueue.js').ManagedTaskContract;
+    inputArtifactRefs?: import('../runtime/ManagedAgentWorkQueue.js').ManagedArtifactReference[];
+    workspacePolicy?: import('../runtime/ManagedCodeChangeVerification.js').ManagedWorkspacePolicy;
   }): Promise<AgentRunResult> {
     this.syncHermesAgentRegistry();
     const config = this.agentConfigs.get(agentId);
     if (!config) throw new Error(`Agent "${agentId}" not found`);
 
-    console.log(`[TeamOrchestrator] runAgent: ${agentId} → "${goal.substring(0, 60)}..."`);
+    const releaseAdmission = await this.admissionController.acquire({
+      agentId,
+      modelId: config.model,
+      sessionId,
+      signal: options?.signal,
+    });
+
+    try {
+      console.log(`[TeamOrchestrator] runAgent: ${agentId} → "${goal.substring(0, 60)}..."`);
 
     if (isModelSpendGuardEnabled()) {
-      console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}`);
-      return createGuardedAgentResult(agentId);
+      if (!this.managedAgentWorkQueue.hasActiveWorker(agentId)) {
+        console.warn(`[TeamOrchestrator] MODEL_SPEND_GUARD blocked live model call for ${agentId}; no managed worker available`);
+        return createGuardedAgentResult(agentId);
+      }
+      console.log(`[TeamOrchestrator] MODEL_SPEND_GUARD queued managed external work for ${agentId}`);
+      return this.managedAgentWorkQueue.enqueueAndWait({
+        agentId,
+        goal,
+        sessionId,
+        surfaceId: options?.surfaceId,
+        taskId: options?.taskId,
+        taskContract: options?.taskContract,
+        inputArtifactRefs: options?.inputArtifactRefs,
+        workspacePolicy: options?.workspacePolicy,
+        signal: options?.signal,
+        timeoutMs: options?.timeoutMs,
+      });
     }
 
     const budgetSessionId = sessionId || agentId;
@@ -210,7 +249,10 @@ export class TeamOrchestrator implements IOrchestrator {
       })),
     };
 
-    return agentResult;
+      return agentResult;
+    } finally {
+      releaseAdmission();
+    }
   }
 
   // ============================================================================
@@ -767,6 +809,7 @@ export class TeamOrchestrator implements IOrchestrator {
         model: a.model || 'default',
       })),
       sharedMemory: true, // MessageBus 提供共享通信能力
+      admission: this.admissionController.snapshot(),
     };
   }
 
@@ -880,6 +923,12 @@ export function createTeamOrchestrator(
     defaultAgentId?: string;
     arbitrationAgentId?: string;
     profile?: TeamProfile;
+    maxConcurrency?: number;
+    maxConcurrencyPerAgent?: number;
+    maxConcurrencyPerModel?: number;
+    maxConcurrencyPerSession?: number;
+    maxAdmissionQueueDepth?: number;
+    maxAdmissionQueueWaitMs?: number;
   },
 ): TeamOrchestrator {
   return new TeamOrchestrator({
@@ -893,6 +942,12 @@ export function createTeamOrchestrator(
     defaultAgentId: options?.defaultAgentId,
     arbitrationAgentId: options?.arbitrationAgentId,
     profile: options?.profile,
+    maxConcurrency: options?.maxConcurrency,
+    maxConcurrencyPerAgent: options?.maxConcurrencyPerAgent,
+    maxConcurrencyPerModel: options?.maxConcurrencyPerModel,
+    maxConcurrencyPerSession: options?.maxConcurrencyPerSession,
+    maxAdmissionQueueDepth: options?.maxAdmissionQueueDepth,
+    maxAdmissionQueueWaitMs: options?.maxAdmissionQueueWaitMs,
   });
 }
 
@@ -901,6 +956,13 @@ export function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
+  maxConcurrency?: number;
+  maxConcurrencyPerAgent?: number;
+  maxConcurrencyPerModel?: number;
+  maxConcurrencyPerSession?: number;
+  maxAdmissionQueueDepth?: number;
+  maxAdmissionQueueWaitMs?: number;
 }): TeamOrchestrator {
   const model = process.env.MODEL_NAME || 'mimo-v2.5-pro';
   const apiKey = process.env.API_KEY || '';
@@ -922,6 +984,13 @@ export function createProfileTeamOrchestrator(profile: TeamProfile, options?: {
     workflowStateManager: options?.workflowStateManager,
     tokenBudgetManager: options?.tokenBudgetManager,
     extraCustomTools: docKanbanTools,
+    managedAgentWorkQueue: options?.managedAgentWorkQueue,
+    maxConcurrency: options?.maxConcurrency,
+    maxConcurrencyPerAgent: options?.maxConcurrencyPerAgent,
+    maxConcurrencyPerModel: options?.maxConcurrencyPerModel,
+    maxConcurrencyPerSession: options?.maxConcurrencyPerSession,
+    maxAdmissionQueueDepth: options?.maxAdmissionQueueDepth,
+    maxAdmissionQueueWaitMs: options?.maxAdmissionQueueWaitMs,
   });
 }
 
@@ -930,6 +999,13 @@ export function createOpenTeamOrchestrator(options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
+  maxConcurrency?: number;
+  maxConcurrencyPerAgent?: number;
+  maxConcurrencyPerModel?: number;
+  maxConcurrencyPerSession?: number;
+  maxAdmissionQueueDepth?: number;
+  maxAdmissionQueueWaitMs?: number;
 }): TeamOrchestrator {
   return createProfileTeamOrchestrator(OPEN_FRAMEWORK_TEAM_PROFILE, options);
 }
@@ -940,6 +1016,7 @@ export function createDevTeamOrchestrator(options?: {
   workflowStateManager?: import('../session/WorkflowStateManager.js').WorkflowStateManager;
   tokenBudgetManager?: import('../telemetry/TokenBudgetManager.js').TokenBudgetManager;
   extraCustomTools?: any[];
+  managedAgentWorkQueue?: ManagedAgentWorkQueue;
 }): TeamOrchestrator {
   return createOpenTeamOrchestrator(options);
 }

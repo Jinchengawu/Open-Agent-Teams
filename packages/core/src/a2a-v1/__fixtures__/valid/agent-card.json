@@ -1,0 +1,27 @@
+{
+  "name": "DEV Backend Agent",
+  "description": "Implements bounded backend delivery tasks.",
+  "supportedInterfaces": [
+    {
+      "url": "https://agents.example.test/a2a/v1",
+      "protocolBinding": "HTTP+JSON",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "version": "0.1.0",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "extendedAgentCard": false
+  },
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/markdown", "application/json"],
+  "skills": [
+    {
+      "id": "backend-delivery",
+      "name": "Backend delivery",
+      "description": "Implements and verifies a bounded backend task.",
+      "tags": ["backend", "delivery"]
+    }
+  ]
+}

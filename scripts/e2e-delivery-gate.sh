@@ -113,6 +113,7 @@ run_cmd "startup scripts syntax" /bin/bash -n scripts/start-gateway.sh scripts/r
 run_cmd "core typecheck" pnpm --filter @open-agent-teams/core run check
 run_cmd "gateway build" pnpm --filter @open-agent-teams/gateway run build
 run_cmd "dashboard typecheck" pnpm --filter @open-agent-teams/dashboard exec tsc --noEmit
+run_cmd "coordination task projection contract" node packages/gateway/node_modules/tsx/dist/cli.mjs scripts/test-coordination-task-projection.ts
 
 for file in \
   "packages/core/src/team/TeamOrchestrator.ts" \
